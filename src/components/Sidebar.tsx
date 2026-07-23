@@ -56,14 +56,6 @@ export default function Sidebar() {
           );
         })}
       </nav>
-
-      <div className="border-t border-[var(--sidebar-border)] px-5 py-4">
-        <div className="text-[11px] leading-relaxed text-[var(--sidebar-ink)] opacity-60">
-          Data sourced from Azure APIM
-          <br />
-          Environment: stub
-        </div>
-      </div>
     </aside>
   );
 }

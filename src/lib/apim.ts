@@ -1,10 +1,11 @@
 // Azure API Management (APIM) client
 //
 // This is a thin fetch wrapper for calling the internal Azure APIM gateway.
-// Customers are wired to the real /getCustomers endpoint. Poles and Users are
-// still STUBBED with in-memory mock data until their endpoints exist — swap
-// the mock return for the `apimFetch<T>(...)` call (see the TODOs below) once
-// they're live.
+// Customers are wired to the real /getCustomers endpoint — getCustomers()
+// fetches the full list, getCustomer(id) uses the ?customerId= filter to
+// fetch just one record. Poles and Users are still STUBBED with in-memory
+// mock data until their endpoints exist — swap the mock return for the
+// `apimFetch<T>(...)` call (see the TODOs below) once they're live.
 //
 // Configure via environment variables (see .env.local.example):
 //   NEXT_PUBLIC_APIM_BASE_URL   defaults to https://lights-v2-apim.azure-api.net
@@ -12,6 +13,7 @@
 
 import type { Customer, CustomerProjectRef, Pole, User } from "./types";
 import { mockPoles, mockUsers } from "./mock-data";
+import { time } from "./timing";
 
 const APIM_BASE_URL =
   process.env.NEXT_PUBLIC_APIM_BASE_URL || "https://lights-v2-apim.azure-api.net";
@@ -40,21 +42,23 @@ export async function apimFetch<T>(
     );
   }
 
-  const res = await fetch(`${APIM_BASE_URL}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      "Ocp-Apim-Subscription-Key": APIM_SUBSCRIPTION_KEY,
-      ...init?.headers,
-    },
-    cache: "no-store",
+  return time(`apimFetch ${path}`, async () => {
+    const res = await fetch(`${APIM_BASE_URL}${path}`, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        "Ocp-Apim-Subscription-Key": APIM_SUBSCRIPTION_KEY,
+        ...init?.headers,
+      },
+      cache: "no-store",
+    });
+
+    if (!res.ok) {
+      throw new ApimError(`APIM request failed: ${path}`, res.status);
+    }
+
+    return res.json() as Promise<T>;
   });
-
-  if (!res.ok) {
-    throw new ApimError(`APIM request failed: ${path}`, res.status);
-  }
-
-  return res.json() as Promise<T>;
 }
 
 /** Small helper to simulate network latency for stubbed data during development. */
@@ -120,11 +124,15 @@ export async function getCustomers(): Promise<Customer[]> {
 }
 
 export async function getCustomer(id: string): Promise<Customer | undefined> {
-  // No single-customer endpoint is documented yet, so we fetch the full list
-  // and filter client-side. Swap for a dedicated GET /getCustomers/{id} (or
-  // similar) if/when one exists.
-  const customers = await getCustomers();
-  return customers.find((c) => c.id === id);
+  return time(`getCustomer(${id})`, async () => {
+    // /getCustomers accepts a customerId filter and returns just that record
+    // as a single object (confirmed — not wrapped in an array), so we no
+    // longer need to fetch and scan the full list for a lookup.
+    const raw = await apimFetch<RawCustomer | null>(
+      `/getCustomers?customerId=${encodeURIComponent(id)}`,
+    );
+    return raw ? normalizeCustomer(raw) : undefined;
+  });
 }
 
 // ---------------------------------------------------------------------------

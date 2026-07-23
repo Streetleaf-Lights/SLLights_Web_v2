@@ -153,7 +153,7 @@ describe("apimFetch", () => {
   });
 });
 
-describe("getCustomers / getCustomer", () => {
+describe("getCustomers", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
@@ -185,7 +185,7 @@ describe("getCustomers / getCustomer", () => {
     },
   ];
 
-  it("getCustomers normalizes every record from the API", async () => {
+  it("normalizes every record from the API", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({ ok: true, json: async () => rawCustomers }),
@@ -196,27 +196,67 @@ describe("getCustomers / getCustomer", () => {
     expect(customers).toHaveLength(2);
     expect(customers[1].projects).toEqual([{ id: "p1", name: "Bayou District Rebuild" }]);
   });
+});
 
-  it("getCustomer finds a customer by id from the full list", async () => {
+describe("getCustomer", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const rawCoastal: RawCustomer = {
+    id: "r2",
+    name: "Coastal Power & Light",
+    projectNames: JSON.stringify(["Bayou District Rebuild"]),
+    projectIds: JSON.stringify(["p1"]),
+    address: null,
+    city: "New Orleans",
+    state: "LA",
+    zip: null,
+    phone: "504-555-0132",
+    createdAt: "2026-02-11 14:20:05-05:00",
+  };
+
+  it("calls /getCustomers with a customerId filter rather than fetching the full list", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => rawCoastal });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getCustomer("r2");
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toContain("/getCustomers?customerId=r2");
+  });
+
+  it("normalizes the record returned as a single object", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue({ ok: true, json: async () => rawCustomers }),
+      vi.fn().mockResolvedValue({ ok: true, json: async () => rawCoastal }),
     );
 
     const customer = await getCustomer("r2");
 
     expect(customer?.name).toBe("Coastal Power & Light");
+    expect(customer?.projects).toEqual([{ id: "p1", name: "Bayou District Rebuild" }]);
   });
 
-  it("getCustomer returns undefined when no customer matches", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({ ok: true, json: async () => rawCustomers }),
-    );
+  it("returns undefined when the API returns null", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => null }));
 
     const customer = await getCustomer("does-not-exist");
 
     expect(customer).toBeUndefined();
+  });
+
+  it("URL-encodes the id in the query string", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => null });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getCustomer("rec with space");
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toContain("customerId=rec%20with%20space");
   });
 });
 
