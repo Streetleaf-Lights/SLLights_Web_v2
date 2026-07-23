@@ -67,7 +67,7 @@ function stubDelay<T>(value: T, ms = 200): Promise<T> {
 // ---------------------------------------------------------------------------
 
 /** Shape returned by GET /getCustomers before we normalize it. */
-interface RawCustomer {
+export interface RawCustomer {
   id: string;
   name: string;
   /** JSON-stringified string[], e.g. "[]" or '["Bayou District Rebuild"]' */
@@ -83,7 +83,7 @@ interface RawCustomer {
 }
 
 /** projectNames/projectIds arrive as JSON-stringified arrays; parse defensively. */
-function parseJsonStringArray(raw: string | null | undefined): string[] {
+export function parseJsonStringArray(raw: string | null | undefined): string[] {
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
@@ -93,7 +93,7 @@ function parseJsonStringArray(raw: string | null | undefined): string[] {
   }
 }
 
-function normalizeCustomer(raw: RawCustomer): Customer {
+export function normalizeCustomer(raw: RawCustomer): Customer {
   const names = parseJsonStringArray(raw.projectNames);
   const ids = parseJsonStringArray(raw.projectIds);
   const projects: CustomerProjectRef[] = names.map((name, i) => ({

@@ -1,7 +1,7 @@
 import type { User } from "@/lib/types";
 import { StatusBadge } from "@/components/StatusBadge";
 
-function initials(name: string) {
+export function initials(name: string) {
   return name
     .split(" ")
     .map((part) => part[0])

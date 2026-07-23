@@ -1,4 +1,4 @@
-function getPageWindow(current: number, total: number, size = 5): number[] {
+export function getPageWindow(current: number, total: number, size = 5): number[] {
   let start = Math.max(1, current - Math.floor(size / 2));
   const end = Math.min(total, start + size - 1);
   start = Math.max(1, end - size + 1);

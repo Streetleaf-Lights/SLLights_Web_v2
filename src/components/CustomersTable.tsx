@@ -30,7 +30,7 @@ function ChevronIcon({ open }: { open: boolean }) {
   );
 }
 
-function formatLocation(customer: Customer): string {
+export function formatLocation(customer: Customer): string {
   if (customer.city && customer.state) return `${customer.city}, ${customer.state}`;
   if (customer.state) return customer.state;
   if (customer.city) return customer.city;
