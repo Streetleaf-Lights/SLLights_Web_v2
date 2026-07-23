@@ -1,6 +1,6 @@
 import { getPoles } from "@/lib/apim";
 import { PageHeader } from "@/components/PageHeader";
-import { PrimaryButton, StubNotice, Toolbar } from "@/components/Toolbar";
+import { StubNotice, Toolbar } from "@/components/Toolbar";
 import { PolesTable } from "@/components/PolesTable";
 
 const STATUS_FILTERS = ["All", "Active", "Planned", "Flagged", "Decommissioned"] as const;
@@ -13,7 +13,6 @@ export default async function PolesPage() {
       <PageHeader
         title="Poles"
         description="Every pole across all customers and projects."
-        actions={<PrimaryButton>Add pole</PrimaryButton>}
       />
       <Toolbar
         searchPlaceholder="Search by asset tag…"

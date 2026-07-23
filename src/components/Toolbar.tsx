@@ -4,11 +4,18 @@ export function Toolbar({
   searchPlaceholder,
   resultCount,
   children,
+  value,
+  onChange,
 }: {
   searchPlaceholder: string;
   resultCount?: string;
   children?: ReactNode;
+  /** When provided along with onChange, the search input becomes live/controlled. */
+  value?: string;
+  onChange?: (value: string) => void;
 }) {
+  const isControlled = onChange !== undefined;
+
   return (
     <div className="flex items-center justify-between gap-4 px-8 py-4">
       <div className="flex items-center gap-3">
@@ -24,8 +31,10 @@ export function Toolbar({
           <input
             type="text"
             placeholder={searchPlaceholder}
-            className="w-72 rounded-md border border-[var(--border)] bg-[var(--surface)] py-2 pl-9 pr-3 text-[13px] text-[var(--ink)] placeholder:text-[var(--ink-faint)] focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft)]"
-            disabled
+            className="w-72 rounded-md border border-[var(--border)] bg-[var(--surface)] py-2 pl-9 pr-3 text-[13px] text-[var(--ink)] placeholder:text-[var(--ink-faint)] focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft)] disabled:cursor-not-allowed"
+            value={isControlled ? value : undefined}
+            onChange={isControlled ? (e) => onChange(e.target.value) : undefined}
+            disabled={!isControlled}
           />
         </div>
         {resultCount && (

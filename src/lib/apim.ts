@@ -1,19 +1,20 @@
 // Azure API Management (APIM) client
 //
 // This is a thin fetch wrapper for calling the internal Azure APIM gateway.
-// Every resource function below (getCustomers, getPoles, getUsers, ...) is
-// currently STUBBED with in-memory mock data so the pages can be built and
-// reviewed before the APIM routes exist. Swap the mock return for the
-// `apimFetch<T>(...)` call once the corresponding endpoint is live.
+// Customers are wired to the real /getCustomers endpoint. Poles and Users are
+// still STUBBED with in-memory mock data until their endpoints exist — swap
+// the mock return for the `apimFetch<T>(...)` call (see the TODOs below) once
+// they're live.
 //
 // Configure via environment variables (see .env.local.example):
-//   NEXT_PUBLIC_APIM_BASE_URL   e.g. https://my-org.azure-api.net/internal
+//   NEXT_PUBLIC_APIM_BASE_URL   defaults to https://lights-v2-apim.azure-api.net
 //   APIM_SUBSCRIPTION_KEY       Ocp-Apim-Subscription-Key (server-side only)
 
-import type { Customer, Pole, Project, User } from "./types";
-import { mockCustomers, mockPoles, mockProjects, mockUsers } from "./mock-data";
+import type { Customer, CustomerProjectRef, Pole, User } from "./types";
+import { mockPoles, mockUsers } from "./mock-data";
 
-const APIM_BASE_URL = process.env.NEXT_PUBLIC_APIM_BASE_URL ?? "";
+const APIM_BASE_URL =
+  process.env.NEXT_PUBLIC_APIM_BASE_URL || "https://lights-v2-apim.azure-api.net";
 const APIM_SUBSCRIPTION_KEY = process.env.APIM_SUBSCRIPTION_KEY ?? "";
 
 export class ApimError extends Error {
@@ -28,7 +29,6 @@ export class ApimError extends Error {
 
 /**
  * Generic authenticated fetch against the APIM gateway.
- * Not yet wired into any page — used once real endpoints are available.
  */
 export async function apimFetch<T>(
   path: string,
@@ -66,25 +66,65 @@ function stubDelay<T>(value: T, ms = 200): Promise<T> {
 // Customers
 // ---------------------------------------------------------------------------
 
+/** Shape returned by GET /getCustomers before we normalize it. */
+interface RawCustomer {
+  id: string;
+  name: string;
+  /** JSON-stringified string[], e.g. "[]" or '["Bayou District Rebuild"]' */
+  projectNames: string;
+  /** JSON-stringified string[], parallel to projectNames */
+  projectIds: string;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+  phone: string | null;
+  createdAt: string;
+}
+
+/** projectNames/projectIds arrive as JSON-stringified arrays; parse defensively. */
+function parseJsonStringArray(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
+function normalizeCustomer(raw: RawCustomer): Customer {
+  const names = parseJsonStringArray(raw.projectNames);
+  const ids = parseJsonStringArray(raw.projectIds);
+  const projects: CustomerProjectRef[] = names.map((name, i) => ({
+    id: ids[i] ?? `${raw.id}-project-${i}`,
+    name,
+  }));
+
+  return {
+    id: raw.id,
+    name: raw.name,
+    projects,
+    address: raw.address,
+    city: raw.city,
+    state: raw.state,
+    zip: raw.zip,
+    phone: raw.phone,
+    createdAt: raw.createdAt,
+  };
+}
+
 export async function getCustomers(): Promise<Customer[]> {
-  // TODO: replace with apimFetch<Customer[]>("/customers")
-  return stubDelay(mockCustomers);
+  const raw = await apimFetch<RawCustomer[]>("/getCustomers");
+  return raw.map(normalizeCustomer);
 }
 
 export async function getCustomer(id: string): Promise<Customer | undefined> {
-  // TODO: replace with apimFetch<Customer>(`/customers/${id}`)
-  return stubDelay(mockCustomers.find((c) => c.id === id));
-}
-
-// ---------------------------------------------------------------------------
-// Projects
-// ---------------------------------------------------------------------------
-
-export async function getProjectsForCustomer(
-  customerId: string,
-): Promise<Project[]> {
-  // TODO: replace with apimFetch<Project[]>(`/customers/${customerId}/projects`)
-  return stubDelay(mockProjects.filter((p) => p.customerId === customerId));
+  // No single-customer endpoint is documented yet, so we fetch the full list
+  // and filter client-side. Swap for a dedicated GET /getCustomers/{id} (or
+  // similar) if/when one exists.
+  const customers = await getCustomers();
+  return customers.find((c) => c.id === id);
 }
 
 // ---------------------------------------------------------------------------
@@ -109,3 +149,4 @@ export async function getUsers(): Promise<User[]> {
   // TODO: replace with apimFetch<User[]>("/users")
   return stubDelay(mockUsers);
 }
+
