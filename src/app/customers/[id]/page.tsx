@@ -1,7 +1,9 @@
 import Link from "next/link";
-import { getCustomer } from "@/lib/apim";
+import { getCustomer, getProjectsForCustomer } from "@/lib/apim";
 import { PageHeader } from "@/components/PageHeader";
 import { Breadcrumbs, customersCrumb } from "@/components/Breadcrumbs";
+import { StatBox } from "@/components/StatBox";
+import { StatGroup } from "@/components/StatGroup";
 import { withQueryParam } from "@/lib/url";
 import { initials } from "@/lib/text";
 import type { Customer } from "@/lib/types";
@@ -46,8 +48,14 @@ export default async function CustomerDetailPage({
     );
   }
 
+  const projects = await getProjectsForCustomer(customer.id);
   const addressLine = formatFullAddress(customer);
-  const projectCount = customer.projects.length;
+  const projectCount = projects.length;
+  const totalLights = projects.reduce((sum, project) => sum + project.polesUnderContract, 0);
+  // TODO: wire up once the API exposes real "lights working" / "total faults"
+  // figures per project — no such fields exist on /getProjects yet.
+  const lightsWorking = "—";
+  const totalFaults = "—";
 
   return (
     <>
@@ -72,30 +80,33 @@ export default async function CustomerDetailPage({
             )}
           </div>
         </div>
-        <div
-          className="shrink-0 rounded-lg border border-[var(--border)] bg-[var(--surface-sunken)] px-4 py-2 text-center"
-          aria-label={`${projectCount} ${projectCount === 1 ? "project" : "projects"}`}
-        >
-          <div className="text-[20px] font-semibold leading-tight text-[var(--ink)]">
-            {projectCount}
-          </div>
-          <div className="text-[11px] uppercase tracking-wide text-[var(--ink-faint)]">
-            {projectCount === 1 ? "Project" : "Projects"}
-          </div>
+        <StatBox value={projectCount} label={projectCount === 1 ? "Project" : "Projects"} />
+      </div>
+
+      <div className="mx-8 mt-6">
+        <div className="mb-3 text-[11px] uppercase tracking-wide text-[var(--ink-muted)]">
+          Summary
         </div>
+        <StatGroup
+          stats={[
+            { value: totalLights, label: "Total lights" },
+            { value: lightsWorking, label: "Lights working" },
+            { value: totalFaults, label: "Total faults" },
+          ]}
+        />
       </div>
 
       <div className="mx-8 mt-6">
         <div className="mb-3 text-[11px] uppercase tracking-wide text-[var(--ink-muted)]">
           Projects
         </div>
-        {customer.projects.length === 0 ? (
+        {projects.length === 0 ? (
           <p className="text-[12.5px] text-[var(--ink-faint)]">
             No projects on file for this customer yet.
           </p>
         ) : (
           <div className="flex flex-col gap-1.5">
-            {customer.projects.map((project) => (
+            {projects.map((project) => (
               <Link
                 key={project.id}
                 href={withQueryParam(
@@ -103,17 +114,24 @@ export default async function CustomerDetailPage({
                   "cust_q",
                   cust_q,
                 )}
-                className="flex items-center justify-between rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 hover:bg-[var(--surface-sunken)]"
+                className="flex items-center justify-between gap-3 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 hover:bg-[var(--surface-sunken)]"
               >
-                <span className="flex items-center gap-2 text-[13px] font-medium text-[var(--ink)] hover:underline">
+                <span className="flex min-w-0 items-center gap-2 text-[13px] font-medium text-[var(--ink)] hover:underline">
                   <span
                     className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent)]"
                     aria-hidden="true"
                   />
-                  {project.name}
+                  <span className="truncate">{project.name}</span>
                 </span>
-                <span className="font-mono-data text-[11.5px] text-[var(--ink-faint)]">
-                  {project.id}
+                <span className="shrink-0">
+                  <StatGroup
+                    size="sm"
+                    stats={[
+                      { value: project.polesUnderContract, label: "Total lights" },
+                      { value: lightsWorking, label: "Lights working" },
+                      { value: totalFaults, label: "Total faults" },
+                    ]}
+                  />
                 </span>
               </Link>
             ))}

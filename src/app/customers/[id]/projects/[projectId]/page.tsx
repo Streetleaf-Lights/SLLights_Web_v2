@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { getCustomer } from "@/lib/apim";
+import { getCustomer, getProjectsForCustomer } from "@/lib/apim";
 import { PageHeader } from "@/components/PageHeader";
 import { Breadcrumbs, customersCrumb } from "@/components/Breadcrumbs";
+import { StatGroup } from "@/components/StatGroup";
 import { withQueryParam } from "@/lib/url";
 
 export default async function ProjectDetailPage({
@@ -13,8 +14,11 @@ export default async function ProjectDetailPage({
 }) {
   const { id, projectId } = await params;
   const { cust_q } = await searchParams;
-  const customer = await getCustomer(id);
-  const project = customer?.projects.find((p) => p.id === projectId);
+  const [customer, projects] = await Promise.all([
+    getCustomer(id),
+    getProjectsForCustomer(id),
+  ]);
+  const project = projects.find((p) => p.id === projectId);
 
   const customersHref = withQueryParam("/customers", "cust_q", cust_q);
   const customerHref = customer
@@ -42,6 +46,11 @@ export default async function ProjectDetailPage({
     );
   }
 
+  // TODO: wire up once the API exposes real "lights working" / "total
+  // faults" figures per project — no such fields exist on /getProjects yet.
+  const lightsWorking = "—";
+  const totalFaults = "—";
+
   return (
     <>
       <Breadcrumbs
@@ -53,6 +62,19 @@ export default async function ProjectDetailPage({
         <h1 className="text-[20px] font-semibold leading-tight tracking-tight text-[var(--ink)]">
           {project.name}
         </h1>
+      </div>
+
+      <div className="mx-8 mt-6">
+        <div className="mb-3 text-[11px] uppercase tracking-wide text-[var(--ink-muted)]">
+          Light Status
+        </div>
+        <StatGroup
+          stats={[
+            { value: project.polesUnderContract, label: "Total lights" },
+            { value: lightsWorking, label: "Lights working" },
+            { value: totalFaults, label: "Total faults" },
+          ]}
+        />
       </div>
     </>
   );

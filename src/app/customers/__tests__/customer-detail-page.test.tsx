@@ -1,11 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
-import type { Customer } from "@/lib/types";
+import type { Customer, Project } from "@/lib/types";
 
-const { getCustomerMock } = vi.hoisted(() => ({ getCustomerMock: vi.fn() }));
+const { getCustomerMock, getProjectsForCustomerMock } = vi.hoisted(() => ({
+  getCustomerMock: vi.fn(),
+  getProjectsForCustomerMock: vi.fn(),
+}));
 
 vi.mock("@/lib/apim", () => ({
   getCustomer: getCustomerMock,
+  getProjectsForCustomer: getProjectsForCustomerMock,
 }));
 
 import CustomerDetailPage from "@/app/customers/[id]/page";
@@ -25,9 +29,35 @@ const customer: Customer = {
   createdAt: "2026-02-11 14:20:05-05:00",
 };
 
+const projects: Project[] = [
+  {
+    id: "p1",
+    name: "Bayou District Rebuild",
+    customerId: "r2",
+    poleNumbers: ["51079-1000"],
+    poleIds: ["rec1"],
+    polesUnderContract: 4,
+    effectiveDate: "2024-11-25",
+    installDates: ["2025-05-23"],
+    createdAt: "2024-12-13 12:02:12-05:00",
+  },
+  {
+    id: "p2",
+    name: "Storm Hardening Phase 2",
+    customerId: "r2",
+    poleNumbers: ["51079-2000", "51079-2001"],
+    poleIds: ["rec2", "rec3"],
+    polesUnderContract: 10,
+    effectiveDate: "2025-01-15",
+    installDates: [],
+    createdAt: "2025-01-10 09:00:00-05:00",
+  },
+];
+
 describe("CustomerDetailPage", () => {
   it("renders the customer name as the heading", async () => {
     getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
     const jsx = await CustomerDetailPage({
       params: Promise.resolve({ id: "r2" }),
       searchParams: Promise.resolve({}),
@@ -39,6 +69,7 @@ describe("CustomerDetailPage", () => {
 
   it("does not repeat the customer name in the breadcrumb — it's already the page heading", async () => {
     getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
     const jsx = await CustomerDetailPage({
       params: Promise.resolve({ id: "r2" }),
       searchParams: Promise.resolve({}),
@@ -54,6 +85,7 @@ describe("CustomerDetailPage", () => {
 
   it("renders the initials avatar in the header", async () => {
     getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
     const jsx = await CustomerDetailPage({
       params: Promise.resolve({ id: "r2" }),
       searchParams: Promise.resolve({}),
@@ -65,6 +97,7 @@ describe("CustomerDetailPage", () => {
 
   it("renders the combined address line below the customer name", async () => {
     getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
     const jsx = await CustomerDetailPage({
       params: Promise.resolve({ id: "r2" }),
       searchParams: Promise.resolve({}),
@@ -84,6 +117,7 @@ describe("CustomerDetailPage", () => {
       state: null,
       zip: null,
     });
+    getProjectsForCustomerMock.mockResolvedValue(projects);
     const jsx = await CustomerDetailPage({
       params: Promise.resolve({ id: "r2" }),
       searchParams: Promise.resolve({}),
@@ -93,33 +127,33 @@ describe("CustomerDetailPage", () => {
     expect(screen.queryByText(/Harbor Ave/)).not.toBeInTheDocument();
   });
 
-  it("shows the project count in the header", async () => {
+  it("shows the project count in the header, from the real /getProjects list", async () => {
     getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
     const jsx = await CustomerDetailPage({
       params: Promise.resolve({ id: "r2" }),
       searchParams: Promise.resolve({}),
     });
     render(jsx);
 
-    expect(screen.getByLabelText("2 projects")).toBeInTheDocument();
+    expect(screen.getByLabelText("2 Projects")).toBeInTheDocument();
   });
 
   it("uses the singular 'Project' label when there is exactly one", async () => {
-    getCustomerMock.mockResolvedValue({
-      ...customer,
-      projects: [{ id: "p1", name: "Bayou District Rebuild" }],
-    });
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue([projects[0]]);
     const jsx = await CustomerDetailPage({
       params: Promise.resolve({ id: "r2" }),
       searchParams: Promise.resolve({}),
     });
     render(jsx);
 
-    expect(screen.getByLabelText("1 project")).toBeInTheDocument();
+    expect(screen.getByLabelText("1 Project")).toBeInTheDocument();
   });
 
   it("renders the phone number in the header", async () => {
     getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
     const jsx = await CustomerDetailPage({
       params: Promise.resolve({ id: "r2" }),
       searchParams: Promise.resolve({}),
@@ -131,6 +165,7 @@ describe("CustomerDetailPage", () => {
 
   it("omits the phone line when there is no phone on file", async () => {
     getCustomerMock.mockResolvedValue({ ...customer, phone: null });
+    getProjectsForCustomerMock.mockResolvedValue(projects);
     const jsx = await CustomerDetailPage({
       params: Promise.resolve({ id: "r2" }),
       searchParams: Promise.resolve({}),
@@ -142,6 +177,7 @@ describe("CustomerDetailPage", () => {
 
   it("does not render the stub notice or the customer id anywhere", async () => {
     getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
     const jsx = await CustomerDetailPage({
       params: Promise.resolve({ id: "r2" }),
       searchParams: Promise.resolve({}),
@@ -152,26 +188,103 @@ describe("CustomerDetailPage", () => {
     expect(screen.queryByText("r2")).not.toBeInTheDocument();
   });
 
-  it("shows the Projects section heading outside any bordered box", async () => {
+  it("shows a Summary heading with the total lights across all projects", async () => {
     getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
     const jsx = await CustomerDetailPage({
       params: Promise.resolve({ id: "r2" }),
       searchParams: Promise.resolve({}),
     });
     render(jsx);
 
-    // "Projects" appears twice: the header's boxed project-count stat, and
-    // the section heading above the list — only the latter should be free
-    // of any bordered container.
-    const projectsLabels = screen.getAllByText("Projects");
-    expect(projectsLabels).toHaveLength(2);
-    const sectionHeading = projectsLabels.find((el) => el.className.includes("mb-3"));
-    expect(sectionHeading).toBeTruthy();
-    expect(sectionHeading?.closest(".rounded-lg")).toBeNull();
+    expect(screen.getByText("Summary")).toBeInTheDocument();
+    // 4 + 10 = 14
+    expect(screen.getByLabelText("14 Total lights")).toBeInTheDocument();
+  });
+
+  it("shows stub placeholders for Lights working and Total faults in the summary", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    const jsx = await CustomerDetailPage({
+      params: Promise.resolve({ id: "r2" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    const summaryHeading = screen.getByText("Summary");
+    const summaryRow = within(summaryHeading.parentElement as HTMLElement);
+    expect(summaryRow.getByLabelText("— Lights working")).toBeInTheDocument();
+    expect(summaryRow.getByLabelText("— Total faults")).toBeInTheDocument();
+  });
+
+  it("shows 0 total lights in the summary when there are no projects", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue([]);
+    const jsx = await CustomerDetailPage({
+      params: Promise.resolve({ id: "r2" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(screen.getByLabelText("0 Total lights")).toBeInTheDocument();
+  });
+
+  it("shows each project's total lights in a boxed stat next to its name", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    const jsx = await CustomerDetailPage({
+      params: Promise.resolve({ id: "r2" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    const row = screen.getByRole("link", { name: /Bayou District Rebuild/ });
+    const rowStat = within(row).getByLabelText("4 Total lights");
+    expect(rowStat).toBeInTheDocument();
+    // The stat itself is one column inside a shared box — the box (its
+    // grandparent) carries the border/rounded styling, not each column.
+    const box = rowStat.parentElement?.parentElement;
+    expect(box?.className).toContain("rounded-lg");
+    expect(box?.className).toContain("border");
+    // Uses the smaller size in row context.
+    expect(rowStat.querySelector("div")?.className).toContain("text-[13px]");
+
+    expect(within(row).getByLabelText("— Lights working")).toBeInTheDocument();
+    expect(within(row).getByLabelText("— Total faults")).toBeInTheDocument();
+  });
+
+  it("does not render a Project ID column", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    const jsx = await CustomerDetailPage({
+      params: Promise.resolve({ id: "r2" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(screen.queryByText("p1")).not.toBeInTheDocument();
+    expect(screen.queryByText("p2")).not.toBeInTheDocument();
+  });
+
+  it("shows the Projects section heading outside any bordered box", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    const jsx = await CustomerDetailPage({
+      params: Promise.resolve({ id: "r2" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    const sectionHeadings = screen
+      .getAllByText("Projects")
+      .filter((el) => el.className.includes("mb-3"));
+    expect(sectionHeadings).toHaveLength(1);
+    expect(sectionHeadings[0].closest(".rounded-lg")).toBeNull();
   });
 
   it("does not wrap the project list itself in a bordered box", async () => {
     getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
     const jsx = await CustomerDetailPage({
       params: Promise.resolve({ id: "r2" }),
       searchParams: Promise.resolve({}),
@@ -186,6 +299,7 @@ describe("CustomerDetailPage", () => {
 
   it("links each project to its detail page", async () => {
     getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
     const jsx = await CustomerDetailPage({
       params: Promise.resolve({ id: "r2" }),
       searchParams: Promise.resolve({}),
@@ -200,6 +314,7 @@ describe("CustomerDetailPage", () => {
 
   it("carries the ?cust_q= search param into the breadcrumb and project links", async () => {
     getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
     const jsx = await CustomerDetailPage({
       params: Promise.resolve({ id: "r2" }),
       searchParams: Promise.resolve({ cust_q: "coastal" }),
@@ -216,7 +331,8 @@ describe("CustomerDetailPage", () => {
   });
 
   it("shows a message when the customer has no projects", async () => {
-    getCustomerMock.mockResolvedValue({ ...customer, projects: [] });
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue([]);
     const jsx = await CustomerDetailPage({
       params: Promise.resolve({ id: "r2" }),
       searchParams: Promise.resolve({}),

@@ -3,9 +3,11 @@
 // This is a thin fetch wrapper for calling the internal Azure APIM gateway.
 // Customers are wired to the real /getCustomers endpoint — getCustomers()
 // fetches the full list, getCustomer(id) uses the ?customerId= filter to
-// fetch just one record. Poles and Users are still STUBBED with in-memory
-// mock data until their endpoints exist — swap the mock return for the
-// `apimFetch<T>(...)` call (see the TODOs below) once they're live.
+// fetch just one record. Projects are wired to the real /getProjects
+// endpoint via getProjectsForCustomer(customerId). Poles and Users are still
+// STUBBED with in-memory mock data until their endpoints exist — swap the
+// mock return for the `apimFetch<T>(...)` call (see the TODOs below) once
+// they're live.
 //
 // Configure via environment variables (see .env.local.example):
 //   NEXT_PUBLIC_APIM_BASE_URL   defaults to https://lights-v2-apim.azure-api.net
@@ -13,7 +15,7 @@
 //   APIM_CACHE_SECONDS          how long responses are cached before Next.js
 //                               revalidates in the background (default 30)
 
-import type { Customer, CustomerProjectRef, Pole, User } from "./types";
+import type { Customer, CustomerProjectRef, Pole, Project, User } from "./types";
 import { mockPoles, mockUsers } from "./mock-data";
 import { time } from "./timing";
 
@@ -144,6 +146,47 @@ export async function getCustomer(id: string): Promise<Customer | undefined> {
     );
     return raw ? normalizeCustomer(raw) : undefined;
   });
+}
+
+// ---------------------------------------------------------------------------
+// Projects
+// ---------------------------------------------------------------------------
+
+/** Shape returned by GET /getProjects?customerId=... before we normalize it. */
+export interface RawProject {
+  id: string;
+  name: string;
+  /** JSON-stringified string[] */
+  poleNumbers: string;
+  /** JSON-stringified string[], parallel to poleNumbers */
+  poleIds: string;
+  customerId: string;
+  polesUnderContract: number;
+  effectiveDate: string;
+  /** JSON-stringified string[] */
+  installDates: string;
+  createdAt: string;
+}
+
+export function normalizeProject(raw: RawProject): Project {
+  return {
+    id: raw.id,
+    name: raw.name,
+    customerId: raw.customerId,
+    poleNumbers: parseJsonStringArray(raw.poleNumbers),
+    poleIds: parseJsonStringArray(raw.poleIds),
+    polesUnderContract: raw.polesUnderContract,
+    effectiveDate: raw.effectiveDate,
+    installDates: parseJsonStringArray(raw.installDates),
+    createdAt: raw.createdAt,
+  };
+}
+
+export async function getProjectsForCustomer(customerId: string): Promise<Project[]> {
+  const raw = await apimFetch<RawProject[]>(
+    `/getProjects?customerId=${encodeURIComponent(customerId)}`,
+  );
+  return raw.map(normalizeProject);
 }
 
 // ---------------------------------------------------------------------------

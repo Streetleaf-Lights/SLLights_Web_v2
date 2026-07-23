@@ -1,9 +1,10 @@
 // Domain model
 //
 // Hierarchy: Customer -> Project -> Pole
-// Customers carry their project names/ids inline (see CustomerProjectRef) rather
-// than through a separate Project resource. Users are managed separately
-// (application accounts, not part of the customer hierarchy).
+// Customers carry basic project name/id references inline (see
+// CustomerProjectRef); the full Project record (poles under contract, dates,
+// etc.) comes from a separate /getProjects?customerId= lookup. Users are
+// managed separately (application accounts, not part of the customer hierarchy).
 
 export type PoleStatus = "active" | "planned" | "decommissioned" | "flagged";
 
@@ -24,6 +25,19 @@ export interface Customer {
   state: string | null;
   zip: string | null;
   phone: string | null;
+  createdAt: string;
+}
+
+/** Full project record from GET /getProjects?customerId=... */
+export interface Project {
+  id: string;
+  name: string;
+  customerId: string;
+  poleNumbers: string[];
+  poleIds: string[];
+  polesUnderContract: number;
+  effectiveDate: string;
+  installDates: string[];
   createdAt: string;
 }
 

@@ -6,10 +6,13 @@ import {
   getCustomers,
   getPole,
   getPoles,
+  getProjectsForCustomer,
   getUsers,
   normalizeCustomer,
+  normalizeProject,
   parseJsonStringArray,
   type RawCustomer,
+  type RawProject,
 } from "@/lib/apim";
 
 describe("parseJsonStringArray", () => {
@@ -269,6 +272,107 @@ describe("getCustomer", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await getCustomer("rec with space");
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toContain("customerId=rec%20with%20space");
+  });
+});
+
+describe("normalizeProject", () => {
+  const raw: RawProject = {
+    id: "recRHN9eR4itukKGo",
+    name: "29N Greene - Creekside Amenity-VA",
+    poleNumbers: JSON.stringify(["51079-1000", "51079-1001", "51079-1002", "51079-1003"]),
+    poleIds: JSON.stringify([
+      "rec1NE6PGdnlNfDTL",
+      "rec2GKUi0g856OAqC",
+      "rec70ph1TOQ07WoK9",
+      "rec0763poEAWiWIiE",
+    ]),
+    customerId: "recRYzYBqtW5CIVhn",
+    polesUnderContract: 4,
+    effectiveDate: "2024-11-25",
+    installDates: JSON.stringify(["2025-05-23"]),
+    createdAt: "2024-12-13 12:02:12-05:00",
+  };
+
+  it("parses poleNumbers/poleIds/installDates from their JSON-stringified form", () => {
+    const project = normalizeProject(raw);
+    expect(project.poleNumbers).toEqual([
+      "51079-1000",
+      "51079-1001",
+      "51079-1002",
+      "51079-1003",
+    ]);
+    expect(project.poleIds).toEqual([
+      "rec1NE6PGdnlNfDTL",
+      "rec2GKUi0g856OAqC",
+      "rec70ph1TOQ07WoK9",
+      "rec0763poEAWiWIiE",
+    ]);
+    expect(project.installDates).toEqual(["2025-05-23"]);
+  });
+
+  it("passes through the scalar fields unchanged", () => {
+    const project = normalizeProject(raw);
+    expect(project.id).toBe("recRHN9eR4itukKGo");
+    expect(project.name).toBe("29N Greene - Creekside Amenity-VA");
+    expect(project.customerId).toBe("recRYzYBqtW5CIVhn");
+    expect(project.polesUnderContract).toBe(4);
+    expect(project.effectiveDate).toBe("2024-11-25");
+    expect(project.createdAt).toBe("2024-12-13 12:02:12-05:00");
+  });
+});
+
+describe("getProjectsForCustomer", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const rawProjects: RawProject[] = [
+    {
+      id: "recRHN9eR4itukKGo",
+      name: "29N Greene - Creekside Amenity-VA",
+      poleNumbers: JSON.stringify(["51079-1000"]),
+      poleIds: JSON.stringify(["rec1NE6PGdnlNfDTL"]),
+      customerId: "recRYzYBqtW5CIVhn",
+      polesUnderContract: 4,
+      effectiveDate: "2024-11-25",
+      installDates: JSON.stringify(["2025-05-23"]),
+      createdAt: "2024-12-13 12:02:12-05:00",
+    },
+  ];
+
+  it("calls /getProjects with a customerId filter", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => rawProjects });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getProjectsForCustomer("recRYzYBqtW5CIVhn");
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toContain("/getProjects?customerId=recRYzYBqtW5CIVhn");
+  });
+
+  it("normalizes every project returned", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, json: async () => rawProjects }),
+    );
+
+    const projects = await getProjectsForCustomer("recRYzYBqtW5CIVhn");
+
+    expect(projects).toHaveLength(1);
+    expect(projects[0].polesUnderContract).toBe(4);
+    expect(projects[0].poleNumbers).toEqual(["51079-1000"]);
+  });
+
+  it("URL-encodes the customerId in the query string", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => [] });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getProjectsForCustomer("rec with space");
 
     const [url] = fetchMock.mock.calls[0];
     expect(url).toContain("customerId=rec%20with%20space");

@@ -1,11 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
-import type { Customer } from "@/lib/types";
+import type { Customer, Project } from "@/lib/types";
 
-const { getCustomerMock } = vi.hoisted(() => ({ getCustomerMock: vi.fn() }));
+const { getCustomerMock, getProjectsForCustomerMock } = vi.hoisted(() => ({
+  getCustomerMock: vi.fn(),
+  getProjectsForCustomerMock: vi.fn(),
+}));
 
 vi.mock("@/lib/apim", () => ({
   getCustomer: getCustomerMock,
+  getProjectsForCustomer: getProjectsForCustomerMock,
 }));
 
 import ProjectDetailPage from "@/app/customers/[id]/projects/[projectId]/page";
@@ -25,9 +29,35 @@ const customer: Customer = {
   createdAt: "2026-02-11 14:20:05-05:00",
 };
 
+const projects: Project[] = [
+  {
+    id: "p1",
+    name: "Bayou District Rebuild",
+    customerId: "r2",
+    poleNumbers: ["51079-1000"],
+    poleIds: ["rec1"],
+    polesUnderContract: 4,
+    effectiveDate: "2024-11-25",
+    installDates: ["2025-05-23"],
+    createdAt: "2024-12-13 12:02:12-05:00",
+  },
+  {
+    id: "p2",
+    name: "Storm Hardening Phase 2",
+    customerId: "r2",
+    poleNumbers: [],
+    poleIds: [],
+    polesUnderContract: 10,
+    effectiveDate: "2025-01-15",
+    installDates: [],
+    createdAt: "2025-01-10 09:00:00-05:00",
+  },
+];
+
 describe("ProjectDetailPage", () => {
   it("renders the project name as the heading", async () => {
     getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
     const jsx = await ProjectDetailPage({
       params: Promise.resolve({ id: "r2", projectId: "p1" }),
       searchParams: Promise.resolve({}),
@@ -39,6 +69,7 @@ describe("ProjectDetailPage", () => {
 
   it("renders the breadcrumb trail: Customers / Customer / Project", async () => {
     getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
     const jsx = await ProjectDetailPage({
       params: Promise.resolve({ id: "r2", projectId: "p1" }),
       searchParams: Promise.resolve({}),
@@ -58,6 +89,7 @@ describe("ProjectDetailPage", () => {
 
   it("does not repeat the project name in the breadcrumb — it's already the page heading", async () => {
     getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
     const jsx = await ProjectDetailPage({
       params: Promise.resolve({ id: "r2", projectId: "p1" }),
       searchParams: Promise.resolve({}),
@@ -72,6 +104,7 @@ describe("ProjectDetailPage", () => {
 
   it("carries the ?cust_q= search param into the breadcrumb links", async () => {
     getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
     const jsx = await ProjectDetailPage({
       params: Promise.resolve({ id: "r2", projectId: "p1" }),
       searchParams: Promise.resolve({ cust_q: "coastal" }),
@@ -90,6 +123,7 @@ describe("ProjectDetailPage", () => {
 
   it("shows the customer name above the project name as plain text (not a link)", async () => {
     getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
     const jsx = await ProjectDetailPage({
       params: Promise.resolve({ id: "r2", projectId: "p1" }),
       searchParams: Promise.resolve({}),
@@ -118,6 +152,7 @@ describe("ProjectDetailPage", () => {
 
   it("colors the header's customer name teal", async () => {
     getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
     const jsx = await ProjectDetailPage({
       params: Promise.resolve({ id: "r2", projectId: "p1" }),
       searchParams: Promise.resolve({}),
@@ -132,6 +167,7 @@ describe("ProjectDetailPage", () => {
 
   it("does not render the stub notice", async () => {
     getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
     const jsx = await ProjectDetailPage({
       params: Promise.resolve({ id: "r2", projectId: "p1" }),
       searchParams: Promise.resolve({}),
@@ -143,6 +179,7 @@ describe("ProjectDetailPage", () => {
 
   it("does not render the customer/project-id info box", async () => {
     getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
     const jsx = await ProjectDetailPage({
       params: Promise.resolve({ id: "r2", projectId: "p1" }),
       searchParams: Promise.resolve({}),
@@ -153,8 +190,35 @@ describe("ProjectDetailPage", () => {
     expect(screen.queryByText("p1")).not.toBeInTheDocument();
   });
 
+  it("shows a Light Status section with this project's total lights", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    const jsx = await ProjectDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(screen.getByText("Light Status")).toBeInTheDocument();
+    expect(screen.getByLabelText("4 Total lights")).toBeInTheDocument();
+  });
+
+  it("shows stub placeholders for Lights working and Total faults", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    const jsx = await ProjectDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(screen.getByText("Lights working")).toBeInTheDocument();
+    expect(screen.getByText("Total faults")).toBeInTheDocument();
+  });
+
   it("renders a not-found state when the customer doesn't exist", async () => {
     getCustomerMock.mockResolvedValue(undefined);
+    getProjectsForCustomerMock.mockResolvedValue([]);
     const jsx = await ProjectDetailPage({
       params: Promise.resolve({ id: "does-not-exist", projectId: "p1" }),
       searchParams: Promise.resolve({}),
@@ -170,6 +234,7 @@ describe("ProjectDetailPage", () => {
 
   it("renders a not-found state when the project id doesn't match", async () => {
     getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
     const jsx = await ProjectDetailPage({
       params: Promise.resolve({ id: "r2", projectId: "does-not-exist" }),
       searchParams: Promise.resolve({}),
