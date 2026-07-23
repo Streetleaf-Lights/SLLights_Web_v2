@@ -128,6 +128,21 @@ describe("apimFetch", () => {
     expect(init.headers).toHaveProperty("Ocp-Apim-Subscription-Key");
   });
 
+  it("caches responses with a revalidate window instead of forcing no-store", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [],
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await apimFetch("/getCustomers");
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.cache).not.toBe("no-store");
+    expect(init.next).toEqual(expect.objectContaining({ revalidate: expect.any(Number) }));
+    expect(init.next.revalidate).toBeGreaterThan(0);
+  });
+
   it("throws an ApimError when the response is not ok", async () => {
     vi.stubGlobal(
       "fetch",

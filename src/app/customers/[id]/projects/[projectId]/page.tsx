@@ -47,31 +47,12 @@ export default async function ProjectDetailPage({
       <Breadcrumbs
         items={[customersCrumb(cust_q), { label: customer.name, href: customerHref }]}
       />
-      <PageHeader title={project.name} />
 
-      <div className="mx-8 mb-6 rounded-md border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-[12.5px] text-[var(--ink-muted)]">
-        This is a stub detail page. Poles, timeline, and status for this project will go here.
-      </div>
-
-      <div className="mx-8 grid grid-cols-2 gap-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-5 text-[13px] sm:grid-cols-3">
-        <div>
-          <div className="text-[11px] uppercase tracking-wide text-[var(--ink-faint)]">
-            Customer
-          </div>
-          <div className="mt-1">
-            <Link href={customerHref} className="text-[var(--ink)] hover:underline">
-              {customer.name}
-            </Link>
-          </div>
-        </div>
-        <div>
-          <div className="text-[11px] uppercase tracking-wide text-[var(--ink-faint)]">
-            Project ID
-          </div>
-          <div className="mt-1 font-mono-data text-[12px] text-[var(--ink-faint)]">
-            {project.id}
-          </div>
-        </div>
+      <div className="flex h-[88px] flex-col justify-center border-b border-t border-[var(--border)] bg-[var(--surface)] px-8">
+        <p className="text-[12.5px] font-medium text-[var(--accent)]">{customer.name}</p>
+        <h1 className="text-[20px] font-semibold leading-tight tracking-tight text-[var(--ink)]">
+          {project.name}
+        </h1>
       </div>
     </>
   );

@@ -3,12 +3,19 @@ import { getCustomer } from "@/lib/apim";
 import { PageHeader } from "@/components/PageHeader";
 import { Breadcrumbs, customersCrumb } from "@/components/Breadcrumbs";
 import { withQueryParam } from "@/lib/url";
+import { initials } from "@/lib/text";
+import type { Customer } from "@/lib/types";
 
-function formatLocation(city: string | null, state: string | null): string {
-  if (city && state) return `${city}, ${state}`;
-  if (state) return state;
-  if (city) return city;
-  return "—";
+/** Combines address, city, state, and zip into one display line, skipping any that are missing. */
+function formatFullAddress(customer: Customer): string | null {
+  const cityStateZip = [
+    [customer.city, customer.state].filter(Boolean).join(", "),
+    customer.zip,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const parts = [customer.address, cityStateZip].filter(Boolean);
+  return parts.length > 0 ? parts.join(", ") : null;
 }
 
 export default async function CustomerDetailPage({
@@ -39,49 +46,47 @@ export default async function CustomerDetailPage({
     );
   }
 
+  const addressLine = formatFullAddress(customer);
+  const projectCount = customer.projects.length;
+
   return (
     <>
       <Breadcrumbs items={[customersCrumb(cust_q)]} />
-      <PageHeader title={customer.name} />
 
-      <div className="mx-8 mb-6 rounded-md border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-[12.5px] text-[var(--ink-muted)]">
-        This is a stub detail page. Additional customer fields, activity, and actions will go
-        here.
-      </div>
-
-      <div className="mx-8 grid grid-cols-2 gap-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-5 text-[13px] sm:grid-cols-4">
-        <div>
-          <div className="text-[11px] uppercase tracking-wide text-[var(--ink-faint)]">
-            Location
+      <div className="flex h-[88px] items-center justify-between gap-6 border-b border-t border-[var(--border)] bg-[var(--surface)] px-8">
+        <div className="flex items-center gap-4">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border-2 border-[var(--accent)] bg-[var(--accent-soft)] text-[21px] font-semibold text-[var(--accent)]">
+            {initials(customer.name)}
           </div>
-          <div className="mt-1 text-[var(--ink)]">
-            {formatLocation(customer.city, customer.state)}
+          <div>
+            <h1 className="text-[20px] font-semibold leading-tight tracking-tight text-[var(--ink)]">
+              {customer.name}
+            </h1>
+            {addressLine && (
+              <p className="mt-0.5 text-[12.5px] text-[var(--ink-muted)]">{addressLine}</p>
+            )}
+            {customer.phone && (
+              <p className="mt-0.5 font-mono-data text-[12.5px] text-[var(--ink-muted)]">
+                {customer.phone}
+              </p>
+            )}
           </div>
         </div>
-        <div>
-          <div className="text-[11px] uppercase tracking-wide text-[var(--ink-faint)]">
-            Phone
+        <div
+          className="shrink-0 rounded-lg border border-[var(--border)] bg-[var(--surface-sunken)] px-4 py-2 text-center"
+          aria-label={`${projectCount} ${projectCount === 1 ? "project" : "projects"}`}
+        >
+          <div className="text-[20px] font-semibold leading-tight text-[var(--ink)]">
+            {projectCount}
           </div>
-          <div className="mt-1 font-mono-data text-[var(--ink)]">{customer.phone ?? "—"}</div>
-        </div>
-        <div>
           <div className="text-[11px] uppercase tracking-wide text-[var(--ink-faint)]">
-            Address
-          </div>
-          <div className="mt-1 text-[var(--ink)]">{customer.address ?? "—"}</div>
-        </div>
-        <div>
-          <div className="text-[11px] uppercase tracking-wide text-[var(--ink-faint)]">
-            Customer ID
-          </div>
-          <div className="mt-1 font-mono-data text-[12px] text-[var(--ink-faint)]">
-            {customer.id}
+            {projectCount === 1 ? "Project" : "Projects"}
           </div>
         </div>
       </div>
 
-      <div className="mx-8 mt-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-5">
-        <div className="mb-3 text-[11px] uppercase tracking-wide text-[var(--ink-faint)]">
+      <div className="mx-8 mt-6">
+        <div className="mb-3 text-[11px] uppercase tracking-wide text-[var(--ink-muted)]">
           Projects
         </div>
         {customer.projects.length === 0 ? (
@@ -100,7 +105,11 @@ export default async function CustomerDetailPage({
                 )}
                 className="flex items-center justify-between rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 hover:bg-[var(--surface-sunken)]"
               >
-                <span className="text-[13px] font-medium text-[var(--ink)] hover:underline">
+                <span className="flex items-center gap-2 text-[13px] font-medium text-[var(--ink)] hover:underline">
+                  <span
+                    className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent)]"
+                    aria-hidden="true"
+                  />
                   {project.name}
                 </span>
                 <span className="font-mono-data text-[11.5px] text-[var(--ink-faint)]">

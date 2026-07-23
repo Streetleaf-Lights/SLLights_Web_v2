@@ -1,25 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { UsersTable, initials } from "@/components/UsersTable";
+import { UsersTable } from "@/components/UsersTable";
 import type { User } from "@/lib/types";
-
-describe("initials", () => {
-  it("takes the first letter of the first two words", () => {
-    expect(initials("Dana Whitfield")).toBe("DW");
-  });
-
-  it("uppercases the result", () => {
-    expect(initials("dana whitfield")).toBe("DW");
-  });
-
-  it("handles a single-word name", () => {
-    expect(initials("Cher")).toBe("C");
-  });
-
-  it("caps at two characters for names with more than two words", () => {
-    expect(initials("Mary Jane Watson")).toBe("MJ");
-  });
-});
 
 describe("UsersTable", () => {
   const users: User[] = [

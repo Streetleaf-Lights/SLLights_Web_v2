@@ -35,7 +35,7 @@ describe("Sidebar", () => {
     // The active item gets the accent-colored indicator bar; we assert via
     // the active text color class rather than reaching into internals.
     const customersLabel = screen.getByText("Customers");
-    expect(customersLabel.className).toContain("text-[var(--sidebar-ink-active)]");
+    expect(customersLabel.className).toContain("text-[var(--sidebar-accent-ink)]");
   });
 
   it("does not mark Poles/Users active while on a Customers route", () => {
@@ -43,7 +43,10 @@ describe("Sidebar", () => {
     render(<Sidebar />);
     const polesLabel = screen.getByText("Poles");
     const usersLabel = screen.getByText("Users");
-    expect(polesLabel.className).toContain("text-[var(--sidebar-ink)]");
-    expect(usersLabel.className).toContain("text-[var(--sidebar-ink)]");
+    expect(polesLabel.className).toContain("text-[var(--sidebar-accent-strong)]");
+    expect(usersLabel.className).toContain("text-[var(--sidebar-accent-strong)]");
+    // Neither should get the darker active-only ink color.
+    expect(polesLabel.className).not.toContain("text-[var(--sidebar-accent-ink)]");
+    expect(usersLabel.className).not.toContain("text-[var(--sidebar-accent-ink)]");
   });
 });

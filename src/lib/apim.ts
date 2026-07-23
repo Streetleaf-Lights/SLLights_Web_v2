@@ -10,6 +10,8 @@
 // Configure via environment variables (see .env.local.example):
 //   NEXT_PUBLIC_APIM_BASE_URL   defaults to https://lights-v2-apim.azure-api.net
 //   APIM_SUBSCRIPTION_KEY       Ocp-Apim-Subscription-Key (server-side only)
+//   APIM_CACHE_SECONDS          how long responses are cached before Next.js
+//                               revalidates in the background (default 30)
 
 import type { Customer, CustomerProjectRef, Pole, User } from "./types";
 import { mockPoles, mockUsers } from "./mock-data";
@@ -18,6 +20,15 @@ import { time } from "./timing";
 const APIM_BASE_URL =
   process.env.NEXT_PUBLIC_APIM_BASE_URL || "https://lights-v2-apim.azure-api.net";
 const APIM_SUBSCRIPTION_KEY = process.env.APIM_SUBSCRIPTION_KEY ?? "";
+
+// The observed 500ms–1900ms swing on /customers is the live network round
+// trip to Azure APIM itself (Next.js's own overhead is ~2ms per its request
+// log) — most likely backend cold starts or gateway load, not something we
+// can fix from this codebase. What we CAN do is stop paying that variable
+// cost on every single request: cache each response for this many seconds,
+// with Next.js quietly revalidating in the background after it expires.
+// Trade-off: a customer record change can take up to this long to show up.
+const APIM_CACHE_SECONDS = Number(process.env.APIM_CACHE_SECONDS ?? 30);
 
 export class ApimError extends Error {
   constructor(
@@ -50,7 +61,7 @@ export async function apimFetch<T>(
         "Ocp-Apim-Subscription-Key": APIM_SUBSCRIPTION_KEY,
         ...init?.headers,
       },
-      cache: "no-store",
+      next: { revalidate: APIM_CACHE_SECONDS },
     });
 
     if (!res.ok) {

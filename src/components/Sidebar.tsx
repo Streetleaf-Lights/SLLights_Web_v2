@@ -5,9 +5,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const NAV_ITEMS = [
-  { href: "/customers", label: "Customers", hint: "Accounts & projects" },
-  { href: "/poles", label: "Poles", hint: "Asset inventory" },
-  { href: "/users", label: "Users", hint: "Access & roles" },
+  { href: "/customers", label: "Customers" },
+  { href: "/poles", label: "Poles" },
+  { href: "/users", label: "Users" },
 ] as const;
 
 export default function Sidebar() {
@@ -33,24 +33,23 @@ export default function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
-              className={`group relative flex flex-col gap-0.5 rounded-md px-3 py-2.5 transition-colors ${
+              className={`group relative flex items-center rounded-md px-3 py-2.5 transition-colors ${
                 isActive
                   ? "bg-[var(--sidebar-bg-active)]"
                   : "hover:bg-[var(--sidebar-bg-active)]/60"
               }`}
             >
               {isActive && (
-                <span className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full bg-[var(--accent)]" />
+                <span className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full bg-[var(--sidebar-accent)]" />
               )}
               <span
                 className={`text-[13.5px] font-medium ${
-                  isActive ? "text-[var(--sidebar-ink-active)]" : "text-[var(--sidebar-ink)]"
+                  isActive
+                    ? "text-[var(--sidebar-accent-ink)]"
+                    : "text-[var(--sidebar-accent-strong)]"
                 }`}
               >
                 {item.label}
-              </span>
-              <span className="text-[11px] text-[var(--sidebar-ink)] opacity-70">
-                {item.hint}
               </span>
             </Link>
           );

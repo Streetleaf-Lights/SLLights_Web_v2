@@ -1,14 +1,6 @@
 import type { User } from "@/lib/types";
 import { StatusBadge } from "@/components/StatusBadge";
-
-export function initials(name: string) {
-  return name
-    .split(" ")
-    .map((part) => part[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-}
+import { initials } from "@/lib/text";
 
 export function UsersTable({ users }: { users: User[] }) {
   return (

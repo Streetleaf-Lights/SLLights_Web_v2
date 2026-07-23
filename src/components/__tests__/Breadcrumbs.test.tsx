@@ -52,24 +52,27 @@ describe("Breadcrumbs", () => {
 });
 
 describe("customersCrumb", () => {
-  it("labels itself plain 'Customers' with no query", () => {
-    expect(customersCrumb(undefined)).toEqual({ label: "Customers", href: "/customers" });
+  it("labels itself '← Customers' with no query", () => {
+    expect(customersCrumb(undefined)).toEqual({
+      label: "\u2190 Customers",
+      href: "/customers",
+    });
   });
 
-  it("labels itself plain 'Customers' for an empty string query", () => {
-    expect(customersCrumb("")).toEqual({ label: "Customers", href: "/customers" });
+  it("labels itself '← Customers' for an empty string query", () => {
+    expect(customersCrumb("")).toEqual({ label: "\u2190 Customers", href: "/customers" });
   });
 
-  it("swaps to a 'Customer Search' label when a query is active", () => {
+  it("swaps to a '← Customer Search' label when a query is active", () => {
     expect(customersCrumb("coastal")).toEqual({
-      label: "Customer Search: \u201ccoastal\u201d",
+      label: "\u2190 Customer Search: \u201ccoastal\u201d",
       href: "/customers?cust_q=coastal",
     });
   });
 
   it("URL-encodes the query in the href", () => {
     expect(customersCrumb("coastal power")).toEqual({
-      label: "Customer Search: \u201ccoastal power\u201d",
+      label: "\u2190 Customer Search: \u201ccoastal power\u201d",
       href: "/customers?cust_q=coastal%20power",
     });
   });

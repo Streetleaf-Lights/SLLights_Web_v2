@@ -14,15 +14,16 @@ export interface Crumb {
  * while the href still returns to that same filtered list.
  */
 export function customersCrumb(custQ?: string): Crumb {
+  const label = custQ ? `Customer Search: \u201c${custQ}\u201d` : "Customers";
   return {
-    label: custQ ? `Customer Search: \u201c${custQ}\u201d` : "Customers",
+    label: `\u2190 ${label}`,
     href: withQueryParam("/customers", "cust_q", custQ),
   };
 }
 
 export function Breadcrumbs({ items }: { items: Crumb[] }) {
   return (
-    <nav className="flex items-center gap-1.5 px-8 pt-5 text-[12.5px] text-[var(--ink-faint)]">
+    <nav className="flex items-center gap-1.5 px-8 pb-3 pt-5 text-[12.5px] text-[var(--ink-faint)]">
       {items.map((item, i) => {
         const isLast = i === items.length - 1;
         const node: ReactNode = item.href ? (
