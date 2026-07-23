@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getCustomer } from "@/lib/apim";
 import { PageHeader } from "@/components/PageHeader";
-import { Breadcrumbs } from "@/components/Breadcrumbs";
+import { Breadcrumbs, customersCrumb } from "@/components/Breadcrumbs";
 import { withQueryParam } from "@/lib/url";
 
 function formatLocation(city: string | null, state: string | null): string {
@@ -16,17 +16,17 @@ export default async function CustomerDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ cust_q?: string }>;
 }) {
   const { id } = await params;
-  const { q } = await searchParams;
+  const { cust_q } = await searchParams;
   const customer = await getCustomer(id);
-  const customersHref = withQueryParam("/customers", "q", q);
+  const customersHref = withQueryParam("/customers", "cust_q", cust_q);
 
   if (!customer) {
     return (
       <>
-        <Breadcrumbs items={[{ label: "Customers", href: customersHref }, { label: "Not found" }]} />
+        <Breadcrumbs items={[customersCrumb(cust_q)]} />
         <PageHeader title="Customer not found" />
         <p className="px-8 py-6 text-[13px] text-[var(--ink-muted)]">
           We couldn&rsquo;t find a customer with id{" "}
@@ -41,7 +41,7 @@ export default async function CustomerDetailPage({
 
   return (
     <>
-      <Breadcrumbs items={[{ label: "Customers", href: customersHref }, { label: customer.name }]} />
+      <Breadcrumbs items={[customersCrumb(cust_q)]} />
       <PageHeader title={customer.name} />
 
       <div className="mx-8 mb-6 rounded-md border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-[12.5px] text-[var(--ink-muted)]">
@@ -95,8 +95,8 @@ export default async function CustomerDetailPage({
                 key={project.id}
                 href={withQueryParam(
                   `/customers/${customer.id}/projects/${project.id}`,
-                  "q",
-                  q,
+                  "cust_q",
+                  cust_q,
                 )}
                 className="flex items-center justify-between rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 hover:bg-[var(--surface-sunken)]"
               >

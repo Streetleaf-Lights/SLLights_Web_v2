@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getCustomer } from "@/lib/apim";
 import { PageHeader } from "@/components/PageHeader";
-import { Breadcrumbs } from "@/components/Breadcrumbs";
+import { Breadcrumbs, customersCrumb } from "@/components/Breadcrumbs";
 import { withQueryParam } from "@/lib/url";
 
 export default async function ProjectDetailPage({
@@ -9,16 +9,16 @@ export default async function ProjectDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string; projectId: string }>;
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ cust_q?: string }>;
 }) {
   const { id, projectId } = await params;
-  const { q } = await searchParams;
+  const { cust_q } = await searchParams;
   const customer = await getCustomer(id);
   const project = customer?.projects.find((p) => p.id === projectId);
 
-  const customersHref = withQueryParam("/customers", "q", q);
+  const customersHref = withQueryParam("/customers", "cust_q", cust_q);
   const customerHref = customer
-    ? withQueryParam(`/customers/${customer.id}`, "q", q)
+    ? withQueryParam(`/customers/${customer.id}`, "cust_q", cust_q)
     : customersHref;
 
   if (!customer || !project) {
@@ -26,9 +26,8 @@ export default async function ProjectDetailPage({
       <>
         <Breadcrumbs
           items={[
-            { label: "Customers", href: customersHref },
+            customersCrumb(cust_q),
             ...(customer ? [{ label: customer.name, href: customerHref }] : []),
-            { label: "Not found" },
           ]}
         />
         <PageHeader title="Project not found" />
@@ -46,11 +45,7 @@ export default async function ProjectDetailPage({
   return (
     <>
       <Breadcrumbs
-        items={[
-          { label: "Customers", href: customersHref },
-          { label: customer.name, href: customerHref },
-          { label: project.name },
-        ]}
+        items={[customersCrumb(cust_q), { label: customer.name, href: customerHref }]}
       />
       <PageHeader title={project.name} />
 

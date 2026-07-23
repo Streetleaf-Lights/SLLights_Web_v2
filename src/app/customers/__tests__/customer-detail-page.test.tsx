@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import type { Customer } from "@/lib/types";
 
 const { getCustomerMock } = vi.hoisted(() => ({ getCustomerMock: vi.fn() }));
@@ -37,6 +37,21 @@ describe("CustomerDetailPage", () => {
     expect(screen.getByRole("heading", { name: "Coastal Power & Light" })).toBeInTheDocument();
   });
 
+  it("does not repeat the customer name in the breadcrumb — it's already the page heading", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    const jsx = await CustomerDetailPage({
+      params: Promise.resolve({ id: "r2" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(
+      within(screen.getByRole("navigation")).queryByText("Coastal Power & Light"),
+    ).not.toBeInTheDocument();
+    // The heading still shows it, exactly once, outside the breadcrumb.
+    expect(screen.getAllByText("Coastal Power & Light")).toHaveLength(1);
+  });
+
   it("renders location, phone, address, and id fields", async () => {
     getCustomerMock.mockResolvedValue(customer);
     const jsx = await CustomerDetailPage({
@@ -65,21 +80,20 @@ describe("CustomerDetailPage", () => {
     );
   });
 
-  it("carries the ?q= search param into the breadcrumb and project links", async () => {
+  it("carries the ?cust_q= search param into the breadcrumb and project links", async () => {
     getCustomerMock.mockResolvedValue(customer);
     const jsx = await CustomerDetailPage({
       params: Promise.resolve({ id: "r2" }),
-      searchParams: Promise.resolve({ q: "coastal" }),
+      searchParams: Promise.resolve({ cust_q: "coastal" }),
     });
     render(jsx);
 
-    expect(screen.getByRole("link", { name: "Customers" })).toHaveAttribute(
-      "href",
-      "/customers?q=coastal",
-    );
+    expect(
+      screen.getByRole("link", { name: "Customer Search: \u201ccoastal\u201d" }),
+    ).toHaveAttribute("href", "/customers?cust_q=coastal");
     expect(screen.getByRole("link", { name: /Bayou District Rebuild/ })).toHaveAttribute(
       "href",
-      "/customers/r2/projects/p1?q=coastal",
+      "/customers/r2/projects/p1?cust_q=coastal",
     );
   });
 
@@ -107,5 +121,7 @@ describe("CustomerDetailPage", () => {
       "href",
       "/customers",
     );
+    // The heading already says "not found" — the breadcrumb shouldn't repeat it.
+    expect(within(screen.getByRole("navigation")).queryByText("Not found")).not.toBeInTheDocument();
   });
 });

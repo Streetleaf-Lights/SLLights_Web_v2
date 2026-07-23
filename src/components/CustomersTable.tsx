@@ -41,7 +41,7 @@ export function CustomersTable({ customers }: { customers: Customer[] }) {
   const searchParams = useSearchParams();
   const [expanded, setExpanded] = useState<string | null>(null);
   const [page, setPage] = useState(1);
-  const [query, setQuery] = useState(() => searchParams.get("q") ?? "");
+  const [query, setQuery] = useState(() => searchParams.get("cust_q") ?? "");
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -103,7 +103,7 @@ export function CustomersTable({ customers }: { customers: Customer[] }) {
                       </td>
                       <td className="py-3 pr-4 font-medium text-[var(--ink)]">
                         <Link
-                          href={withQueryParam(`/customers/${customer.id}`, "q", query)}
+                          href={withQueryParam(`/customers/${customer.id}`, "cust_q", query)}
                           onClick={(e) => e.stopPropagation()}
                           className="hover:underline"
                         >
@@ -140,7 +140,7 @@ export function CustomersTable({ customers }: { customers: Customer[] }) {
                                   <Link
                                     href={withQueryParam(
                                       `/customers/${customer.id}/projects/${project.id}`,
-                                      "q",
+                                      "cust_q",
                                       query,
                                     )}
                                     className="text-[13px] font-medium text-[var(--ink)] hover:underline"

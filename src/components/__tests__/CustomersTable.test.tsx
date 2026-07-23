@@ -112,8 +112,8 @@ describe("CustomersTable", () => {
     expect(screen.getByText(/zzz-no-match/)).toBeInTheDocument();
   });
 
-  it("seeds the search box from the ?q= URL param", () => {
-    useSearchParamsMock.mockReturnValue(new URLSearchParams("q=coastal"));
+  it("seeds the search box from the ?cust_q= URL param", () => {
+    useSearchParamsMock.mockReturnValue(new URLSearchParams("cust_q=coastal"));
     render(<CustomersTable customers={customers} />);
 
     expect(screen.getByPlaceholderText("Search customers…")).toHaveValue("coastal");
@@ -168,7 +168,7 @@ describe("CustomersTable", () => {
     expect(screen.queryByText("Bayou District Rebuild")).not.toBeInTheDocument();
   });
 
-  it("customer link carries the current search query as ?q=", async () => {
+  it("customer link carries the current search query as ?cust_q=", async () => {
     useSearchParamsMock.mockReturnValue(emptySearchParams);
     const user = userEvent.setup();
     render(<CustomersTable customers={customers} />);
@@ -177,11 +177,11 @@ describe("CustomersTable", () => {
 
     expect(screen.getByRole("link", { name: "Coastal Power & Light" })).toHaveAttribute(
       "href",
-      "/customers/r2?q=coastal",
+      "/customers/r2?cust_q=coastal",
     );
   });
 
-  it("project link carries the current search query as ?q=", async () => {
+  it("project link has no query param when the search box is empty", async () => {
     useSearchParamsMock.mockReturnValue(emptySearchParams);
     const user = userEvent.setup();
     render(<CustomersTable customers={customers} />);

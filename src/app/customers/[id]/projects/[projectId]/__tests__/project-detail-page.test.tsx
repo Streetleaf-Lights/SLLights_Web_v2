@@ -56,22 +56,35 @@ describe("ProjectDetailPage", () => {
     );
   });
 
-  it("carries the ?q= search param into the breadcrumb links", async () => {
+  it("does not repeat the project name in the breadcrumb — it's already the page heading", async () => {
     getCustomerMock.mockResolvedValue(customer);
     const jsx = await ProjectDetailPage({
       params: Promise.resolve({ id: "r2", projectId: "p1" }),
-      searchParams: Promise.resolve({ q: "coastal" }),
+      searchParams: Promise.resolve({}),
     });
     render(jsx);
 
     const breadcrumb = within(screen.getByRole("navigation"));
-    expect(breadcrumb.getByRole("link", { name: "Customers" })).toHaveAttribute(
-      "href",
-      "/customers?q=coastal",
-    );
+    expect(breadcrumb.queryByText("Bayou District Rebuild")).not.toBeInTheDocument();
+    // The heading still shows it, exactly once, outside the breadcrumb.
+    expect(screen.getAllByText("Bayou District Rebuild")).toHaveLength(1);
+  });
+
+  it("carries the ?cust_q= search param into the breadcrumb links", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    const jsx = await ProjectDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1" }),
+      searchParams: Promise.resolve({ cust_q: "coastal" }),
+    });
+    render(jsx);
+
+    const breadcrumb = within(screen.getByRole("navigation"));
+    expect(
+      breadcrumb.getByRole("link", { name: "Customer Search: \u201ccoastal\u201d" }),
+    ).toHaveAttribute("href", "/customers?cust_q=coastal");
     expect(breadcrumb.getByRole("link", { name: "Coastal Power & Light" })).toHaveAttribute(
       "href",
-      "/customers/r2?q=coastal",
+      "/customers/r2?cust_q=coastal",
     );
   });
 
@@ -102,5 +115,7 @@ describe("ProjectDetailPage", () => {
     expect(
       screen.getByRole("link", { name: "Back to Coastal Power & Light" }),
     ).toHaveAttribute("href", "/customers/r2");
+    // The heading already says "not found" — the breadcrumb shouldn't repeat it.
+    expect(within(screen.getByRole("navigation")).queryByText("Not found")).not.toBeInTheDocument();
   });
 });

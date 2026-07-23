@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { Breadcrumbs } from "@/components/Breadcrumbs";
+import { Breadcrumbs, customersCrumb } from "@/components/Breadcrumbs";
 
 describe("Breadcrumbs", () => {
   it("renders each crumb's label", () => {
@@ -38,15 +38,39 @@ describe("Breadcrumbs", () => {
     expect(screen.getByText("Not found")).toBeInTheDocument();
   });
 
-  it("carries query strings in hrefs (e.g. ?q=coastal)", () => {
+  it("carries query strings in hrefs (e.g. ?cust_q=coastal)", () => {
     render(
       <Breadcrumbs
-        items={[{ label: "Customers", href: "/customers?q=coastal" }, { label: "Detail" }]}
+        items={[{ label: "Customers", href: "/customers?cust_q=coastal" }, { label: "Detail" }]}
       />,
     );
     expect(screen.getByRole("link", { name: "Customers" })).toHaveAttribute(
       "href",
-      "/customers?q=coastal",
+      "/customers?cust_q=coastal",
     );
+  });
+});
+
+describe("customersCrumb", () => {
+  it("labels itself plain 'Customers' with no query", () => {
+    expect(customersCrumb(undefined)).toEqual({ label: "Customers", href: "/customers" });
+  });
+
+  it("labels itself plain 'Customers' for an empty string query", () => {
+    expect(customersCrumb("")).toEqual({ label: "Customers", href: "/customers" });
+  });
+
+  it("swaps to a 'Customer Search' label when a query is active", () => {
+    expect(customersCrumb("coastal")).toEqual({
+      label: "Customer Search: \u201ccoastal\u201d",
+      href: "/customers?cust_q=coastal",
+    });
+  });
+
+  it("URL-encodes the query in the href", () => {
+    expect(customersCrumb("coastal power")).toEqual({
+      label: "Customer Search: \u201ccoastal power\u201d",
+      href: "/customers?cust_q=coastal%20power",
+    });
   });
 });
