@@ -19,7 +19,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Streetleaf — Asset Management",
+  title: "Streetleaf - Customer Dashboard",
   description: "Internal tool for managing customers, projects, and pole assets.",
   icons: {
     icon: [

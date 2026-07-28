@@ -1,28 +1,32 @@
 import Link from "next/link";
-import { getCustomer, getProjectsForCustomer } from "@/lib/apim";
+import { getCustomer, getPoleVitalsForCustomer, getProjectsForCustomer } from "@/lib/apim";
 import { PageHeader } from "@/components/PageHeader";
-import { Breadcrumbs, customersCrumb } from "@/components/Breadcrumbs";
+import { Breadcrumbs, leadingCrumb } from "@/components/Breadcrumbs";
 import { StatGroup } from "@/components/StatGroup";
-import { withQueryParam } from "@/lib/url";
+import { ProjectPolesTable } from "@/components/ProjectPolesTable";
+import { withQueryParam, withSearchContext } from "@/lib/url";
+import { formatPercent, workingPercentClass } from "@/lib/text";
 
 export default async function ProjectDetailPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string; projectId: string }>;
-  searchParams: Promise<{ cust_q?: string }>;
+  searchParams: Promise<{ cust_q?: string; pole_q?: string }>;
 }) {
   const { id, projectId } = await params;
-  const { cust_q } = await searchParams;
-  const [customer, projects] = await Promise.all([
+  const { cust_q, pole_q } = await searchParams;
+  const [customer, projects, vitals] = await Promise.all([
     getCustomer(id),
     getProjectsForCustomer(id),
+    getPoleVitalsForCustomer(id),
   ]);
   const project = projects.find((p) => p.id === projectId);
+  const projectVitals = vitals?.projects.find((p) => p.id === projectId);
 
   const customersHref = withQueryParam("/customers", "cust_q", cust_q);
   const customerHref = customer
-    ? withQueryParam(`/customers/${customer.id}`, "cust_q", cust_q)
+    ? withSearchContext(`/customers/${customer.id}`, cust_q, pole_q)
     : customersHref;
 
   if (!customer || !project) {
@@ -30,7 +34,7 @@ export default async function ProjectDetailPage({
       <>
         <Breadcrumbs
           items={[
-            customersCrumb(cust_q),
+            leadingCrumb(cust_q, pole_q),
             ...(customer ? [{ label: customer.name, href: customerHref }] : []),
           ]}
         />
@@ -46,15 +50,16 @@ export default async function ProjectDetailPage({
     );
   }
 
-  // TODO: wire up once the API exposes real "lights working" / "total
-  // faults" figures per project — no such fields exist on /getProjects yet.
-  const lightsWorking = "—";
-  const totalFaults = "—";
+  const totalLights = projectVitals?.totalLights ?? "—";
+  const lightsWorking = projectVitals
+    ? formatPercent(projectVitals.optimisticWorkingPercentage)
+    : "—";
+  const totalFaults = projectVitals?.totalFaults ?? "—";
 
   return (
     <>
       <Breadcrumbs
-        items={[customersCrumb(cust_q), { label: customer.name, href: customerHref }]}
+        items={[leadingCrumb(cust_q, pole_q), { label: customer.name, href: customerHref }]}
       />
 
       <div className="flex h-[88px] flex-col justify-center border-b border-t border-[var(--border)] bg-[var(--surface)] px-8">
@@ -70,10 +75,29 @@ export default async function ProjectDetailPage({
         </div>
         <StatGroup
           stats={[
-            { value: project.polesUnderContract, label: "Total lights" },
-            { value: lightsWorking, label: "Lights working" },
+            { value: totalLights, label: "Total lights" },
+            {
+              value: lightsWorking,
+              label: "Lights working",
+              valueClassName: projectVitals
+                ? workingPercentClass(projectVitals.optimisticWorkingPercentage)
+                : undefined,
+            },
             { value: totalFaults, label: "Total faults" },
           ]}
+        />
+      </div>
+
+      <div className="mx-8 mt-6">
+        <div className="mb-3 text-[11px] uppercase tracking-wide text-[var(--ink-muted)]">
+          Poles
+        </div>
+        <ProjectPolesTable
+          poles={projectVitals?.poles ?? []}
+          customerId={customer.id}
+          projectId={project.id}
+          custQ={cust_q}
+          poleQ={pole_q}
         />
       </div>
     </>

@@ -5,6 +5,7 @@ import {
   getCustomer,
   getCustomers,
   getPole,
+  getPoleVitalsForCustomer,
   getPoles,
   getProjectsForCustomer,
   getUsers,
@@ -379,23 +380,238 @@ describe("getProjectsForCustomer", () => {
   });
 });
 
-describe("Poles and Users (stubbed)", () => {
-  it("getPoles resolves with the mock pole list", async () => {
-    const poles = await getPoles();
-    expect(poles.length).toBeGreaterThan(0);
+describe("getPoleVitalsForCustomer", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
-  it("getPole finds a pole by id", async () => {
-    const poles = await getPoles();
-    const pole = await getPole(poles[0].id);
-    expect(pole?.id).toBe(poles[0].id);
+  const rawVitals = {
+    id: "recD6nliOfFlp0VFh",
+    name: "Acacia Fields CDD",
+    totalLights: 88,
+    workingPercentage: 89.77,
+    optimisticWorkingPercentage: 100.0,
+    totalFaults: 0,
+    totalNonTelemetryAvailable: 9,
+    projects: [
+      {
+        id: "reczugRdlKOZ6ehTn",
+        name: "Acacia Fields CDD - Boger Ph 1A Ph 1B",
+        totalLights: 54,
+        workingPercentage: 90.74,
+        optimisticWorkingPercentage: 100.0,
+        totalFaults: 0,
+        totalNonTelemetryAvailable: 5,
+      },
+      {
+        id: "recZWPEWVW3gLSqJm",
+        name: "Acacia Fields CDD - Plazewski",
+        totalLights: 34,
+        workingPercentage: 88.24,
+        optimisticWorkingPercentage: 100.0,
+        totalFaults: 0,
+        totalNonTelemetryAvailable: 4,
+      },
+    ],
+  };
+
+  it("calls /getPoleVitals with a customerId filter", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => rawVitals });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getPoleVitalsForCustomer("recD6nliOfFlp0VFh");
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toContain("/getPoleVitals?customerId=recD6nliOfFlp0VFh");
   });
 
-  it("getPole returns undefined for an unknown id", async () => {
+  it("returns the customer-level vitals with the nested per-project breakdown intact", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, json: async () => rawVitals }),
+    );
+
+    const vitals = await getPoleVitalsForCustomer("recD6nliOfFlp0VFh");
+
+    expect(vitals?.totalLights).toBe(88);
+    expect(vitals?.optimisticWorkingPercentage).toBe(100.0);
+    expect(vitals?.totalFaults).toBe(0);
+    expect(vitals?.projects).toHaveLength(2);
+    expect(vitals?.projects[0]).toMatchObject({
+      id: "reczugRdlKOZ6ehTn",
+      totalLights: 54,
+      optimisticWorkingPercentage: 100.0,
+    });
+  });
+
+  it("returns undefined when the API returns null", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => null }));
+
+    const vitals = await getPoleVitalsForCustomer("does-not-exist");
+
+    expect(vitals).toBeUndefined();
+  });
+
+  it("URL-encodes the customerId in the query string", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => null });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getPoleVitalsForCustomer("rec with space");
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toContain("customerId=rec%20with%20space");
+  });
+});
+
+describe("getPoles", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  // Matches the real /getPoles?summary=true shape: no lastUpdate, no
+  // batteryVoltage1/2 (those only come back from the full, non-summary form).
+  const rawSummaryPole = {
+    id: "recmb0TRqqEmAnT9T",
+    poleNumber: "TEC-2691",
+    locationId: "11439",
+    installDate: "2025-04-22",
+    lat: 0.0,
+    long: 0.0,
+    lightStatus: null,
+    isOnline: null,
+    avgBatteryPercentage: null,
+    avgPanelPercentage: null,
+    avgLightPercentage: null,
+    projectId: "rec08jIrGQcE5tmNb",
+    customerId: "recwx649JfiRmWqxF",
+  };
+
+  it("always includes summary=true, to lift the 1000-row cap on the ~14k poles", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => [rawSummaryPole] });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getPoles();
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toContain("/getPoles?summary=true");
+  });
+
+  it("returns the poles as-is (already matches our PoleSummary shape)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, json: async () => [rawSummaryPole] }),
+    );
+
+    const poles = await getPoles();
+
+    expect(poles).toHaveLength(1);
+    expect(poles[0]).toMatchObject({
+      id: "recmb0TRqqEmAnT9T",
+      poleNumber: "TEC-2691",
+      customerId: "recwx649JfiRmWqxF",
+      projectId: "rec08jIrGQcE5tmNb",
+    });
+    // Summary responses don't have these — confirm we don't invent them.
+    expect(poles[0]).not.toHaveProperty("lastUpdate");
+    expect(poles[0]).not.toHaveProperty("batteryVoltage1");
+    expect(poles[0]).not.toHaveProperty("batteryVoltage2");
+  });
+
+  it("applies the customerId filter alongside summary=true", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => [rawSummaryPole] });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getPoles({ customerId: "recwx649JfiRmWqxF" });
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toContain("customerId=recwx649JfiRmWqxF");
+    expect(url).toContain("summary=true");
+  });
+
+  it("applies the projectId filter alongside summary=true", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => [rawSummaryPole] });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getPoles({ projectId: "rec3ZJtlb5vqkHPS1" });
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toContain("projectId=rec3ZJtlb5vqkHPS1");
+    expect(url).toContain("summary=true");
+  });
+
+  it("applies multiple filters together, alongside summary=true", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => [rawSummaryPole] });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getPoles({ customerId: "cust1", projectId: "proj1" });
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toContain("customerId=cust1");
+    expect(url).toContain("projectId=proj1");
+    expect(url).toContain("summary=true");
+  });
+});
+
+describe("getPole", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const rawPole = {
+    id: "recFrbkdOnCqdCDjt",
+    poleNumber: "12057-2689033877",
+    locationId: "TEC-2689033877",
+    installDate: "2022-04-06",
+    lat: 27.74143766,
+    long: -82.40508593,
+    lastUpdate: "2026-07-26 15:17:14+00:00",
+    batteryVoltage1: 13.409,
+    batteryVoltage2: 13.619,
+    lightStatus: "DayLight",
+    isOnline: true,
+    avgBatteryPercentage: 80.06,
+    avgPanelPercentage: 19.32,
+    avgLightPercentage: 0.0,
+    projectId: "rec3ZJtlb5vqkHPS1",
+    customerId: "recwx649JfiRmWqxF",
+  };
+
+  it("filters /getPoles by poleId", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => [rawPole] });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getPole("recFrbkdOnCqdCDjt");
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toContain("/getPoles?poleId=recFrbkdOnCqdCDjt");
+  });
+
+  it("returns the first (only) matching pole", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => [rawPole] }));
+
+    const pole = await getPole("recFrbkdOnCqdCDjt");
+
+    expect(pole?.id).toBe("recFrbkdOnCqdCDjt");
+  });
+
+  it("returns undefined when no pole matches", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => [] }));
+
     const pole = await getPole("does-not-exist");
+
     expect(pole).toBeUndefined();
   });
+});
 
+describe("Users (stubbed)", () => {
   it("getUsers resolves with the mock user list", async () => {
     const users = await getUsers();
     expect(users.length).toBeGreaterThan(0);

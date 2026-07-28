@@ -1,15 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
-import type { Customer, Project } from "@/lib/types";
+import type { Customer, CustomerPoleVitals, Project } from "@/lib/types";
 
-const { getCustomerMock, getProjectsForCustomerMock } = vi.hoisted(() => ({
-  getCustomerMock: vi.fn(),
-  getProjectsForCustomerMock: vi.fn(),
-}));
+const { getCustomerMock, getProjectsForCustomerMock, getPoleVitalsForCustomerMock } = vi.hoisted(
+  () => ({
+    getCustomerMock: vi.fn(),
+    getProjectsForCustomerMock: vi.fn(),
+    getPoleVitalsForCustomerMock: vi.fn(),
+  }),
+);
 
 vi.mock("@/lib/apim", () => ({
   getCustomer: getCustomerMock,
   getProjectsForCustomer: getProjectsForCustomerMock,
+  getPoleVitalsForCustomer: getPoleVitalsForCustomerMock,
 }));
 
 import ProjectDetailPage from "@/app/customers/[id]/projects/[projectId]/page";
@@ -54,10 +58,48 @@ const projects: Project[] = [
   },
 ];
 
+const vitals: CustomerPoleVitals = {
+  id: "r2",
+  name: "Coastal Power & Light",
+  totalLights: 88,
+  workingPercentage: 89.77,
+  optimisticWorkingPercentage: 96.0,
+  totalFaults: 2,
+  totalNonTelemetryAvailable: 9,
+  poles: [],
+  projects: [
+    {
+      id: "p1",
+      name: "Bayou District Rebuild",
+      totalLights: 54,
+      workingPercentage: 90.74,
+      optimisticWorkingPercentage: 92.5,
+      totalFaults: 1,
+      totalNonTelemetryAvailable: 5,
+      poles: [
+        { id: "pv1", poleNumber: "51079-1000", locationId: "loc-1", isOnline: true, lightStatus: "Working", installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null },
+        { id: "pv2", poleNumber: "51079-1001", locationId: "loc-2", isOnline: true, lightStatus: "Daylight", installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null },
+        { id: "pv3", poleNumber: "51079-1002", locationId: "loc-3", isOnline: false, lightStatus: "Fault", installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null },
+      ],
+    },
+    {
+      id: "p2",
+      name: "Storm Hardening Phase 2",
+      totalLights: 34,
+      workingPercentage: 88.24,
+      optimisticWorkingPercentage: 100.0,
+      totalFaults: 1,
+      totalNonTelemetryAvailable: 4,
+      poles: [],
+    },
+  ],
+};
+
 describe("ProjectDetailPage", () => {
   it("renders the project name as the heading", async () => {
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
     const jsx = await ProjectDetailPage({
       params: Promise.resolve({ id: "r2", projectId: "p1" }),
       searchParams: Promise.resolve({}),
@@ -70,6 +112,7 @@ describe("ProjectDetailPage", () => {
   it("renders the breadcrumb trail: Customers / Customer / Project", async () => {
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
     const jsx = await ProjectDetailPage({
       params: Promise.resolve({ id: "r2", projectId: "p1" }),
       searchParams: Promise.resolve({}),
@@ -90,6 +133,7 @@ describe("ProjectDetailPage", () => {
   it("does not repeat the project name in the breadcrumb — it's already the page heading", async () => {
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
     const jsx = await ProjectDetailPage({
       params: Promise.resolve({ id: "r2", projectId: "p1" }),
       searchParams: Promise.resolve({}),
@@ -102,9 +146,26 @@ describe("ProjectDetailPage", () => {
     expect(screen.getAllByText("Bayou District Rebuild")).toHaveLength(1);
   });
 
-  it("carries the ?cust_q= search param into the breadcrumb links", async () => {
+  it("carries pole_q into the Poles table's pole links", async () => {
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
+    const jsx = await ProjectDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1" }),
+      searchParams: Promise.resolve({ pole_q: "12057" }),
+    });
+    render(jsx);
+
+    expect(screen.getByRole("link", { name: "51079-1000" })).toHaveAttribute(
+      "href",
+      "/customers/r2/projects/p1/poles/pv1?pole_q=12057",
+    );
+  });
+
+  it("restores the search in the top-level Customers breadcrumb, and the customer crumb still carries it too", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
     const jsx = await ProjectDetailPage({
       params: Promise.resolve({ id: "r2", projectId: "p1" }),
       searchParams: Promise.resolve({ cust_q: "coastal" }),
@@ -121,9 +182,31 @@ describe("ProjectDetailPage", () => {
     );
   });
 
+  it("shows the Poles breadcrumb (not Customers) when arriving via a pole search, restores it, and carries pole_q into the customer crumb", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
+    const jsx = await ProjectDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1" }),
+      searchParams: Promise.resolve({ pole_q: "12057" }),
+    });
+    render(jsx);
+
+    const breadcrumb = within(screen.getByRole("navigation"));
+    expect(
+      breadcrumb.getByRole("link", { name: "\u2190 Pole Search: \u201c12057\u201d" }),
+    ).toHaveAttribute("href", "/poles?pole_q=12057");
+    expect(breadcrumb.queryByText(/Customer Search/)).not.toBeInTheDocument();
+    expect(breadcrumb.getByRole("link", { name: "Coastal Power & Light" })).toHaveAttribute(
+      "href",
+      "/customers/r2?pole_q=12057",
+    );
+  });
+
   it("shows the customer name above the project name as plain text (not a link)", async () => {
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
     const jsx = await ProjectDetailPage({
       params: Promise.resolve({ id: "r2", projectId: "p1" }),
       searchParams: Promise.resolve({}),
@@ -153,6 +236,7 @@ describe("ProjectDetailPage", () => {
   it("colors the header's customer name teal", async () => {
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
     const jsx = await ProjectDetailPage({
       params: Promise.resolve({ id: "r2", projectId: "p1" }),
       searchParams: Promise.resolve({}),
@@ -168,6 +252,7 @@ describe("ProjectDetailPage", () => {
   it("does not render the stub notice", async () => {
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
     const jsx = await ProjectDetailPage({
       params: Promise.resolve({ id: "r2", projectId: "p1" }),
       searchParams: Promise.resolve({}),
@@ -180,6 +265,7 @@ describe("ProjectDetailPage", () => {
   it("does not render the customer/project-id info box", async () => {
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
     const jsx = await ProjectDetailPage({
       params: Promise.resolve({ id: "r2", projectId: "p1" }),
       searchParams: Promise.resolve({}),
@@ -190,35 +276,126 @@ describe("ProjectDetailPage", () => {
     expect(screen.queryByText("p1")).not.toBeInTheDocument();
   });
 
-  it("shows a Light Status section with this project's total lights", async () => {
+  it("shows a Light Status section with this project's real vitals", async () => {
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
     const jsx = await ProjectDetailPage({
       params: Promise.resolve({ id: "r2", projectId: "p1" }),
       searchParams: Promise.resolve({}),
     });
     render(jsx);
 
-    expect(screen.getByText("Light Status")).toBeInTheDocument();
-    expect(screen.getByLabelText("4 Total lights")).toBeInTheDocument();
+    // "Light Status" is both the section heading and the Poles table's
+    // column header — the section heading carries the mb-3 class.
+    const lightStatusHeading = screen
+      .getAllByText("Light Status")
+      .find((el) => el.className.includes("mb-3"));
+    expect(lightStatusHeading).toBeTruthy();
+    expect(screen.getByLabelText("54 Total lights")).toBeInTheDocument();
+    // p1's optimisticWorkingPercentage is 92.5 -> "92.5%", label stays "Lights working"
+    const working = screen.getByLabelText("92.5% Lights working");
+    expect(working).toBeInTheDocument();
+    // 92.5 is >= 50, so it should render green (status-active).
+    expect(working.querySelector("div")?.className).toContain("text-[var(--status-active)]");
+    expect(screen.getByLabelText("1 Total faults")).toBeInTheDocument();
   });
 
-  it("shows stub placeholders for Lights working and Total faults", async () => {
+  it("colors Lights working red when the percentage is below 50", async () => {
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue({
+      ...vitals,
+      projects: [
+        { ...vitals.projects[0], optimisticWorkingPercentage: 35 },
+        vitals.projects[1],
+      ],
+    });
     const jsx = await ProjectDetailPage({
       params: Promise.resolve({ id: "r2", projectId: "p1" }),
       searchParams: Promise.resolve({}),
     });
     render(jsx);
 
-    expect(screen.getByText("Lights working")).toBeInTheDocument();
-    expect(screen.getByText("Total faults")).toBeInTheDocument();
+    const working = screen.getByLabelText("35% Lights working");
+    expect(working.querySelector("div")?.className).toContain("text-[var(--status-flagged)]");
+  });
+
+  it("shows a Poles section listing this project's poles", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
+    const jsx = await ProjectDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(screen.getByText("Poles")).toBeInTheDocument();
+    expect(screen.getByText("51079-1000")).toBeInTheDocument();
+    expect(screen.getByText("51079-1002")).toBeInTheDocument();
+  });
+
+  it("shows the Poles empty state for a project with no poles", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
+    const jsx = await ProjectDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p2" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(screen.getByText("No poles on file for this project yet.")).toBeInTheDocument();
+  });
+
+  it("shows the Poles empty state when there are no vitals for this project at all", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue({ ...vitals, projects: [] });
+    const jsx = await ProjectDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(screen.getByText("No poles on file for this project yet.")).toBeInTheDocument();
+  });
+
+  it("shows a different project's own vitals when viewing that project", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
+    const jsx = await ProjectDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p2" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(screen.getByLabelText("34 Total lights")).toBeInTheDocument();
+    expect(screen.getByLabelText("100% Lights working")).toBeInTheDocument();
+    expect(screen.getByLabelText("1 Total faults")).toBeInTheDocument();
+  });
+
+  it("shows dashes when no vitals are available for this project", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue({ ...vitals, projects: [] });
+    const jsx = await ProjectDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(screen.getByLabelText("— Total lights")).toBeInTheDocument();
+    expect(screen.getByLabelText("— Lights working")).toBeInTheDocument();
+    expect(screen.getByLabelText("— Total faults")).toBeInTheDocument();
   });
 
   it("renders a not-found state when the customer doesn't exist", async () => {
     getCustomerMock.mockResolvedValue(undefined);
     getProjectsForCustomerMock.mockResolvedValue([]);
+    getPoleVitalsForCustomerMock.mockResolvedValue(undefined);
     const jsx = await ProjectDetailPage({
       params: Promise.resolve({ id: "does-not-exist", projectId: "p1" }),
       searchParams: Promise.resolve({}),
@@ -235,6 +412,7 @@ describe("ProjectDetailPage", () => {
   it("renders a not-found state when the project id doesn't match", async () => {
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
     const jsx = await ProjectDetailPage({
       params: Promise.resolve({ id: "r2", projectId: "does-not-exist" }),
       searchParams: Promise.resolve({}),

@@ -1,4 +1,4 @@
-# Streetleaf — Asset Management (stub)
+# Streetleaf - Customer Dashboard (stub)
 
 Internal Next.js app for managing Customers → Projects → Poles, plus a Users page.
 Data is intended to come from an Azure API Management (APIM) gateway; all pages

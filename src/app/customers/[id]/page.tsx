@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { getCustomer, getProjectsForCustomer } from "@/lib/apim";
+import { getCustomer, getPoleVitalsForCustomer, getProjectsForCustomer } from "@/lib/apim";
 import { PageHeader } from "@/components/PageHeader";
-import { Breadcrumbs, customersCrumb } from "@/components/Breadcrumbs";
+import { Breadcrumbs, leadingCrumb } from "@/components/Breadcrumbs";
 import { StatBox } from "@/components/StatBox";
 import { StatGroup } from "@/components/StatGroup";
-import { withQueryParam } from "@/lib/url";
-import { initials } from "@/lib/text";
+import { withQueryParam, withSearchContext } from "@/lib/url";
+import { formatPercent, initials, workingPercentClass } from "@/lib/text";
 import type { Customer } from "@/lib/types";
 
 /** Combines address, city, state, and zip into one display line, skipping any that are missing. */
@@ -25,17 +25,17 @@ export default async function CustomerDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ cust_q?: string }>;
+  searchParams: Promise<{ cust_q?: string; pole_q?: string }>;
 }) {
   const { id } = await params;
-  const { cust_q } = await searchParams;
+  const { cust_q, pole_q } = await searchParams;
   const customer = await getCustomer(id);
   const customersHref = withQueryParam("/customers", "cust_q", cust_q);
 
   if (!customer) {
     return (
       <>
-        <Breadcrumbs items={[customersCrumb(cust_q)]} />
+        <Breadcrumbs items={[leadingCrumb(cust_q, pole_q)]} />
         <PageHeader title="Customer not found" />
         <p className="px-8 py-6 text-[13px] text-[var(--ink-muted)]">
           We couldn&rsquo;t find a customer with id{" "}
@@ -48,18 +48,21 @@ export default async function CustomerDetailPage({
     );
   }
 
-  const projects = await getProjectsForCustomer(customer.id);
+  const [projects, vitals] = await Promise.all([
+    getProjectsForCustomer(customer.id),
+    getPoleVitalsForCustomer(customer.id),
+  ]);
+  const vitalsByProjectId = new Map(vitals?.projects.map((p) => [p.id, p]));
+
   const addressLine = formatFullAddress(customer);
   const projectCount = projects.length;
-  const totalLights = projects.reduce((sum, project) => sum + project.polesUnderContract, 0);
-  // TODO: wire up once the API exposes real "lights working" / "total faults"
-  // figures per project — no such fields exist on /getProjects yet.
-  const lightsWorking = "—";
-  const totalFaults = "—";
+  const totalLights = vitals?.totalLights ?? 0;
+  const lightsWorking = vitals ? formatPercent(vitals.optimisticWorkingPercentage) : "—";
+  const totalFaults = vitals?.totalFaults ?? "—";
 
   return (
     <>
-      <Breadcrumbs items={[customersCrumb(cust_q)]} />
+      <Breadcrumbs items={[leadingCrumb(cust_q, pole_q)]} />
 
       <div className="flex h-[88px] items-center justify-between gap-6 border-b border-t border-[var(--border)] bg-[var(--surface)] px-8">
         <div className="flex items-center gap-4">
@@ -90,7 +93,13 @@ export default async function CustomerDetailPage({
         <StatGroup
           stats={[
             { value: totalLights, label: "Total lights" },
-            { value: lightsWorking, label: "Lights working" },
+            {
+              value: lightsWorking,
+              label: "Lights working",
+              valueClassName: vitals
+                ? workingPercentClass(vitals.optimisticWorkingPercentage)
+                : undefined,
+            },
             { value: totalFaults, label: "Total faults" },
           ]}
         />
@@ -106,35 +115,46 @@ export default async function CustomerDetailPage({
           </p>
         ) : (
           <div className="flex flex-col gap-1.5">
-            {projects.map((project) => (
-              <Link
-                key={project.id}
-                href={withQueryParam(
-                  `/customers/${customer.id}/projects/${project.id}`,
-                  "cust_q",
-                  cust_q,
-                )}
-                className="flex items-center justify-between gap-3 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 hover:bg-[var(--surface-sunken)]"
-              >
-                <span className="flex min-w-0 items-center gap-2 text-[13px] font-medium text-[var(--ink)] hover:underline">
-                  <span
-                    className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent)]"
-                    aria-hidden="true"
-                  />
-                  <span className="truncate">{project.name}</span>
-                </span>
-                <span className="shrink-0">
-                  <StatGroup
-                    size="sm"
-                    stats={[
-                      { value: project.polesUnderContract, label: "Total lights" },
-                      { value: lightsWorking, label: "Lights working" },
-                      { value: totalFaults, label: "Total faults" },
-                    ]}
-                  />
-                </span>
-              </Link>
-            ))}
+            {projects.map((project) => {
+              const projectVitals = vitalsByProjectId.get(project.id);
+              return (
+                <Link
+                  key={project.id}
+                  href={withSearchContext(
+                    `/customers/${customer.id}/projects/${project.id}`,
+                    cust_q,
+                    pole_q,
+                  )}
+                  className="flex items-center justify-between gap-3 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 hover:bg-[var(--surface-sunken)]"
+                >
+                  <span className="flex min-w-0 items-center gap-2 text-[13px] font-medium text-[var(--ink)] hover:underline">
+                    <span
+                      className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent)]"
+                      aria-hidden="true"
+                    />
+                    <span className="truncate">{project.name}</span>
+                  </span>
+                  <span className="shrink-0">
+                    <StatGroup
+                      size="sm"
+                      stats={[
+                        { value: projectVitals?.totalLights ?? "—", label: "Total lights" },
+                        {
+                          value: projectVitals
+                            ? formatPercent(projectVitals.optimisticWorkingPercentage)
+                            : "—",
+                          label: "Lights working",
+                          valueClassName: projectVitals
+                            ? workingPercentClass(projectVitals.optimisticWorkingPercentage)
+                            : undefined,
+                        },
+                        { value: projectVitals?.totalFaults ?? "—", label: "Total faults" },
+                      ]}
+                    />
+                  </span>
+                </Link>
+              );
+            })}
           </div>
         )}
       </div>

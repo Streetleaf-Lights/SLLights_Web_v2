@@ -35,6 +35,8 @@
   /* Status */
   --status-active: #1f8a4c;
   --status-active-bg: #e6f4ec;
+  --status-warning: #b45309;
+  --status-warning-bg: #fef3c7;
   --status-planned: #2f6fb0;
   --status-planned-bg: #e8f1fa;
   --status-decommissioned: #6b7280;

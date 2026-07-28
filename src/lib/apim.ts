@@ -4,10 +4,13 @@
 // Customers are wired to the real /getCustomers endpoint — getCustomers()
 // fetches the full list, getCustomer(id) uses the ?customerId= filter to
 // fetch just one record. Projects are wired to the real /getProjects
-// endpoint via getProjectsForCustomer(customerId). Poles and Users are still
-// STUBBED with in-memory mock data until their endpoints exist — swap the
-// mock return for the `apimFetch<T>(...)` call (see the TODOs below) once
-// they're live.
+// endpoint via getProjectsForCustomer(customerId). Pole vitals (lights
+// working / faults) come from /getPoleVitals via getPoleVitalsForCustomer.
+// Poles are wired to the real /getPoles endpoint via getPoles(filters) /
+// getPole(poleId), supporting optional poleId/projectId/customerId filters.
+// Users are still STUBBED with in-memory mock data until that endpoint
+// exists — swap the mock return for the `apimFetch<T>(...)` call once it's
+// live.
 //
 // Configure via environment variables (see .env.local.example):
 //   NEXT_PUBLIC_APIM_BASE_URL   defaults to https://lights-v2-apim.azure-api.net
@@ -15,8 +18,16 @@
 //   APIM_CACHE_SECONDS          how long responses are cached before Next.js
 //                               revalidates in the background (default 30)
 
-import type { Customer, CustomerProjectRef, Pole, Project, User } from "./types";
-import { mockPoles, mockUsers } from "./mock-data";
+import type {
+  Customer,
+  CustomerPoleVitals,
+  CustomerProjectRef,
+  Pole,
+  PoleSummary,
+  Project,
+  User,
+} from "./types";
+import { mockUsers } from "./mock-data";
 import { time } from "./timing";
 
 const APIM_BASE_URL =
@@ -190,17 +201,58 @@ export async function getProjectsForCustomer(customerId: string): Promise<Projec
 }
 
 // ---------------------------------------------------------------------------
+// Pole vitals (lights working / faults, per customer + per project)
+// ---------------------------------------------------------------------------
+
+export async function getPoleVitalsForCustomer(
+  customerId: string,
+): Promise<CustomerPoleVitals | undefined> {
+  const raw = await apimFetch<CustomerPoleVitals | null>(
+    `/getPoleVitals?customerId=${encodeURIComponent(customerId)}`,
+  );
+  return raw ?? undefined;
+}
+
+// ---------------------------------------------------------------------------
 // Poles
 // ---------------------------------------------------------------------------
 
-export async function getPoles(): Promise<Pole[]> {
-  // TODO: replace with apimFetch<Pole[]>("/poles")
-  return stubDelay(mockPoles);
+export interface PoleFilters {
+  poleId?: string;
+  projectId?: string;
+  customerId?: string;
 }
 
-export async function getPole(id: string): Promise<Pole | undefined> {
-  // TODO: replace with apimFetch<Pole>(`/poles/${id}`)
-  return stubDelay(mockPoles.find((p) => p.id === id));
+function buildPoleQuery(filters?: PoleFilters & { summary?: boolean }): string {
+  const params = new URLSearchParams();
+  if (filters?.poleId) params.set("poleId", filters.poleId);
+  if (filters?.projectId) params.set("projectId", filters.projectId);
+  if (filters?.customerId) params.set("customerId", filters.customerId);
+  if (filters?.summary) params.set("summary", "true");
+  const qs = params.toString();
+  return qs ? `?${qs}` : "";
+}
+
+/**
+ * GET /getPoles?summary=true, optionally filtered by projectId and/or
+ * customerId. Summary mode lifts the 1000-row cap the plain endpoint
+ * applies — needed since the whole system has ~14k poles — in exchange for
+ * a lighter per-pole payload (no lastUpdate or battery voltages).
+ */
+export async function getPoles(filters?: PoleFilters): Promise<PoleSummary[]> {
+  const raw = await apimFetch<PoleSummary[]>(
+    `/getPoles${buildPoleQuery({ ...filters, summary: true })}`,
+  );
+  return raw;
+}
+
+/**
+ * Full single-pole record (not summary-limited — filtering to one poleId
+ * never approaches the row cap, so this returns every field).
+ */
+export async function getPole(poleId: string): Promise<Pole | undefined> {
+  const raw = await apimFetch<Pole[]>(`/getPoles${buildPoleQuery({ poleId })}`);
+  return raw[0];
 }
 
 // ---------------------------------------------------------------------------

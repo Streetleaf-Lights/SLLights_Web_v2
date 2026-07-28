@@ -56,7 +56,7 @@ export function Pagination({
   const showTrailingEllipsis = pageWindow[pageWindow.length - 1] < totalPages;
 
   return (
-    <div className="mx-8 mt-4 flex items-center justify-center gap-1.5">
+    <div className="mx-8 mb-6 mt-4 flex items-center justify-center gap-1.5">
       <button
         type="button"
         className={navButtonClass}

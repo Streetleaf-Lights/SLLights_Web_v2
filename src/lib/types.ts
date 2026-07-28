@@ -6,8 +6,6 @@
 // etc.) comes from a separate /getProjects?customerId= lookup. Users are
 // managed separately (application accounts, not part of the customer hierarchy).
 
-export type PoleStatus = "active" | "planned" | "decommissioned" | "flagged";
-
 export type UserRole = "admin" | "editor" | "viewer";
 
 /** A project reference as carried inline on a Customer record. */
@@ -41,20 +39,65 @@ export interface Project {
   createdAt: string;
 }
 
-export interface Pole {
+/**
+ * A single pole's live status, as nested inside each project's vitals.
+ * All telemetry fields are null for poles with no telemetry available (see
+ * totalNonTelemetryAvailable on the parent project/customer).
+ */
+export interface PoleVital {
   id: string;
-  assetTag: string;
-  customerId: string;
-  customerName: string;
-  projectId: string;
-  projectName: string;
-  status: PoleStatus;
-  material: string;
-  heightFt: number;
-  latitude: number;
-  longitude: number;
-  lastInspected: string;
+  poleNumber: string;
+  locationId: string;
+  isOnline: boolean | null;
+  lightStatus: string | null;
+  installDate: string | null;
+  lat: number | null;
+  long: number | null;
+  lastUpdate: string | null;
+  batteryVoltage1: number | null;
+  batteryVoltage2: number | null;
+  avgBatteryPercentage: number | null;
+  avgPanelPercentage: number | null;
+  avgLightPercentage: number | null;
 }
+
+/** Vitals for a single project, as nested inside GET /getPoleVitals?customerId=... */
+export interface ProjectVitals {
+  id: string;
+  name: string;
+  totalLights: number;
+  workingPercentage: number;
+  optimisticWorkingPercentage: number;
+  totalFaults: number;
+  totalNonTelemetryAvailable: number;
+  poles: PoleVital[];
+}
+
+/** Customer-level vitals from GET /getPoleVitals?customerId=..., with per-project breakdowns. */
+export interface CustomerPoleVitals extends ProjectVitals {
+  projects: ProjectVitals[];
+}
+
+/**
+ * A pole from GET /getPoles?poleId=&projectId=&customerId= (all filters
+ * optional). Same live-telemetry fields as PoleVital, plus the foreign keys
+ * needed to link back into the Customer -> Project -> Pole hierarchy.
+ */
+export interface Pole extends PoleVital {
+  customerId: string;
+  projectId: string;
+}
+
+/**
+ * Lightweight pole record from GET /getPoles?summary=true. The unfiltered
+ * /getPoles response is capped at 1000 records without summary mode, but the
+ * full system has ~14k poles — summary mode lifts that cap in exchange for
+ * omitting lastUpdate and the two battery voltage fields.
+ */
+export type PoleSummary = Omit<PoleVital, "lastUpdate" | "batteryVoltage1" | "batteryVoltage2"> & {
+  customerId: string;
+  projectId: string;
+};
 
 export interface User {
   id: string;
