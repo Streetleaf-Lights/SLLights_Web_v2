@@ -5,13 +5,21 @@ import {
   getCustomer,
   getCustomers,
   getPole,
+  getPoleVitalsByPeriod,
   getPoleVitalsForCustomer,
   getPoles,
+  deleteUser,
+  forgotPassword,
   getProjectsForCustomer,
   getUsers,
+  inviteUser,
   normalizeCustomer,
   normalizeProject,
   parseJsonStringArray,
+  registerUser,
+  resetPassword,
+  signIn,
+  signOut,
   type RawCustomer,
   type RawProject,
 } from "@/lib/apim";
@@ -145,6 +153,16 @@ describe("apimFetch", () => {
     expect(init.cache).not.toBe("no-store");
     expect(init.next).toEqual(expect.objectContaining({ revalidate: expect.any(Number) }));
     expect(init.next.revalidate).toBeGreaterThan(0);
+  });
+
+  it("passes tags through to next.tags for on-demand revalidation", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => [] });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await apimFetch("/getUsers", { tags: ["users"] });
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.next.tags).toEqual(["users"]);
   });
 
   it("throws an ApimError when the response is not ok", async () => {
@@ -611,9 +629,734 @@ describe("getPole", () => {
   });
 });
 
-describe("Users (stubbed)", () => {
-  it("getUsers resolves with the mock user list", async () => {
+describe("getPoleVitalsByPeriod", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const successBody = {
+    id: "recAOlPiepBddUcCv",
+    poleNumber: "01095-1000",
+    locationId: "01095-1000",
+    installDate: "2025-09-28",
+    lat: 28.30129789476302,
+    long: -82.27204515451723,
+    lastUpdate: "2026-07-30 15:18:27+00:00",
+    vitals: [
+      {
+        periodStart: "2026-07-30 11:00:00-04:00",
+        periodEnd: "2026-07-30 12:00:00-04:00",
+        lightStatus: "DayLight",
+        isOnline: true,
+        avgBatteryPercentage: 100.0,
+        avgPanelPercentage: 0.16278533333333334,
+        avgLightPercentage: 0.0,
+      },
+    ],
+  };
+
+  it("calls /getPoleVitalsByPeriod with poleId, periodType, and limit as query params", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => successBody });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getPoleVitalsByPeriod({ poleId: "recAOlPiepBddUcCv", periodType: "Hour", limit: 48 });
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toContain("/getPoleVitalsByPeriod?");
+    expect(url).toContain("poleId=recAOlPiepBddUcCv");
+    expect(url).toContain("periodType=Hour");
+    expect(url).toContain("limit=48");
+  });
+
+  it("does not request caching bypass — this is a read, so it keeps the usual revalidate window", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => successBody });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getPoleVitalsByPeriod({ poleId: "recAOlPiepBddUcCv", periodType: "Day", limit: 30 });
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.next).toEqual({ revalidate: 30 });
+  });
+
+  it("returns the pole + vitals array on success", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => successBody }));
+
+    const result = await getPoleVitalsByPeriod({
+      poleId: "recAOlPiepBddUcCv",
+      periodType: "Hour",
+      limit: 48,
+    });
+
+    expect(result).toEqual(successBody);
+  });
+
+  it("throws an ApimError carrying the server's message for an invalid periodType", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: async () => ({ error: "periodType must be one of: Hour, Day" }),
+      }),
+    );
+
+    await expect(
+      getPoleVitalsByPeriod({ poleId: "recAOlPiepBddUcCv", periodType: "Hour", limit: 48 }),
+    ).rejects.toMatchObject({
+      message: "periodType must be one of: Hour, Day",
+      status: 400,
+    });
+  });
+
+  it("throws an ApimError carrying the server's message when the pole isn't found", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+        json: async () => ({ error: "pole not found" }),
+      }),
+    );
+
+    await expect(
+      getPoleVitalsByPeriod({ poleId: "does-not-exist", periodType: "Hour", limit: 48 }),
+    ).rejects.toMatchObject({ message: "pole not found", status: 404 });
+  });
+
+  it("falls back to a generic message when the error body isn't the expected shape", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => null }),
+    );
+
+    await expect(
+      getPoleVitalsByPeriod({ poleId: "recAOlPiepBddUcCv", periodType: "Hour", limit: 48 }),
+    ).rejects.toMatchObject({ message: "Failed to load pole vitals.", status: 500 });
+  });
+});
+
+describe("getUsers", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const rawUser = {
+    id: "user1",
+    name: "Jane Doe",
+    email: "jane@example.com",
+    role: "Customer Admin",
+    status: "Active",
+    customerId: "cust1",
+    customerName: "Acme Corp",
+  };
+
+  it("calls /getUsers", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => [rawUser] });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getUsers();
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toMatch(/\/getUsers$/);
+  });
+
+  it("tags its fetch with 'users', so /api/inviteuser can force-refresh it after an invite", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => [rawUser] });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getUsers();
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.next.tags).toEqual(["users"]);
+  });
+
+  it("returns the users as-is (already matches our User shape)", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => [rawUser] }));
+
     const users = await getUsers();
-    expect(users.length).toBeGreaterThan(0);
+
+    expect(users).toEqual([rawUser]);
+  });
+});
+
+describe("inviteUser", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const successBody = {
+    userId: "8714b64b-1186-487a-820a-6ee0c53a2b25",
+    email: "minh+9@streetleaf.com",
+    emailSent: true,
+  };
+
+  it("posts name, email, and role, without a customerId key, for a Streetleaf Admin invite", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => successBody });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await inviteUser(
+      { name: "Minh Tran", email: "minh@streetleaf.com", role: "Streetleaf Admin" },
+      "jwt-token",
+    );
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toMatch(/\/inviteUser$/);
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body)).toEqual({
+      name: "Minh Tran",
+      email: "minh@streetleaf.com",
+      role: "Streetleaf Admin",
+    });
+  });
+
+  it("sends the token as a Bearer Authorization header (APIM requires it on top of the subscription key)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => successBody });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await inviteUser(
+      { name: "Minh Tran", email: "minh@streetleaf.com", role: "Streetleaf Admin" },
+      "jwt-token",
+    );
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.headers.Authorization).toBe("Bearer jwt-token");
+  });
+
+  it("includes customerId when provided (Customer Admin invites)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => successBody });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await inviteUser(
+      {
+        name: "Jane Doe",
+        email: "jane@example.com",
+        role: "Customer Admin",
+        customerId: "cust-2",
+      },
+      "jwt-token",
+    );
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse(init.body)).toEqual({
+      name: "Jane Doe",
+      email: "jane@example.com",
+      role: "Customer Admin",
+      customerId: "cust-2",
+    });
+  });
+
+  it("does not request caching/revalidation (this is a mutating call)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => successBody });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await inviteUser(
+      { name: "Minh Tran", email: "minh@streetleaf.com", role: "Streetleaf Admin" },
+      "jwt-token",
+    );
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.cache).toBe("no-store");
+    expect(init.next).toBeUndefined();
+  });
+
+  it("returns the userId/email/emailSent result on success", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => successBody }));
+
+    const result = await inviteUser(
+      {
+        name: "Minh Tran",
+        email: "minh@streetleaf.com",
+        role: "Streetleaf Admin",
+      },
+      "jwt-token",
+    );
+
+    expect(result).toEqual(successBody);
+  });
+
+  it("throws an ApimError carrying the server's error message on failure", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 409,
+        json: async () => ({ error: "email already invited" }),
+      }),
+    );
+
+    await expect(
+      inviteUser(
+        { name: "Minh Tran", email: "minh@streetleaf.com", role: "Streetleaf Admin" },
+        "jwt-token",
+      ),
+    ).rejects.toMatchObject({ message: "email already invited", status: 409 });
+  });
+
+  it("falls back to a generic message when the error body isn't the expected shape", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => null }),
+    );
+
+    await expect(
+      inviteUser(
+        { name: "Minh Tran", email: "minh@streetleaf.com", role: "Streetleaf Admin" },
+        "jwt-token",
+      ),
+    ).rejects.toMatchObject({ message: "Invite failed.", status: 500 });
+  });
+});
+
+describe("deleteUser", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("sends userId as a query param (not a JSON body) with the token as a Bearer Authorization header", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await deleteUser("user1", "jwt-token");
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toMatch(/\/deleteUser\?userId=user1$/);
+    expect(init.method).toBe("POST");
+    expect(init.headers.Authorization).toBe("Bearer jwt-token");
+    expect(init.body).toBeUndefined();
+  });
+
+  it("URL-encodes the userId in the query string", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await deleteUser("user with space", "jwt-token");
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toContain("userId=user%20with%20space");
+  });
+
+  it("does not request caching (this is a mutating call)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await deleteUser("user1", "jwt-token");
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.cache).toBe("no-store");
+  });
+
+  it("resolves with no value on success", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
+
+    await expect(deleteUser("user1", "jwt-token")).resolves.toBeUndefined();
+  });
+
+  it("throws an ApimError carrying the server's error message on failure", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 409,
+        json: async () => ({ error: "cannot delete the last admin" }),
+      }),
+    );
+
+    await expect(deleteUser("user1", "jwt-token")).rejects.toMatchObject({
+      message: "cannot delete the last admin",
+      status: 409,
+    });
+  });
+
+  it("falls back to a generic message when the error body isn't the expected shape", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => null }),
+    );
+
+    await expect(deleteUser("user1", "jwt-token")).rejects.toMatchObject({
+      message: "Delete failed.",
+      status: 500,
+    });
+  });
+});
+
+describe("signIn", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const successBody = {
+    token: "jwt-token",
+    user: {
+      id: "6496D8A1-7A59-4673-9C29-BB522B94CD28",
+      name: "Minh Tran",
+      email: "minh@streetleaf.com",
+      role: "Streetleaf Admin",
+      customerId: null,
+    },
+  };
+
+  it("posts email + password to /signIn", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => successBody });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await signIn("minh@streetleaf.com", "hunter2");
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toMatch(/\/signIn$/);
+    expect(init.method).toBe("POST");
+    expect(init.body).toBe(JSON.stringify({ email: "minh@streetleaf.com", password: "hunter2" }));
+  });
+
+  it("does not request caching/revalidation (this is a mutating call)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => successBody });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await signIn("minh@streetleaf.com", "hunter2");
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.cache).toBe("no-store");
+    expect(init.next).toBeUndefined();
+  });
+
+  it("returns the token and user on success", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => successBody }));
+
+    const result = await signIn("minh@streetleaf.com", "hunter2");
+
+    expect(result).toEqual(successBody);
+  });
+
+  it("throws an ApimError carrying the server's error message on invalid credentials", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        json: async () => ({ error: "invalid email or password" }),
+      }),
+    );
+
+    await expect(signIn("minh@streetleaf.com", "wrong")).rejects.toMatchObject({
+      message: "invalid email or password",
+      status: 401,
+    });
+  });
+
+  it("falls back to a generic message when the error body isn't the expected shape", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => null }),
+    );
+
+    await expect(signIn("minh@streetleaf.com", "wrong")).rejects.toMatchObject({
+      message: "Sign in failed.",
+      status: 500,
+    });
+  });
+});
+
+describe("registerUser", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const successBody = {
+    token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.jwt",
+    user: {
+      id: "1445C5D1-37C2-43CF-9F82-6223F425B265",
+      name: "Minh South Oak",
+      email: "minh+1@streetleaf.com",
+      role: "Customer Admin",
+      customerId: "rec5uaHZMOGZGyVcY",
+    },
+  };
+
+  it("posts the invite token and password to /registerUser", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => successBody });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await registerUser("52111603-53d7-4a99-a027-a105b4d527b5", "Pass.123");
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toMatch(/\/registerUser$/);
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body)).toEqual({
+      token: "52111603-53d7-4a99-a027-a105b4d527b5",
+      password: "Pass.123",
+    });
+  });
+
+  it("does not send an Authorization header (the invite token is the credential)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => successBody });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await registerUser("52111603-53d7-4a99-a027-a105b4d527b5", "Pass.123");
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.headers.Authorization).toBeUndefined();
+  });
+
+  it("does not request caching (this is a mutating call)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => successBody });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await registerUser("52111603-53d7-4a99-a027-a105b4d527b5", "Pass.123");
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.cache).toBe("no-store");
+  });
+
+  it("returns the token and user on success", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => successBody }));
+
+    const result = await registerUser("52111603-53d7-4a99-a027-a105b4d527b5", "Pass.123");
+
+    expect(result).toEqual(successBody);
+  });
+
+  it("throws an ApimError carrying the server's error message on an invalid/expired invite link", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: async () => ({ error: "invalid or expired invite link" }),
+      }),
+    );
+
+    await expect(registerUser("bad-token", "Pass.123")).rejects.toMatchObject({
+      message: "invalid or expired invite link",
+      status: 400,
+    });
+  });
+
+  it("falls back to a generic message when the error body isn't the expected shape", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => null }),
+    );
+
+    await expect(registerUser("bad-token", "Pass.123")).rejects.toMatchObject({
+      message: "Registration failed.",
+      status: 500,
+    });
+  });
+});
+
+describe("signOut", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("posts to /signOut with the token as a Bearer Authorization header", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await signOut("jwt-token");
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toMatch(/\/signOut$/);
+    expect(init.method).toBe("POST");
+    expect(init.headers.Authorization).toBe("Bearer jwt-token");
+  });
+
+  it("does not request caching (this is a mutating call)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await signOut("jwt-token");
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.cache).toBe("no-store");
+  });
+
+  it("resolves with no value on success", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
+
+    await expect(signOut("jwt-token")).resolves.toBeUndefined();
+  });
+
+  it("throws an ApimError carrying the server's error message on failure", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        json: async () => ({ error: "token expired" }),
+      }),
+    );
+
+    await expect(signOut("jwt-token")).rejects.toMatchObject({
+      message: "token expired",
+      status: 401,
+    });
+  });
+
+  it("falls back to a generic message when the error body isn't the expected shape", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => null }),
+    );
+
+    await expect(signOut("jwt-token")).rejects.toMatchObject({
+      message: "Sign out failed.",
+      status: 500,
+    });
+  });
+});
+
+describe("forgotPassword", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const successBody = { message: "If that email exists, a reset link has been sent." };
+
+  it("posts the email to /forgotPassword", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => successBody });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await forgotPassword("minh+4@streetleaf.com");
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toMatch(/\/forgotPassword$/);
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body)).toEqual({ email: "minh+4@streetleaf.com" });
+  });
+
+  it("does not send an Authorization header (no signed-in user at this point)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => successBody });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await forgotPassword("minh+4@streetleaf.com");
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.headers.Authorization).toBeUndefined();
+  });
+
+  it("does not request caching (this is a mutating call)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => successBody });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await forgotPassword("minh+4@streetleaf.com");
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.cache).toBe("no-store");
+  });
+
+  it("returns the generic message on success", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => successBody }));
+
+    const result = await forgotPassword("minh+4@streetleaf.com");
+
+    expect(result).toEqual(successBody);
+  });
+
+  it("throws an ApimError carrying the server's error message on failure", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: async () => ({ error: "malformed email" }),
+      }),
+    );
+
+    await expect(forgotPassword("not-an-email")).rejects.toMatchObject({
+      message: "malformed email",
+      status: 400,
+    });
+  });
+
+  it("falls back to a generic message when the error body isn't the expected shape", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => null }),
+    );
+
+    await expect(forgotPassword("minh+4@streetleaf.com")).rejects.toMatchObject({
+      message: "Something went wrong. Please try again.",
+      status: 500,
+    });
+  });
+});
+
+describe("resetPassword", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const successBody = { success: true };
+
+  it("posts the reset token and new password to /resetPassword", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => successBody });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await resetPassword("b442b6bd-4fb5-4d54-9cc3-aedc9ae76603", "Pass.123");
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toMatch(/\/resetPassword$/);
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body)).toEqual({
+      token: "b442b6bd-4fb5-4d54-9cc3-aedc9ae76603",
+      newPassword: "Pass.123",
+    });
+  });
+
+  it("does not send an Authorization header (the reset token is the credential)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => successBody });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await resetPassword("b442b6bd-4fb5-4d54-9cc3-aedc9ae76603", "Pass.123");
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.headers.Authorization).toBeUndefined();
+  });
+
+  it("does not request caching (this is a mutating call)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => successBody });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await resetPassword("b442b6bd-4fb5-4d54-9cc3-aedc9ae76603", "Pass.123");
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.cache).toBe("no-store");
+  });
+
+  it("returns success on success", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => successBody }));
+
+    const result = await resetPassword("b442b6bd-4fb5-4d54-9cc3-aedc9ae76603", "Pass.123");
+
+    expect(result).toEqual({ success: true });
+  });
+
+  it("throws an ApimError carrying the server's error message on an invalid/expired reset link", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: async () => ({ error: "invalid or expired reset link" }),
+      }),
+    );
+
+    await expect(resetPassword("bad-token", "Pass.123")).rejects.toMatchObject({
+      message: "invalid or expired reset link",
+      status: 400,
+    });
+  });
+
+  it("falls back to a generic message when the error body isn't the expected shape", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => null }),
+    );
+
+    await expect(resetPassword("bad-token", "Pass.123")).rejects.toMatchObject({
+      message: "Reset failed.",
+      status: 500,
+    });
   });
 });

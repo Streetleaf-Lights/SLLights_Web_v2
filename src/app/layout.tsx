@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Cabin, Roboto_Slab, JetBrains_Mono } from "next/font/google";
-import Sidebar from "@/components/Sidebar";
+import { AppShell } from "@/components/AppShell";
+import { getSessionUser } from "@/lib/session";
 import "./globals.css";
 
 const cabin = Cabin({
@@ -32,21 +33,22 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const sessionUser = await getSessionUser();
+
   return (
     <html
       lang="en"
       className={`${cabin.variable} ${robotoSlab.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
       <body className="flex h-full min-h-screen bg-[var(--bg)] text-[var(--ink)]">
-        <Sidebar />
-        <main className="flex min-h-screen flex-1 flex-col overflow-x-hidden">
+        <AppShell isSignedIn={Boolean(sessionUser)} role={sessionUser?.role ?? null}>
           {children}
-        </main>
+        </AppShell>
       </body>
     </html>
   );

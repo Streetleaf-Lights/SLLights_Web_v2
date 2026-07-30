@@ -4,6 +4,8 @@ import { PageHeader } from "@/components/PageHeader";
 import { Breadcrumbs, leadingCrumb } from "@/components/Breadcrumbs";
 import { OnlineIndicator } from "@/components/OnlineIndicator";
 import { StatGroup } from "@/components/StatGroup";
+import { PoleMap } from "@/components/PoleMap";
+import { PoleVitalsChart } from "@/components/PoleVitalsChart";
 import { withQueryParam, withSearchContext } from "@/lib/url";
 import { formatPercent, formatTimestamp, isLightStatusWorking, tieredPercentClass } from "@/lib/text";
 
@@ -154,6 +156,20 @@ export default async function PoleDetailPage({
             { value: formatVoltage(pole.batteryVoltage2), label: "Battery Voltage 2" },
           ]}
         />
+      </div>
+
+      <div className="mx-8 mb-6">
+        <div className="mb-3 text-[11px] uppercase tracking-wide text-[var(--ink-muted)]">
+          Vitals History
+        </div>
+        <PoleVitalsChart poleId={pole.id} />
+      </div>
+
+      <div className="mx-8 mb-6">
+        <div className="mb-3 text-[11px] uppercase tracking-wide text-[var(--ink-muted)]">
+          Location
+        </div>
+        <PoleMap lat={pole.lat} long={pole.long} />
       </div>
     </>
   );

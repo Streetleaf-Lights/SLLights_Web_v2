@@ -8,9 +8,7 @@
 // working / faults) come from /getPoleVitals via getPoleVitalsForCustomer.
 // Poles are wired to the real /getPoles endpoint via getPoles(filters) /
 // getPole(poleId), supporting optional poleId/projectId/customerId filters.
-// Users are still STUBBED with in-memory mock data until that endpoint
-// exists — swap the mock return for the `apimFetch<T>(...)` call once it's
-// live.
+// Users are wired to the real /getUsers endpoint via getUsers().
 //
 // Configure via environment variables (see .env.local.example):
 //   NEXT_PUBLIC_APIM_BASE_URL   defaults to https://lights-v2-apim.azure-api.net
@@ -22,12 +20,13 @@ import type {
   Customer,
   CustomerPoleVitals,
   CustomerProjectRef,
+  PeriodType,
   Pole,
   PoleSummary,
+  PoleVitalsByPeriod,
   Project,
   User,
 } from "./types";
-import { mockUsers } from "./mock-data";
 import { time } from "./timing";
 
 const APIM_BASE_URL =
@@ -55,10 +54,15 @@ export class ApimError extends Error {
 
 /**
  * Generic authenticated fetch against the APIM gateway.
+ *
+ * `tags` lets a caller mark this fetch for on-demand invalidation via
+ * Next.js's revalidateTag — used by getUsers() so /api/inviteuser can force
+ * the next getUsers() call to hit APIM fresh, rather than the person having
+ * to wait out the full APIM_CACHE_SECONDS window after inviting someone.
  */
 export async function apimFetch<T>(
   path: string,
-  init?: RequestInit,
+  options?: { tags?: string[] },
 ): Promise<T> {
   if (!APIM_BASE_URL) {
     throw new ApimError(
@@ -68,13 +72,11 @@ export async function apimFetch<T>(
 
   return time(`apimFetch ${path}`, async () => {
     const res = await fetch(`${APIM_BASE_URL}${path}`, {
-      ...init,
       headers: {
         "Content-Type": "application/json",
         "Ocp-Apim-Subscription-Key": APIM_SUBSCRIPTION_KEY,
-        ...init?.headers,
       },
-      next: { revalidate: APIM_CACHE_SECONDS },
+      next: { revalidate: APIM_CACHE_SECONDS, tags: options?.tags },
     });
 
     if (!res.ok) {
@@ -83,11 +85,6 @@ export async function apimFetch<T>(
 
     return res.json() as Promise<T>;
   });
-}
-
-/** Small helper to simulate network latency for stubbed data during development. */
-function stubDelay<T>(value: T, ms = 200): Promise<T> {
-  return new Promise((resolve) => setTimeout(() => resolve(value), ms));
 }
 
 // ---------------------------------------------------------------------------
@@ -255,12 +252,342 @@ export async function getPole(poleId: string): Promise<Pole | undefined> {
   return raw[0];
 }
 
+/**
+ * GET /getPoleVitalsByPeriod?poleId=&periodType=&limit= — powers the pole
+ * detail page's vitals-over-time chart. Bypasses apimFetch (like the
+ * mutating endpoints) because its generic, body-discarding ApimError would
+ * swallow the specific messages this endpoint returns — e.g.
+ * "periodType must be one of: Hour, Day" or "pole not found" — which the
+ * chart surfaces directly rather than a generic failure. Still a read, so
+ * (unlike the mutating endpoints) it keeps the usual revalidate caching.
+ */
+export async function getPoleVitalsByPeriod({
+  poleId,
+  periodType,
+  limit,
+}: {
+  poleId: string;
+  periodType: PeriodType;
+  limit: number;
+}): Promise<PoleVitalsByPeriod> {
+  if (!APIM_BASE_URL) {
+    throw new ApimError("NEXT_PUBLIC_APIM_BASE_URL is not configured. Set it in .env.local.");
+  }
+
+  const query = new URLSearchParams({ poleId, periodType, limit: String(limit) });
+  const res = await fetch(`${APIM_BASE_URL}/getPoleVitalsByPeriod?${query}`, {
+    headers: { "Ocp-Apim-Subscription-Key": APIM_SUBSCRIPTION_KEY },
+    next: { revalidate: APIM_CACHE_SECONDS },
+  });
+
+  const body = await res.json().catch(() => null);
+
+  if (!res.ok) {
+    const message =
+      body && typeof body.error === "string" ? body.error : "Failed to load pole vitals.";
+    throw new ApimError(message, res.status);
+  }
+
+  return body as PoleVitalsByPeriod;
+}
+
 // ---------------------------------------------------------------------------
 // Users
 // ---------------------------------------------------------------------------
 
+/**
+ * GET /getUsers — returns User[] directly matching our shape, no parsing
+ * needed. Tagged "users" so /api/inviteuser can force-refresh this list
+ * immediately after a successful invite (see revalidateTag call there).
+ */
 export async function getUsers(): Promise<User[]> {
-  // TODO: replace with apimFetch<User[]>("/users")
-  return stubDelay(mockUsers);
+  return apimFetch<User[]>("/getUsers", { tags: ["users"] });
+}
+
+/**
+ * name, email, and role are always sent; customerId is only included when
+ * the invite is for a Customer Admin — Streetleaf Admin invites have no
+ * associated customer, matching the sample request/response pair this was
+ * wired against (no customerId key at all for a Streetleaf Admin invite,
+ * rather than customerId: null).
+ */
+export interface InviteUserInput {
+  name: string;
+  email: string;
+  role: string;
+  customerId?: string;
+}
+
+export interface InviteUserResult {
+  userId: string;
+  email: string;
+  emailSent: boolean;
+}
+
+/**
+ * Like signIn below, this bypasses apimFetch: it's a mutating call (so no
+ * caching/revalidation) and we want the real error message from a non-ok
+ * response rather than apimFetch's generic, body-discarding ApimError.
+ *
+ * Unlike the read endpoints, /inviteUser requires the signed-in user's own
+ * JWT (from /signIn) as a Bearer token, on top of the subscription key —
+ * it 400s with "missing or malformed Authorization header" without it.
+ * That token lives in the httpOnly session cookie set by /api/signin, so
+ * the route handler reads it and passes it through here.
+ */
+export async function inviteUser(
+  input: InviteUserInput,
+  token: string,
+): Promise<InviteUserResult> {
+  if (!APIM_BASE_URL) {
+    throw new ApimError("NEXT_PUBLIC_APIM_BASE_URL is not configured. Set it in .env.local.");
+  }
+
+  const body: Record<string, string> = {
+    name: input.name,
+    email: input.email,
+    role: input.role,
+  };
+  if (input.customerId) {
+    body.customerId = input.customerId;
+  }
+
+  const res = await fetch(`${APIM_BASE_URL}/inviteUser`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Ocp-Apim-Subscription-Key": APIM_SUBSCRIPTION_KEY,
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+
+  const responseBody = await res.json().catch(() => null);
+
+  if (!res.ok) {
+    const message =
+      responseBody && typeof responseBody.error === "string"
+        ? responseBody.error
+        : "Invite failed.";
+    throw new ApimError(message, res.status);
+  }
+
+  return responseBody as InviteUserResult;
+}
+
+/**
+ * POST /deleteUser?userId=... — userId goes in the query string, not the
+ * body (unlike inviteUser). Like inviteUser, requires the caller's own JWT
+ * as a Bearer token on top of the subscription key, and bypasses apimFetch
+ * since this is a mutating call needing the real error message from a
+ * non-ok response.
+ */
+export async function deleteUser(userId: string, token: string): Promise<void> {
+  if (!APIM_BASE_URL) {
+    throw new ApimError("NEXT_PUBLIC_APIM_BASE_URL is not configured. Set it in .env.local.");
+  }
+
+  const res = await fetch(`${APIM_BASE_URL}/deleteUser?userId=${encodeURIComponent(userId)}`, {
+    method: "POST",
+    headers: {
+      "Ocp-Apim-Subscription-Key": APIM_SUBSCRIPTION_KEY,
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    const message = body && typeof body.error === "string" ? body.error : "Delete failed.";
+    throw new ApimError(message, res.status);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Auth
+// ---------------------------------------------------------------------------
+
+export interface AuthUser {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  customerId: string | null;
+}
+
+export interface SignInResult {
+  token: string;
+  user: AuthUser;
+}
+
+/**
+ * POST /signIn. Deliberately doesn't go through apimFetch: that helper (a)
+ * caches/revalidates via `next: { revalidate }`, which is wrong for a
+ * mutating auth call, and (b) discards the response body on a non-ok
+ * status, which is exactly where the useful `{ error: "invalid email or
+ * password" }` message lives. On failure this throws an ApimError carrying
+ * that message so the sign-in form can show it verbatim instead of a
+ * generic failure.
+ */
+export async function signIn(email: string, password: string): Promise<SignInResult> {
+  if (!APIM_BASE_URL) {
+    throw new ApimError("NEXT_PUBLIC_APIM_BASE_URL is not configured. Set it in .env.local.");
+  }
+
+  const res = await fetch(`${APIM_BASE_URL}/signIn`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Ocp-Apim-Subscription-Key": APIM_SUBSCRIPTION_KEY,
+    },
+    body: JSON.stringify({ email, password }),
+    cache: "no-store",
+  });
+
+  const body = await res.json().catch(() => null);
+
+  if (!res.ok) {
+    const message = body && typeof body.error === "string" ? body.error : "Sign in failed.";
+    throw new ApimError(message, res.status);
+  }
+
+  return body as SignInResult;
+}
+
+/**
+ * POST /registerUser — completes an invite by setting a password. The
+ * request carries the invite token from the emailed link plus the chosen
+ * password; no Authorization header is needed since the invite token IS
+ * the credential here (there's no signed-in user yet). The response
+ * mirrors signIn's shape ({ token, user }) since a successful registration
+ * also immediately establishes a session.
+ */
+export async function registerUser(inviteToken: string, password: string): Promise<SignInResult> {
+  if (!APIM_BASE_URL) {
+    throw new ApimError("NEXT_PUBLIC_APIM_BASE_URL is not configured. Set it in .env.local.");
+  }
+
+  const res = await fetch(`${APIM_BASE_URL}/registerUser`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Ocp-Apim-Subscription-Key": APIM_SUBSCRIPTION_KEY,
+    },
+    body: JSON.stringify({ token: inviteToken, password }),
+    cache: "no-store",
+  });
+
+  const body = await res.json().catch(() => null);
+
+  if (!res.ok) {
+    const message =
+      body && typeof body.error === "string" ? body.error : "Registration failed.";
+    throw new ApimError(message, res.status);
+  }
+
+  return body as SignInResult;
+}
+
+/**
+ * POST /signOut. Only needs the caller's own JWT as a Bearer token — no
+ * request body. Like signIn/inviteUser, bypasses apimFetch since this is a
+ * mutating call and we want the real error message from a non-ok response.
+ */
+export async function signOut(token: string): Promise<void> {
+  if (!APIM_BASE_URL) {
+    throw new ApimError("NEXT_PUBLIC_APIM_BASE_URL is not configured. Set it in .env.local.");
+  }
+
+  const res = await fetch(`${APIM_BASE_URL}/signOut`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Ocp-Apim-Subscription-Key": APIM_SUBSCRIPTION_KEY,
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    const message = body && typeof body.error === "string" ? body.error : "Sign out failed.";
+    throw new ApimError(message, res.status);
+  }
+}
+
+export interface ForgotPasswordResult {
+  message: string;
+}
+
+/**
+ * POST /forgotPassword. Deliberately returns the same generic message
+ * ("If that email exists, a reset link has been sent.") whether or not
+ * the email actually matches an account — that's a security property, not
+ * a bug, so we don't try to surface anything more specific from it. No
+ * Authorization header needed; there's no signed-in user at this point.
+ */
+export async function forgotPassword(email: string): Promise<ForgotPasswordResult> {
+  if (!APIM_BASE_URL) {
+    throw new ApimError("NEXT_PUBLIC_APIM_BASE_URL is not configured. Set it in .env.local.");
+  }
+
+  const res = await fetch(`${APIM_BASE_URL}/forgotPassword`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Ocp-Apim-Subscription-Key": APIM_SUBSCRIPTION_KEY,
+    },
+    body: JSON.stringify({ email }),
+    cache: "no-store",
+  });
+
+  const body = await res.json().catch(() => null);
+
+  if (!res.ok) {
+    const message =
+      body && typeof body.error === "string" ? body.error : "Something went wrong. Please try again.";
+    throw new ApimError(message, res.status);
+  }
+
+  return body as ForgotPasswordResult;
+}
+
+export interface ResetPasswordResult {
+  success: boolean;
+}
+
+/**
+ * POST /resetPassword — completes the flow started by forgotPassword. The
+ * reset token comes from the emailed link (a different token than an
+ * invite token, but the same shape: it's the credential here, so no
+ * Authorization header is needed).
+ */
+export async function resetPassword(
+  resetToken: string,
+  newPassword: string,
+): Promise<ResetPasswordResult> {
+  if (!APIM_BASE_URL) {
+    throw new ApimError("NEXT_PUBLIC_APIM_BASE_URL is not configured. Set it in .env.local.");
+  }
+
+  const res = await fetch(`${APIM_BASE_URL}/resetPassword`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Ocp-Apim-Subscription-Key": APIM_SUBSCRIPTION_KEY,
+    },
+    body: JSON.stringify({ token: resetToken, newPassword }),
+    cache: "no-store",
+  });
+
+  const body = await res.json().catch(() => null);
+
+  if (!res.ok) {
+    const message = body && typeof body.error === "string" ? body.error : "Reset failed.";
+    throw new ApimError(message, res.status);
+  }
+
+  return body as ResetPasswordResult;
 }
 

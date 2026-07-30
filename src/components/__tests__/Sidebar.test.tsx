@@ -1,21 +1,80 @@
-import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
-const { usePathnameMock } = vi.hoisted(() => ({ usePathnameMock: vi.fn() }));
+const { usePathnameMock, pushMock, refreshMock } = vi.hoisted(() => ({
+  usePathnameMock: vi.fn(),
+  pushMock: vi.fn(),
+  refreshMock: vi.fn(),
+}));
 
 vi.mock("next/navigation", () => ({
   usePathname: usePathnameMock,
+  useRouter: () => ({ push: pushMock, refresh: refreshMock }),
 }));
 
 import Sidebar from "@/components/Sidebar";
 
 describe("Sidebar", () => {
+  beforeEach(() => {
+    pushMock.mockClear();
+    refreshMock.mockClear();
+  });
+
   it("renders all three nav items", () => {
     usePathnameMock.mockReturnValue("/customers");
     render(<Sidebar />);
     expect(screen.getByRole("link", { name: /Customers/ })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Poles/ })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Users/ })).toBeInTheDocument();
+  });
+
+  it("hides the Customers link for a Customer Admin", () => {
+    usePathnameMock.mockReturnValue("/poles");
+    render(<Sidebar role="Customer Admin" />);
+    expect(screen.queryByRole("link", { name: /Customers/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Poles/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Users/ })).toBeInTheDocument();
+  });
+
+  it("shows the Customers link for a Streetleaf Admin", () => {
+    usePathnameMock.mockReturnValue("/customers");
+    render(<Sidebar role="Streetleaf Admin" />);
+    expect(screen.getByRole("link", { name: /Customers/ })).toBeInTheDocument();
+  });
+
+  it("shows the Customers link when no role is known (default)", () => {
+    usePathnameMock.mockReturnValue("/customers");
+    render(<Sidebar />);
+    expect(screen.getByRole("link", { name: /Customers/ })).toBeInTheDocument();
+  });
+
+  it("shows the Projects link for a Customer Admin", () => {
+    usePathnameMock.mockReturnValue("/projects");
+    render(<Sidebar role="Customer Admin" />);
+    expect(screen.getByRole("link", { name: /Projects/ })).toBeInTheDocument();
+  });
+
+  it("hides the Projects link for a Streetleaf Admin", () => {
+    usePathnameMock.mockReturnValue("/customers");
+    render(<Sidebar role="Streetleaf Admin" />);
+    expect(screen.queryByRole("link", { name: /Projects/ })).not.toBeInTheDocument();
+  });
+
+  it("hides the Projects link when no role is known (default)", () => {
+    usePathnameMock.mockReturnValue("/customers");
+    render(<Sidebar />);
+    expect(screen.queryByRole("link", { name: /Projects/ })).not.toBeInTheDocument();
+  });
+
+  it("places Projects above Poles for a Customer Admin", () => {
+    usePathnameMock.mockReturnValue("/projects");
+    render(<Sidebar role="Customer Admin" />);
+    const projectsLink = screen.getByRole("link", { name: /Projects/ });
+    const polesLink = screen.getByRole("link", { name: /Poles/ });
+    expect(
+      projectsLink.compareDocumentPosition(polesLink) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("links to the right hrefs", () => {
@@ -48,5 +107,95 @@ describe("Sidebar", () => {
     // Neither should get the darker active-only ink color.
     expect(polesLabel.className).not.toContain("text-[var(--sidebar-accent-ink)]");
     expect(usersLabel.className).not.toContain("text-[var(--sidebar-accent-ink)]");
+  });
+
+  it("does not show Sign Out when the person isn't signed in", () => {
+    usePathnameMock.mockReturnValue("/customers");
+    render(<Sidebar />);
+    expect(screen.queryByRole("button", { name: /sign out/i })).not.toBeInTheDocument();
+  });
+
+  it("shows Sign Out below Users when the person is signed in", () => {
+    usePathnameMock.mockReturnValue("/customers");
+    render(<Sidebar isSignedIn />);
+
+    const usersLink = screen.getByRole("link", { name: /Users/ });
+    const signOutButton = screen.getByRole("button", { name: /sign out/i });
+    // Sign Out follows Users in the nav's DOM order.
+    expect(
+      usersLink.compareDocumentPosition(signOutButton) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("shows Sign Out as '⇤ Sign Out', with the arrow and text sharing one color", () => {
+    usePathnameMock.mockReturnValue("/customers");
+    render(<Sidebar isSignedIn />);
+
+    const signOutButton = screen.getByRole("button", { name: /sign out/i });
+    expect(signOutButton).toHaveTextContent("⇤ Sign Out");
+    // A single span carries both the arrow and the text, so one class
+    // controls both colors — no separate icon element to fall out of sync.
+    expect(signOutButton.querySelectorAll("svg")).toHaveLength(0);
+    const label = signOutButton.querySelector("span");
+    expect(label?.className).toContain("text-[var(--sidebar-accent-strong)]");
+  });
+
+  it("posts to /api/signout when Sign Out is clicked", async () => {
+    usePathnameMock.mockReturnValue("/customers");
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ success: true }) });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const user = userEvent.setup();
+    render(<Sidebar isSignedIn />);
+    await user.click(screen.getByRole("button", { name: /sign out/i }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/signout", { method: "POST" }));
+    vi.unstubAllGlobals();
+  });
+
+  it("redirects to /signin and refreshes after a successful sign-out", async () => {
+    usePathnameMock.mockReturnValue("/customers");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ success: true }) }),
+    );
+
+    const user = userEvent.setup();
+    render(<Sidebar isSignedIn />);
+    await user.click(screen.getByRole("button", { name: /sign out/i }));
+
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/signin"));
+    expect(refreshMock).toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it("shows an error and does not redirect when sign-out fails", async () => {
+    usePathnameMock.mockReturnValue("/customers");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: false, json: async () => ({ error: "session expired" }) }),
+    );
+
+    const user = userEvent.setup();
+    render(<Sidebar isSignedIn />);
+    await user.click(screen.getByRole("button", { name: /sign out/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("session expired");
+    expect(pushMock).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it("shows a fallback error message when the sign-out request itself fails", async () => {
+    usePathnameMock.mockReturnValue("/customers");
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network down")));
+
+    const user = userEvent.setup();
+    render(<Sidebar isSignedIn />);
+    await user.click(screen.getByRole("button", { name: /sign out/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Something went wrong. Please try again.",
+    );
+    vi.unstubAllGlobals();
   });
 });

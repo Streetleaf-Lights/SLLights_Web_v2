@@ -6,8 +6,6 @@
 // etc.) comes from a separate /getProjects?customerId= lookup. Users are
 // managed separately (application accounts, not part of the customer hierarchy).
 
-export type UserRole = "admin" | "editor" | "viewer";
-
 /** A project reference as carried inline on a Customer record. */
 export interface CustomerProjectRef {
   id: string;
@@ -99,11 +97,38 @@ export type PoleSummary = Omit<PoleVital, "lastUpdate" | "batteryVoltage1" | "ba
   projectId: string;
 };
 
+/** Valid periodType values for GET /getPoleVitalsByPeriod. */
+export type PeriodType = "Hour" | "Day";
+
+/** A single aggregated period's vitals, as returned by GET /getPoleVitalsByPeriod. */
+export interface PoleVitalPeriod {
+  periodStart: string;
+  periodEnd: string;
+  lightStatus: string | null;
+  isOnline: boolean | null;
+  avgBatteryPercentage: number | null;
+  avgPanelPercentage: number | null;
+  avgLightPercentage: number | null;
+}
+
+/** Response shape for GET /getPoleVitalsByPeriod?poleId=&periodType=&limit= */
+export interface PoleVitalsByPeriod {
+  id: string;
+  poleNumber: string;
+  locationId: string;
+  installDate: string | null;
+  lat: number | null;
+  long: number | null;
+  lastUpdate: string | null;
+  vitals: PoleVitalPeriod[];
+}
+
 export interface User {
   id: string;
   name: string;
   email: string;
-  role: UserRole;
-  active: boolean;
-  lastActive: string;
+  role: string;
+  status: string;
+  customerId: string | null;
+  customerName: string | null;
 }

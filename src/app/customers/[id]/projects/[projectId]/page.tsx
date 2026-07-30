@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Breadcrumbs, leadingCrumb } from "@/components/Breadcrumbs";
 import { StatGroup } from "@/components/StatGroup";
 import { ProjectPolesTable } from "@/components/ProjectPolesTable";
+import { LocationMap } from "@/components/LocationMap";
 import { withQueryParam, withSearchContext } from "@/lib/url";
 import { formatPercent, workingPercentClass } from "@/lib/text";
 
@@ -89,6 +90,18 @@ export default async function ProjectDetailPage({
       </div>
 
       <div className="mx-8 mt-6">
+        <div className="mb-3 text-[11px] uppercase tracking-wide text-[var(--ink-muted)]">
+          Location
+        </div>
+        <LocationMap
+          points={(projectVitals?.poles ?? [])
+            .filter((pole) => pole.lat !== null && pole.long !== null)
+            .map((pole) => ({ lat: pole.lat as number, long: pole.long as number, label: pole.poleNumber }))}
+          emptyMessage="No poles have location data for this project."
+        />
+      </div>
+
+      <div className="mx-8 mb-6 mt-6">
         <div className="mb-3 text-[11px] uppercase tracking-wide text-[var(--ink-muted)]">
           Poles
         </div>

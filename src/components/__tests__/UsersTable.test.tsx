@@ -1,49 +1,272 @@
-import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+
+const { pushMock, refreshMock } = vi.hoisted(() => ({
+  pushMock: vi.fn(),
+  refreshMock: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: pushMock, refresh: refreshMock }),
+}));
+
 import { UsersTable } from "@/components/UsersTable";
 import type { User } from "@/lib/types";
 
+function mockDeleteResponse(ok: boolean, body: unknown = { success: true }) {
+  return vi.fn().mockResolvedValue({
+    ok,
+    json: () => Promise.resolve(body),
+  });
+}
+
 describe("UsersTable", () => {
+  afterEach(() => {
+    pushMock.mockClear();
+    refreshMock.mockClear();
+    vi.unstubAllGlobals();
+  });
+
   const users: User[] = [
     {
-      id: "u1",
-      name: "Dana Whitfield",
-      email: "dana.whitfield@internal.co",
-      role: "admin",
-      active: true,
-      lastActive: "2026-07-21",
+      id: "user1",
+      name: "Jane Doe",
+      email: "jane@example.com",
+      role: "Customer Admin",
+      status: "Active",
+      customerId: "cust1",
+      customerName: "Acme Corp",
     },
     {
-      id: "u2",
+      id: "user-04",
       name: "Colin Ashworth",
       email: "colin.ashworth@internal.co",
-      role: "viewer",
-      active: false,
-      lastActive: "2026-05-30",
+      role: "Viewer",
+      status: "Inactive",
+      customerId: "cust-004",
+      customerName: "Summit Rural Electric",
     },
   ];
 
-  it("renders a row per user with name, email, and last active date", () => {
+  it("renders a row per user with name, email, role, and customer", () => {
     render(<UsersTable users={users} />);
-    expect(screen.getByText("Dana Whitfield")).toBeInTheDocument();
-    expect(screen.getByText("dana.whitfield@internal.co")).toBeInTheDocument();
-    expect(screen.getByText("2026-07-21")).toBeInTheDocument();
+    expect(screen.getByText("Jane Doe")).toBeInTheDocument();
+    expect(screen.getByText("jane@example.com")).toBeInTheDocument();
+    expect(screen.getByText("Customer Admin")).toBeInTheDocument();
+    expect(screen.getByText("Acme Corp")).toBeInTheDocument();
   });
 
-  it("shows Active/Inactive based on the active flag", () => {
+  it("does not render a Last Active column", () => {
+    render(<UsersTable users={users} />);
+    expect(screen.queryByRole("columnheader", { name: /last active/i })).not.toBeInTheDocument();
+  });
+
+  it("shows a Customer column instead", () => {
+    render(<UsersTable users={users} />);
+    expect(screen.getByRole("columnheader", { name: "Customer" })).toBeInTheDocument();
+  });
+
+  it("shows 'Streetleaf' as the customer when customerId is null", () => {
+    const internalUser: User = {
+      id: "user-internal",
+      name: "Alex Rivera",
+      email: "alex.rivera@streetleaf.com",
+      role: "Streetleaf Admin",
+      status: "Active",
+      customerId: null,
+      customerName: null,
+    };
+    render(<UsersTable users={[...users, internalUser]} />);
+
+    const row = screen.getByText("Alex Rivera").closest("tr")!;
+    expect(row).toHaveTextContent("Streetleaf");
+  });
+
+  it("shows the real customerName when customerId is present", () => {
+    render(<UsersTable users={users} />);
+    expect(screen.getByText("Acme Corp")).toBeInTheDocument();
+    expect(screen.queryByText("Streetleaf")).not.toBeInTheDocument();
+  });
+
+  it("shows Active/Inactive based on the status field", () => {
     render(<UsersTable users={users} />);
     expect(screen.getByText("Active")).toBeInTheDocument();
     expect(screen.getByText("Inactive")).toBeInTheDocument();
   });
 
-  it("shows the role badge", () => {
+  it("shows the role as plain text (not restricted to a fixed set)", () => {
     render(<UsersTable users={users} />);
-    expect(screen.getByText("Admin")).toBeInTheDocument();
+    expect(screen.getByText("Customer Admin")).toBeInTheDocument();
     expect(screen.getByText("Viewer")).toBeInTheDocument();
+  });
+
+  it("renders a Delete button for each row", () => {
+    render(<UsersTable users={users} />);
+    expect(screen.getAllByRole("button", { name: "Delete" })).toHaveLength(2);
+  });
+
+  it("shows the Actions column header by default", () => {
+    render(<UsersTable users={users} />);
+    expect(screen.getByRole("columnheader", { name: "Actions" })).toBeInTheDocument();
+  });
+
+  it("hides the Actions column and Delete buttons when canDelete is false", () => {
+    render(<UsersTable users={users} canDelete={false} />);
+    expect(screen.queryByRole("columnheader", { name: "Actions" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+  });
+
+  it("does not delete immediately — opens a confirmation modal instead", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const user = userEvent.setup();
+    render(<UsersTable users={users} />);
+    await user.click(screen.getAllByRole("button", { name: "Delete" })[0]);
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("names the user being deleted in the confirmation modal", async () => {
+    const user = userEvent.setup();
+    render(<UsersTable users={users} />);
+    await user.click(screen.getAllByRole("button", { name: "Delete" })[0]);
+
+    expect(screen.getByRole("dialog")).toHaveTextContent("Jane Doe");
+  });
+
+  it("closes the modal without deleting when Cancel is clicked", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const user = userEvent.setup();
+    render(<UsersTable users={users} />);
+    await user.click(screen.getAllByRole("button", { name: "Delete" })[0]);
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("closes the modal without deleting when the backdrop is clicked", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const user = userEvent.setup();
+    render(<UsersTable users={users} />);
+    await user.click(screen.getAllByRole("button", { name: "Delete" })[0]);
+    const backdrop = screen.getByRole("dialog").parentElement!;
+    await user.click(backdrop);
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("posts the user's id to /api/deleteuser when the delete is confirmed", async () => {
+    const fetchMock = mockDeleteResponse(true);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const user = userEvent.setup();
+    render(<UsersTable users={users} />);
+    await user.click(screen.getAllByRole("button", { name: "Delete" })[0]);
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("/api/deleteuser");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body)).toEqual({ userId: "user1" });
+  });
+
+  it("closes the modal and refreshes the page's server data after a successful delete", async () => {
+    vi.stubGlobal("fetch", mockDeleteResponse(true));
+
+    const user = userEvent.setup();
+    render(<UsersTable users={users} />);
+    await user.click(screen.getAllByRole("button", { name: "Delete" })[0]);
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(refreshMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the server's error message and keeps the modal open on failure", async () => {
+    vi.stubGlobal("fetch", mockDeleteResponse(false, { error: "cannot delete the last admin" }));
+
+    const user = userEvent.setup();
+    render(<UsersTable users={users} />);
+    await user.click(screen.getAllByRole("button", { name: "Delete" })[0]);
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("cannot delete the last admin");
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(refreshMock).not.toHaveBeenCalled();
+  });
+
+  it("shows a fallback error message when the delete request itself fails", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network down")));
+
+    const user = userEvent.setup();
+    render(<UsersTable users={users} />);
+    await user.click(screen.getAllByRole("button", { name: "Delete" })[0]);
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Something went wrong. Please try again.",
+    );
+  });
+
+  it("disables the confirm button and shows 'Deleting…' while the request is in flight", async () => {
+    let resolveFetch: (value: unknown) => void = () => {};
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockReturnValue(
+        new Promise((resolve) => {
+          resolveFetch = resolve;
+        }),
+      ),
+    );
+
+    const user = userEvent.setup();
+    render(<UsersTable users={users} />);
+    await user.click(screen.getAllByRole("button", { name: "Delete" })[0]);
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete" }));
+
+    const confirmButton = await screen.findByRole("button", { name: "Deleting…" });
+    expect(confirmButton).toBeDisabled();
+
+    resolveFetch({ ok: true, json: () => Promise.resolve({ success: true }) });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
   it("renders no rows for an empty list", () => {
     render(<UsersTable users={[]} />);
     expect(screen.getAllByRole("row")).toHaveLength(1); // header row only
+  });
+
+  it("paginates at 10 rows per page", async () => {
+    const many: User[] = Array.from({ length: 25 }, (_, i) => ({
+      id: `user-${i}`,
+      name: `User ${i + 1}`,
+      email: `user${i + 1}@example.com`,
+      role: "Viewer",
+      status: "Active",
+      customerId: "cust1",
+      customerName: "Acme Corp",
+    }));
+    const user = userEvent.setup();
+    render(<UsersTable users={many} />);
+
+    // 10 data rows + 1 header row
+    expect(screen.getAllByRole("row")).toHaveLength(11);
+    expect(screen.getByText("User 1")).toBeInTheDocument();
+    expect(screen.queryByText("User 11")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /next/i }));
+
+    expect(screen.getByText("User 11")).toBeInTheDocument();
+    expect(screen.queryByText("User 1")).not.toBeInTheDocument();
   });
 });

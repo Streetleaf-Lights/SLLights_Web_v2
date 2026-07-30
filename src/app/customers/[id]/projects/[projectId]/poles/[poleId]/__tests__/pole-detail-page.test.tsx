@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import type { Customer, CustomerPoleVitals, Project } from "@/lib/types";
 
@@ -14,6 +14,21 @@ vi.mock("@/lib/apim", () => ({
   getCustomer: getCustomerMock,
   getProjectsForCustomer: getProjectsForCustomerMock,
   getPoleVitalsForCustomer: getPoleVitalsForCustomerMock,
+}));
+
+// LocationMap (used by PoleMap) loads the real Google Maps JS API otherwise —
+// not appropriate for a page-level integration test, and the map's own
+// internals are already covered by LocationMap.test.tsx.
+vi.mock("@googlemaps/js-api-loader", () => ({
+  setOptions: vi.fn(),
+  importLibrary: vi.fn(() => new Promise(() => {})),
+}));
+
+// PoleVitalsChart fetches from /api/getpolevitalsbyperiod on mount — not
+// appropriate for this page-level test, and its internals get their own
+// dedicated test file (PoleVitalsChart.test.tsx).
+vi.mock("@/components/PoleVitalsChart", () => ({
+  PoleVitalsChart: () => null,
 }));
 
 import PoleDetailPage from "@/app/customers/[id]/projects/[projectId]/poles/[poleId]/page";
@@ -85,6 +100,15 @@ const vitals: CustomerPoleVitals = {
 };
 
 describe("PoleDetailPage", () => {
+  beforeEach(() => {
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_API_KEY", "test-api-key");
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID", "test-map-id");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("renders the pole number as the heading", async () => {
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
@@ -234,6 +258,89 @@ describe("PoleDetailPage", () => {
 
     expect(screen.getByLabelText("13.509V Battery Voltage 1")).toBeInTheDocument();
     expect(screen.getByLabelText("13.785V Battery Voltage 2")).toBeInTheDocument();
+  });
+
+  it("shows a Location section with a map container when the pole has coordinates", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
+    const jsx = await PoleDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(screen.getByText("Location")).toBeInTheDocument();
+    expect(screen.getByRole("application", { name: "Map" })).toBeInTheDocument();
+  });
+
+  it("shows a Vitals History section", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
+    const jsx = await PoleDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(screen.getByText("Vitals History")).toBeInTheDocument();
+  });
+
+  it("places the Vitals History section above the Location section", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
+    const jsx = await PoleDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    const vitalsHeading = screen.getByText("Vitals History");
+    const locationHeading = screen.getByText("Location");
+    expect(
+      vitalsHeading.compareDocumentPosition(locationHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("shows a no-location fallback instead of a map when the pole has no coordinates", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue({
+      ...vitals,
+      projects: [
+        {
+          ...vitals.projects[0],
+          poles: [
+            {
+              id: "pole1",
+              poleNumber: "PAS-4938",
+              locationId: "loc-1",
+              isOnline: null,
+              lightStatus: null,
+              installDate: null,
+              lat: null,
+              long: null,
+              lastUpdate: null,
+              batteryVoltage1: null,
+              batteryVoltage2: null,
+              avgBatteryPercentage: null,
+              avgPanelPercentage: null,
+              avgLightPercentage: null,
+            },
+          ],
+        },
+      ],
+    });
+    const jsx = await PoleDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(screen.getByText("No location on file for this pole.")).toBeInTheDocument();
+    expect(screen.queryByRole("application", { name: "Map" })).not.toBeInTheDocument();
   });
 
   it("shows dashes for header fields and stat sections when a pole has no telemetry", async () => {

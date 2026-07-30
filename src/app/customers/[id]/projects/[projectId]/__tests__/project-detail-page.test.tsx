@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import type { Customer, CustomerPoleVitals, Project } from "@/lib/types";
 
@@ -14,6 +14,14 @@ vi.mock("@/lib/apim", () => ({
   getCustomer: getCustomerMock,
   getProjectsForCustomer: getProjectsForCustomerMock,
   getPoleVitalsForCustomer: getPoleVitalsForCustomerMock,
+}));
+
+// LocationMap (used directly here) loads the real Google Maps JS API
+// otherwise — not appropriate for a page-level integration test, and the
+// map's own internals are already covered by LocationMap.test.tsx.
+vi.mock("@googlemaps/js-api-loader", () => ({
+  setOptions: vi.fn(),
+  importLibrary: vi.fn(() => new Promise(() => {})),
 }));
 
 import ProjectDetailPage from "@/app/customers/[id]/projects/[projectId]/page";
@@ -96,6 +104,15 @@ const vitals: CustomerPoleVitals = {
 };
 
 describe("ProjectDetailPage", () => {
+  beforeEach(() => {
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_API_KEY", "test-api-key");
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID", "test-map-id");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("renders the project name as the heading", async () => {
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
@@ -425,5 +442,79 @@ describe("ProjectDetailPage", () => {
     ).toHaveAttribute("href", "/customers/r2");
     // The heading already says "not found" — the breadcrumb shouldn't repeat it.
     expect(within(screen.getByRole("navigation")).queryByText("Not found")).not.toBeInTheDocument();
+  });
+
+  it("shows a Location section with a map container when the project's poles have coordinates", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue({
+      ...vitals,
+      projects: [
+        {
+          ...vitals.projects[0],
+          poles: [
+            { ...vitals.projects[0].poles[0], lat: 29.9511, long: -90.0715 },
+            { ...vitals.projects[0].poles[1], lat: 29.9611, long: -90.0815 },
+          ],
+        },
+        vitals.projects[1],
+      ],
+    });
+    const jsx = await ProjectDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(screen.getByText("Location")).toBeInTheDocument();
+    expect(screen.getByRole("application", { name: "Map" })).toBeInTheDocument();
+  });
+
+  it("places the Location section above the Poles section", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
+    const jsx = await ProjectDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    const locationHeading = screen.getByText("Location");
+    const polesHeading = screen.getByText("Poles");
+    expect(
+      locationHeading.compareDocumentPosition(polesHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("shows an empty-location message instead of a map when none of the project's poles have coordinates", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
+    const jsx = await ProjectDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(
+      screen.getByText("No poles have location data for this project."),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("application", { name: "Map" })).not.toBeInTheDocument();
+  });
+
+  it("shows an empty-location message when the project has no poles at all", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
+    const jsx = await ProjectDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p2" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(
+      screen.getByText("No poles have location data for this project."),
+    ).toBeInTheDocument();
   });
 });

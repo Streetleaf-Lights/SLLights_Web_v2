@@ -1,25 +1,37 @@
-import { getUsers } from "@/lib/apim";
+import { getCustomers, getUsers } from "@/lib/apim";
+import { getSessionUser } from "@/lib/session";
 import { PageHeader } from "@/components/PageHeader";
-import { PrimaryButton, StubNotice, Toolbar } from "@/components/Toolbar";
+import { Toolbar } from "@/components/Toolbar";
 import { UsersTable } from "@/components/UsersTable";
+import { InviteUserModal } from "@/components/InviteUserModal";
+
+export const dynamic = "force-dynamic";
 
 export default async function UsersPage() {
-  const users = await getUsers();
+  const sessionUser = await getSessionUser();
+  const isCustomerAdmin = sessionUser?.role === "Customer Admin";
+
+  // A Customer Admin only manages their own customer's users, and can't
+  // invite new ones — that's Streetleaf-Admin-only — so skip getCustomers()
+  // entirely for them; it exists solely to populate the invite modal.
+  const [allUsers, customers] = await Promise.all([
+    getUsers(),
+    isCustomerAdmin ? Promise.resolve([]) : getCustomers(),
+  ]);
+
+  const users = isCustomerAdmin
+    ? allUsers.filter((u) => u.customerId === sessionUser?.customerId)
+    : allUsers;
 
   return (
     <>
       <PageHeader
         title="Users"
         description="People with access to this tool and what they can do."
-        actions={<PrimaryButton>Invite user</PrimaryButton>}
+        actions={!isCustomerAdmin && <InviteUserModal customers={customers} />}
       />
       <Toolbar searchPlaceholder="Search users…" resultCount={`${users.length} users`} />
-      <StubNotice>
-        This page renders stubbed data. Once the APIM route is live, swap{" "}
-        <code className="font-mono-data">getUsers()</code> in{" "}
-        <code className="font-mono-data">src/lib/apim.ts</code> for a real request.
-      </StubNotice>
-      <UsersTable users={users} />
+      <UsersTable users={users} canDelete={!isCustomerAdmin} />
     </>
   );
 }
