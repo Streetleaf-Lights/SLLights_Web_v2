@@ -5,7 +5,6 @@ import Link from "next/link";
 import { Pagination } from "@/components/Pagination";
 import { OnlineIndicator } from "@/components/OnlineIndicator";
 import { withSearchContext } from "@/lib/url";
-import { formatLightStatus } from "@/lib/text";
 import type { PoleVital } from "@/lib/types";
 
 const PAGE_SIZE = 10;
@@ -44,13 +43,11 @@ export function ProjectPolesTable({
           <thead>
             <tr className="border-b border-[var(--border)] bg-[var(--surface-sunken)] text-[11.5px] uppercase tracking-wide text-[var(--ink-muted)]">
               <th className="py-2.5 pl-4 pr-4 font-medium">Pole Number</th>
-              <th className="py-2.5 pr-4 font-medium">Online</th>
-              <th className="py-2.5 pr-8 font-medium">Working</th>
+              <th className="py-2.5 pr-8 font-medium">Online</th>
             </tr>
           </thead>
           <tbody>
             {pagePoles.map((pole) => {
-              const status = formatLightStatus(pole.lightStatus);
               return (
                 <tr
                   key={pole.id}
@@ -68,10 +65,9 @@ export function ProjectPolesTable({
                       {pole.poleNumber}
                     </Link>
                   </td>
-                  <td className="py-3 pr-4">
+                  <td className="py-3 pr-8">
                     <OnlineIndicator isOnline={pole.isOnline} />
                   </td>
-                  <td className={`py-3 pr-8 font-medium ${status.className}`}>{status.label}</td>
                 </tr>
               );
             })}

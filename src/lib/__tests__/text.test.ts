@@ -6,7 +6,6 @@ import {
   initials,
   isLightStatusWorking,
   tieredPercentClass,
-  workingPercentClass,
 } from "@/lib/text";
 
 describe("initials", () => {
@@ -47,29 +46,20 @@ describe("formatPercent", () => {
   it("handles 0", () => {
     expect(formatPercent(0)).toBe("0%");
   });
-});
 
-describe("workingPercentClass", () => {
-  it("returns the green/active class at exactly 50%", () => {
-    expect(workingPercentClass(50)).toBe("text-[var(--status-active)]");
+  it("returns a dash for null", () => {
+    expect(formatPercent(null)).toBe("—");
   });
 
-  it("returns the green/active class above 50%", () => {
-    expect(workingPercentClass(92.5)).toBe("text-[var(--status-active)]");
+  it("returns a dash for undefined", () => {
+    expect(formatPercent(undefined)).toBe("—");
   });
 
-  it("returns the red/flagged class below 50%", () => {
-    expect(workingPercentClass(49.9)).toBe("text-[var(--status-flagged)]");
-  });
-
-  it("returns the red/flagged class at 0%", () => {
-    expect(workingPercentClass(0)).toBe("text-[var(--status-flagged)]");
-  });
-
-  it("returns the green/active class at 100%", () => {
-    expect(workingPercentClass(100)).toBe("text-[var(--status-active)]");
+  it("returns a dash for NaN", () => {
+    expect(formatPercent(NaN)).toBe("—");
   });
 });
+
 
 describe("formatLightStatus", () => {
   it("labels 'Working' as Working in green", () => {
@@ -95,6 +85,13 @@ describe("formatLightStatus", () => {
 
   it("shows a neutral dash (not red) for a null status, e.g. no telemetry available", () => {
     expect(formatLightStatus(null)).toEqual({
+      label: "—",
+      className: "text-[var(--ink-faint)]",
+    });
+  });
+
+  it("shows a neutral dash (not red) for an undefined status too — the API sometimes omits the field entirely rather than nulling it", () => {
+    expect(formatLightStatus(undefined)).toEqual({
       label: "—",
       className: "text-[var(--ink-faint)]",
     });
@@ -150,6 +147,11 @@ describe("tieredPercentClass", () => {
     expect(tieredPercentClass(10.79)).toBe("text-[var(--status-flagged)]");
     expect(tieredPercentClass(0)).toBe("text-[var(--status-flagged)]");
   });
+
+  it("returns no color class for null or undefined", () => {
+    expect(tieredPercentClass(null)).toBe("");
+    expect(tieredPercentClass(undefined)).toBe("");
+  });
 });
 
 describe("isLightStatusWorking", () => {
@@ -168,6 +170,10 @@ describe("isLightStatusWorking", () => {
 
   it("is false for null", () => {
     expect(isLightStatusWorking(null)).toBe(false);
+  });
+
+  it("is false for undefined (the API sometimes omits the field entirely rather than nulling it)", () => {
+    expect(isLightStatusWorking(undefined)).toBe(false);
   });
 
   it("is false for any other status", () => {
@@ -190,6 +196,10 @@ describe("formatTimestamp", () => {
 
   it("returns — for null", () => {
     expect(formatTimestamp(null)).toBe("—");
+  });
+
+  it("returns — for undefined", () => {
+    expect(formatTimestamp(undefined)).toBe("—");
   });
 
   it("leaves a timestamp with no offset unchanged", () => {

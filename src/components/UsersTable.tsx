@@ -35,6 +35,16 @@ export function UsersTable({ users, canDelete = true }: { users: User[]; canDele
       });
       const body = await res.json().catch(() => null);
 
+      if (res.status === 401) {
+        // The session actually expired server-side (see the cookie-maxAge
+        // fix in /api/signin) — an inline error here would be a dead end,
+        // since retrying would just fail the same way. Send them to sign
+        // back in instead.
+        router.push("/signin");
+        router.refresh();
+        return;
+      }
+
       if (!res.ok) {
         setDeleteError(body?.error ?? "Delete failed. Please try again.");
         setDeleting(false);
@@ -89,7 +99,9 @@ export function UsersTable({ users, canDelete = true }: { users: User[]; canDele
                 </td>
                 <td className="py-3 pr-4 text-[var(--ink)]">{user.role}</td>
                 <td className="py-3 pr-4">
-                  <StatusBadge status={user.status.toLowerCase() === "active" ? "active" : "inactive"} />
+                  <StatusBadge
+                    status={(user.status ?? "").toLowerCase() === "active" ? "active" : "inactive"}
+                  />
                 </td>
                 <td className="py-3 pr-4 text-[var(--ink)]">
                   {user.customerId === null ? "Streetleaf" : user.customerName}

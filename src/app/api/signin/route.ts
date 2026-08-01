@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { ApimError, signIn } from "@/lib/apim";
+import { getSecondsUntilExpiry } from "@/lib/auth-role";
 
-// One day, matching the JWT's own exp (see the sample token: iat/exp are
-// ~24h apart). We don't decode/verify the token here — that's the backend's
-// job on each authenticated request — this is just a sane cookie ceiling.
-const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24;
+// Fallback only — used if the token can't be decoded for some reason.
+// Deliberately conservative (shorter than we've observed the real tokens
+// living) so a bad decode doesn't accidentally outlive the actual token.
+const FALLBACK_SESSION_MAX_AGE_SECONDS = 60 * 60 * 12;
 
 /**
  * POST /api/signin — the client posts { email, password } here, never
@@ -43,7 +44,7 @@ export async function POST(request: Request) {
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      maxAge: SESSION_MAX_AGE_SECONDS,
+      maxAge: getSecondsUntilExpiry(token) ?? FALLBACK_SESSION_MAX_AGE_SECONDS,
     });
     return response;
   } catch (err) {

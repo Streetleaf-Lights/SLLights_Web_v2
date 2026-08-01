@@ -7,6 +7,7 @@ vi.mock("next/headers", () => ({
 }));
 
 import { decodeSessionToken, getSessionUser, homeRouteForRole } from "@/lib/session";
+import { getSecondsUntilExpiry } from "@/lib/auth-role";
 
 function encodePayload(payload: Record<string, unknown>): string {
   return Buffer.from(JSON.stringify(payload)).toString("base64url");
@@ -113,5 +114,35 @@ describe("homeRouteForRole", () => {
     expect(homeRouteForRole(undefined)).toBe("/customers");
     expect(homeRouteForRole(null)).toBe("/customers");
     expect(homeRouteForRole("Some Other Role")).toBe("/customers");
+  });
+});
+
+describe("getSecondsUntilExpiry", () => {
+  it("returns the remaining seconds until the token's exp claim", () => {
+    const now = Math.floor(Date.now() / 1000);
+    const token = fakeJwt({ sub: "u1", role: "Customer Admin", exp: now + 3600 });
+
+    const remaining = getSecondsUntilExpiry(token);
+
+    // Allow a little slack for the time elapsed during the test itself.
+    expect(remaining).toBeGreaterThan(3590);
+    expect(remaining).toBeLessThanOrEqual(3600);
+  });
+
+  it("returns 0 (not negative) for an already-expired token", () => {
+    const now = Math.floor(Date.now() / 1000);
+    const token = fakeJwt({ sub: "u1", role: "Customer Admin", exp: now - 3600 });
+
+    expect(getSecondsUntilExpiry(token)).toBe(0);
+  });
+
+  it("returns null when the token has no exp claim", () => {
+    const token = fakeJwt({ sub: "u1", role: "Customer Admin" });
+
+    expect(getSecondsUntilExpiry(token)).toBeNull();
+  });
+
+  it("returns null for a malformed token", () => {
+    expect(getSecondsUntilExpiry("not-a-real-jwt")).toBeNull();
   });
 });

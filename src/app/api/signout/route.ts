@@ -18,6 +18,15 @@ export async function POST(request: NextRequest) {
   try {
     await signOut(token);
   } catch (err) {
+    if (err instanceof ApimError && (err.status === 401 || err.status === 403)) {
+      // The token was already invalid/expired — from the user's
+      // perspective "sign out" just means "stop being signed in here",
+      // which is already true. Clear the cookie instead of leaving them
+      // stuck on an error with no way to actually sign out via the UI.
+      const response = NextResponse.json({ success: true });
+      response.cookies.delete("session");
+      return response;
+    }
     if (err instanceof ApimError) {
       return NextResponse.json({ error: err.message }, { status: err.status ?? 500 });
     }

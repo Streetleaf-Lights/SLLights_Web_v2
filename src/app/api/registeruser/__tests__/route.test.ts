@@ -28,6 +28,17 @@ function request(body: unknown) {
   });
 }
 
+function fakeJwt(payload: Record<string, unknown>): string {
+  const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  return `header.${encoded}.signature`;
+}
+
+function maxAgeFromSetCookie(res: Response): number | null {
+  const setCookie = res.headers.get("set-cookie") ?? "";
+  const match = setCookie.match(/Max-Age=(\d+)/i);
+  return match ? Number(match[1]) : null;
+}
+
 describe("POST /api/registeruser", () => {
   afterEach(() => {
     registerUserMock.mockReset();
@@ -92,6 +103,31 @@ describe("POST /api/registeruser", () => {
     const setCookie = res.headers.get("set-cookie") ?? "";
     expect(setCookie).toContain("session=jwt-token");
     expect(setCookie.toLowerCase()).toContain("httponly");
+  });
+
+  it("sizes the cookie's maxAge to match the token's own exp claim, not a hardcoded guess", async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const sessionToken = fakeJwt({ sub: "u1", role: "Customer Admin", exp: now + 3600 });
+    registerUserMock.mockResolvedValue({ token: sessionToken, user: authUser });
+
+    const res = await POST(
+      request({ token: "52111603-53d7-4a99-a027-a105b4d527b5", password: "Pass.123" }),
+    );
+
+    const maxAge = maxAgeFromSetCookie(res);
+    expect(maxAge).not.toBeNull();
+    expect(maxAge as number).toBeGreaterThan(3590);
+    expect(maxAge as number).toBeLessThanOrEqual(3600);
+  });
+
+  it("falls back to a conservative default maxAge when the token has no decodable exp", async () => {
+    registerUserMock.mockResolvedValue({ token: "not-a-real-jwt", user: authUser });
+
+    const res = await POST(
+      request({ token: "52111603-53d7-4a99-a027-a105b4d527b5", password: "Pass.123" }),
+    );
+
+    expect(maxAgeFromSetCookie(res)).toBe(60 * 60 * 12);
   });
 
   it("forwards the APIM error message and status for an invalid/expired invite link", async () => {

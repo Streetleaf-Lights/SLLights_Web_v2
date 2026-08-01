@@ -132,7 +132,7 @@ describe("PolesTable", () => {
     const rows = screen.getAllByRole("row");
     const row1 = within(rows[1]);
     expect(row1.getByText("Online")).toBeInTheDocument();
-    expect(row1.getByText("27.7414, -82.4051")).toBeInTheDocument();
+    expect(row1.getByText("27.74143766, -82.40508593")).toBeInTheDocument();
   });
 
   it("shows red Offline and dashed coordinates for a pole with no location", () => {
@@ -161,19 +161,30 @@ describe("PolesTable", () => {
     expect(panel.parentElement?.parentElement?.className).toContain("rounded-lg");
   });
 
-  it("colors Panel/Battery Status using the tiered thresholds", () => {
+  it("does not color-code Panel/Battery/Light Status values (System Status is neutral now)", () => {
     render(<PolesTable poles={poles} />);
-    const panel = screen.getByLabelText("19.3% Panel Status"); // < 50 -> red
-    const battery = screen.getByLabelText("80.1% Battery Status"); // >= 80 -> green
-    expect(panel.querySelector("div")?.className).toContain("text-[var(--status-flagged)]");
-    expect(battery.querySelector("div")?.className).toContain("text-[var(--status-active)]");
+    const panel = screen.getByLabelText("19.3% Panel Status");
+    const battery = screen.getByLabelText("80.1% Battery Status");
+    const light = screen.getByLabelText("0% Light Status");
+    for (const stat of [panel, battery, light]) {
+      const valueClass = stat.querySelector("div")?.className ?? "";
+      expect(valueClass).not.toContain("text-[var(--status-active)]");
+      expect(valueClass).not.toContain("text-[var(--status-flagged)]");
+      expect(valueClass).not.toContain("text-[var(--status-warning)]");
+    }
   });
 
-  it("colors Light Status by the lightStatus field, not its own percentage", () => {
-    render(<PolesTable poles={poles} />);
-    // avgLightPercentage is 0.0 (low, daytime) but lightStatus is "DayLight" -> green
-    const light = screen.getByLabelText("0% Light Status");
-    expect(light.querySelector("div")?.className).toContain("text-[var(--status-active)]");
+  it("does not crash when lightStatus is undefined (not just null) while avgLightPercentage is present", () => {
+    // The real API sometimes omits lightStatus entirely rather than nulling
+    // it, even when avgLightPercentage is a real number — this reproduces
+    // that exact combination.
+    const poleWithMissingLightStatus = {
+      ...poles[0],
+      lightStatus: undefined,
+    } as unknown as PoleSummary;
+    render(<PolesTable poles={[poleWithMissingLightStatus]} />);
+
+    expect(screen.getByLabelText("0% Light Status")).toBeInTheDocument();
   });
 
   it("shows dashes in System Status for a pole with no telemetry", () => {
@@ -181,6 +192,17 @@ describe("PolesTable", () => {
     expect(screen.getByLabelText("— Panel Status")).toBeInTheDocument();
     expect(screen.getByLabelText("— Battery Status")).toBeInTheDocument();
     expect(screen.getByLabelText("— Light Status")).toBeInTheDocument();
+  });
+
+  it("does not crash and shows a dash when lat/long are undefined (not just null)", () => {
+    const poleWithMissingCoordinates = {
+      ...poles[0],
+      lat: undefined,
+      long: undefined,
+    } as unknown as PoleSummary;
+    render(<PolesTable poles={[poleWithMissingCoordinates]} />);
+
+    expect(screen.getByText("—, —")).toBeInTheDocument();
   });
 
   it("filters by pole number as you type", async () => {

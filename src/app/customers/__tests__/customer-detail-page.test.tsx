@@ -62,20 +62,18 @@ const vitals: CustomerPoleVitals = {
   id: "r2",
   name: "Coastal Power & Light",
   totalLights: 88,
-  workingPercentage: 89.77,
-  optimisticWorkingPercentage: 100.0,
+  connectedLights: 84,
   totalFaults: 2,
-  totalNonTelemetryAvailable: 9,
+  percentWorking: 100.0,
   poles: [],
   projects: [
     {
       id: "p1",
       name: "Bayou District Rebuild",
       totalLights: 54,
-      workingPercentage: 90.74,
-      optimisticWorkingPercentage: 92.5,
+      connectedLights: 51,
       totalFaults: 1,
-      totalNonTelemetryAvailable: 5,
+      percentWorking: 92.5,
       poles: [
         { id: "pv1", poleNumber: "51079-1000", locationId: "loc-1", isOnline: true, lightStatus: "Working", installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null },
         { id: "pv2", poleNumber: "51079-1001", locationId: "loc-2", isOnline: true, lightStatus: "Daylight", installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null },
@@ -86,10 +84,9 @@ const vitals: CustomerPoleVitals = {
       id: "p2",
       name: "Storm Hardening Phase 2",
       totalLights: 34,
-      workingPercentage: 88.24,
-      optimisticWorkingPercentage: 100.0,
+      connectedLights: 34,
       totalFaults: 1,
-      totalNonTelemetryAvailable: 4,
+      percentWorking: 100.0,
       poles: [],
     },
   ],
@@ -239,7 +236,7 @@ describe("CustomerDetailPage", () => {
     expect(screen.queryByText("r2")).not.toBeInTheDocument();
   });
 
-  it("shows a Summary box with real totalLights/optimisticWorkingPercentage/totalFaults from /getPoleVitals", async () => {
+  it("shows a Summary box with real totalLights/percentWorking/totalFaults from /getPoleVitals", async () => {
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
     getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
@@ -253,22 +250,17 @@ describe("CustomerDetailPage", () => {
     const summaryHeading = screen.getByText("Summary");
     const summaryRow = within(summaryHeading.parentElement as HTMLElement);
     expect(summaryRow.getByLabelText("88 Total lights")).toBeInTheDocument();
-    // optimisticWorkingPercentage 100.0 -> "100%", label stays "Lights working"
-    const summaryWorking = summaryRow.getByLabelText("100% Lights working");
-    expect(summaryWorking).toBeInTheDocument();
-    // 100% is >= 50, so it should render green (status-active).
-    expect(summaryWorking.querySelector("div")?.className).toContain(
-      "text-[var(--status-active)]",
-    );
+    // percentWorking 100.0 -> "100%", label stays "Lights working"
+    expect(summaryRow.getByLabelText("100% Lights working")).toBeInTheDocument();
     expect(summaryRow.getByLabelText("2 Total faults")).toBeInTheDocument();
   });
 
-  it("colors the summary's Lights working red when the percentage is below 50", async () => {
+  it("does not color-code Lights working, at any percentage", async () => {
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
     getPoleVitalsForCustomerMock.mockResolvedValue({
       ...vitals,
-      optimisticWorkingPercentage: 42,
+      percentWorking: 42,
     });
     const jsx = await CustomerDetailPage({
       params: Promise.resolve({ id: "r2" }),
@@ -277,9 +269,30 @@ describe("CustomerDetailPage", () => {
     render(jsx);
 
     const summaryWorking = screen.getByLabelText("42% Lights working");
-    expect(summaryWorking.querySelector("div")?.className).toContain(
-      "text-[var(--status-flagged)]",
-    );
+    const valueClass = summaryWorking.querySelector("div")?.className ?? "";
+    expect(valueClass).not.toContain("status-active");
+    expect(valueClass).not.toContain("status-flagged");
+    expect(valueClass).not.toContain("status-warning");
+  });
+
+  it("does not crash and shows a dash when percentWorking is missing from the API response", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructured only to omit percentWorking
+    const { percentWorking: _percentWorking, ...vitalsWithoutPercentWorking } = vitals;
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitalsWithoutPercentWorking);
+    const jsx = await CustomerDetailPage({
+      params: Promise.resolve({ id: "r2" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    const summaryHeading = screen.getByText("Summary");
+    const summaryRow = within(summaryHeading.parentElement as HTMLElement);
+    const summaryWorking = summaryRow.getByLabelText("— Lights working");
+    expect(summaryWorking).toBeInTheDocument();
+    expect(summaryWorking.querySelector("div")?.className).not.toContain("status-active");
+    expect(summaryWorking.querySelector("div")?.className).not.toContain("status-flagged");
   });
 
   it("shows stub dashes when no vitals are available for this customer", async () => {
@@ -312,12 +325,9 @@ describe("CustomerDetailPage", () => {
     const row1 = screen.getByRole("link", { name: /Bayou District Rebuild/ });
     const rowStat = within(row1).getByLabelText("54 Total lights");
     expect(rowStat).toBeInTheDocument();
-    // p1's optimisticWorkingPercentage is 92.5 -> "92.5%"
-    const row1Working = within(row1).getByLabelText("92.5% Lights working");
-    expect(row1Working).toBeInTheDocument();
-    expect(row1Working.querySelector("div")?.className).toContain(
-      "text-[var(--status-active)]",
-    );
+    // p1's connectedLights is 51
+    const row1Connected = within(row1).getByLabelText("51 Connected lights");
+    expect(row1Connected).toBeInTheDocument();
     expect(within(row1).getByLabelText("1 Total faults")).toBeInTheDocument();
     // The stat itself is one column inside a shared box — the box (its
     // grandparent) carries the border/rounded styling, not each column.
@@ -329,28 +339,7 @@ describe("CustomerDetailPage", () => {
 
     const row2 = screen.getByRole("link", { name: /Storm Hardening Phase 2/ });
     expect(within(row2).getByLabelText("34 Total lights")).toBeInTheDocument();
-    expect(within(row2).getByLabelText("100% Lights working")).toBeInTheDocument();
-  });
-
-  it("colors a project row's Lights working red when that project's percentage is below 50", async () => {
-    getCustomerMock.mockResolvedValue(customer);
-    getProjectsForCustomerMock.mockResolvedValue(projects);
-    getPoleVitalsForCustomerMock.mockResolvedValue({
-      ...vitals,
-      projects: [
-        { ...vitals.projects[0], optimisticWorkingPercentage: 30 },
-        vitals.projects[1],
-      ],
-    });
-    const jsx = await CustomerDetailPage({
-      params: Promise.resolve({ id: "r2" }),
-      searchParams: Promise.resolve({}),
-    });
-    render(jsx);
-
-    const row1 = screen.getByRole("link", { name: /Bayou District Rebuild/ });
-    const working = within(row1).getByLabelText("30% Lights working");
-    expect(working.querySelector("div")?.className).toContain("text-[var(--status-flagged)]");
+    expect(within(row2).getByLabelText("34 Connected lights")).toBeInTheDocument();
   });
 
   it("shows dashes for a project row when no matching vitals are found", async () => {
@@ -365,7 +354,7 @@ describe("CustomerDetailPage", () => {
 
     const row1 = screen.getByRole("link", { name: /Bayou District Rebuild/ });
     expect(within(row1).getByLabelText("— Total lights")).toBeInTheDocument();
-    expect(within(row1).getByLabelText("— Lights working")).toBeInTheDocument();
+    expect(within(row1).getByLabelText("— Connected lights")).toBeInTheDocument();
     expect(within(row1).getByLabelText("— Total faults")).toBeInTheDocument();
   });
 

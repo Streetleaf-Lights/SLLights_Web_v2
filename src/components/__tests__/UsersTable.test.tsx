@@ -14,9 +14,10 @@ vi.mock("next/navigation", () => ({
 import { UsersTable } from "@/components/UsersTable";
 import type { User } from "@/lib/types";
 
-function mockDeleteResponse(ok: boolean, body: unknown = { success: true }) {
+function mockDeleteResponse(ok: boolean, body: unknown = { success: true }, status = ok ? 200 : 400) {
   return vi.fn().mockResolvedValue({
     ok,
+    status,
     json: () => Promise.resolve(body),
   });
 }
@@ -55,6 +56,13 @@ describe("UsersTable", () => {
     expect(screen.getByText("jane@example.com")).toBeInTheDocument();
     expect(screen.getByText("Customer Admin")).toBeInTheDocument();
     expect(screen.getByText("Acme Corp")).toBeInTheDocument();
+  });
+
+  it("does not crash and falls back to Inactive when status is undefined (not just a string)", () => {
+    const userWithMissingStatus = { ...users[0], status: undefined } as unknown as User;
+    render(<UsersTable users={[userWithMissingStatus]} />);
+
+    expect(screen.getByText("Inactive")).toBeInTheDocument();
   });
 
   it("does not render a Last Active column", () => {
@@ -203,6 +211,23 @@ describe("UsersTable", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("cannot delete the last admin");
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(refreshMock).not.toHaveBeenCalled();
+  });
+
+  it("redirects to /signin (instead of showing an inline error) when the session actually expired (401)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockDeleteResponse(false, { error: "session expired, please sign in again" }, 401),
+    );
+
+    const user = userEvent.setup();
+    render(<UsersTable users={users} />);
+    await user.click(screen.getAllByRole("button", { name: "Delete" })[0]);
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete" }));
+
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/signin"));
+    expect(refreshMock).toHaveBeenCalled();
+    // No dead-end inline error — the person is just sent to sign back in.
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("shows a fallback error message when the delete request itself fails", async () => {

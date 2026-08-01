@@ -147,9 +147,6 @@ export function CustomersTable({ customers }: { customers: Customer[] }) {
                                   >
                                     {project.name}
                                   </Link>
-                                  <span className="font-mono-data text-[11.5px] text-[var(--ink-faint)]">
-                                    {project.id}
-                                  </span>
                                 </div>
                               ))}
                             </div>

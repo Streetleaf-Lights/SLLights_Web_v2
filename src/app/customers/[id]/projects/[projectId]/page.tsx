@@ -6,7 +6,6 @@ import { StatGroup } from "@/components/StatGroup";
 import { ProjectPolesTable } from "@/components/ProjectPolesTable";
 import { LocationMap } from "@/components/LocationMap";
 import { withQueryParam, withSearchContext } from "@/lib/url";
-import { formatPercent, workingPercentClass } from "@/lib/text";
 
 export default async function ProjectDetailPage({
   params,
@@ -52,9 +51,7 @@ export default async function ProjectDetailPage({
   }
 
   const totalLights = projectVitals?.totalLights ?? "—";
-  const lightsWorking = projectVitals
-    ? formatPercent(projectVitals.optimisticWorkingPercentage)
-    : "—";
+  const connectedLights = projectVitals?.connectedLights ?? "—";
   const totalFaults = projectVitals?.totalFaults ?? "—";
 
   return (
@@ -63,7 +60,7 @@ export default async function ProjectDetailPage({
         items={[leadingCrumb(cust_q, pole_q), { label: customer.name, href: customerHref }]}
       />
 
-      <div className="flex h-[88px] flex-col justify-center border-b border-t border-[var(--border)] bg-[var(--surface)] px-8">
+      <div className="flex flex-col justify-center gap-1 border-b border-t border-[var(--border)] bg-[var(--surface)] px-8 py-5">
         <p className="text-[12.5px] font-medium text-[var(--accent)]">{customer.name}</p>
         <h1 className="text-[20px] font-semibold leading-tight tracking-tight text-[var(--ink)]">
           {project.name}
@@ -77,13 +74,7 @@ export default async function ProjectDetailPage({
         <StatGroup
           stats={[
             { value: totalLights, label: "Total lights" },
-            {
-              value: lightsWorking,
-              label: "Lights working",
-              valueClassName: projectVitals
-                ? workingPercentClass(projectVitals.optimisticWorkingPercentage)
-                : undefined,
-            },
+            { value: connectedLights, label: "Connected lights" },
             { value: totalFaults, label: "Total faults" },
           ]}
         />
@@ -95,7 +86,7 @@ export default async function ProjectDetailPage({
         </div>
         <LocationMap
           points={(projectVitals?.poles ?? [])
-            .filter((pole) => pole.lat !== null && pole.long !== null)
+            .filter((pole) => pole.lat != null && pole.long != null)
             .map((pole) => ({ lat: pole.lat as number, long: pole.long as number, label: pole.poleNumber }))}
           emptyMessage="No poles have location data for this project."
         />

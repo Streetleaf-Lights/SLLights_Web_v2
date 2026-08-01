@@ -125,6 +125,18 @@ describe("PoleVitalsChart", () => {
     expect(screen.getByText("Light %")).toBeInTheDocument();
   });
 
+  it("does not crash when a vital entry has a missing/undefined periodStart", async () => {
+    const vitalsWithMissingPeriodStart = [
+      { ...sampleVitals[0], periodStart: undefined },
+      sampleVitals[1],
+    ];
+    vi.stubGlobal("fetch", mockVitalsResponse(true, { vitals: vitalsWithMissingPeriodStart }));
+
+    render(<PoleVitalsChart poleId="recAOlPiepBddUcCv" />);
+
+    expect(await screen.findByText("Battery %")).toBeInTheDocument();
+  });
+
   it("shows an empty-state message when there is no vitals history", async () => {
     vi.stubGlobal("fetch", mockVitalsResponse(true, { vitals: [] }));
 

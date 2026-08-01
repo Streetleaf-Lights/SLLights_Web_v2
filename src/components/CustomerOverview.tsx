@@ -2,7 +2,7 @@ import Link from "next/link";
 import { StatBox } from "@/components/StatBox";
 import { StatGroup } from "@/components/StatGroup";
 import { withSearchContext } from "@/lib/url";
-import { formatPercent, initials, workingPercentClass } from "@/lib/text";
+import { formatPercent, initials } from "@/lib/text";
 import type { Customer, CustomerPoleVitals, Project } from "@/lib/types";
 
 /** Combines address, city, state, and zip into one display line, skipping any that are missing. */
@@ -43,7 +43,7 @@ export function CustomerOverview({
   const addressLine = formatFullAddress(customer);
   const projectCount = projects.length;
   const totalLights = vitals?.totalLights ?? 0;
-  const lightsWorking = vitals ? formatPercent(vitals.optimisticWorkingPercentage) : "—";
+  const lightsWorking = formatPercent(vitals?.percentWorking);
   const totalFaults = vitals?.totalFaults ?? "—";
 
   return (
@@ -77,19 +77,13 @@ export function CustomerOverview({
         <StatGroup
           stats={[
             { value: totalLights, label: "Total lights" },
-            {
-              value: lightsWorking,
-              label: "Lights working",
-              valueClassName: vitals
-                ? workingPercentClass(vitals.optimisticWorkingPercentage)
-                : undefined,
-            },
+            { value: lightsWorking, label: "Lights working" },
             { value: totalFaults, label: "Total faults" },
           ]}
         />
       </div>
 
-      <div className="mx-8 mt-6">
+      <div className="mx-8 mb-6 mt-6">
         <div className="mb-3 text-[11px] uppercase tracking-wide text-[var(--ink-muted)]">
           Projects
         </div>
@@ -124,13 +118,8 @@ export function CustomerOverview({
                       stats={[
                         { value: projectVitals?.totalLights ?? "—", label: "Total lights" },
                         {
-                          value: projectVitals
-                            ? formatPercent(projectVitals.optimisticWorkingPercentage)
-                            : "—",
-                          label: "Lights working",
-                          valueClassName: projectVitals
-                            ? workingPercentClass(projectVitals.optimisticWorkingPercentage)
-                            : undefined,
+                          value: projectVitals?.connectedLights ?? "—",
+                          label: "Connected lights",
                         },
                         { value: projectVitals?.totalFaults ?? "—", label: "Total faults" },
                       ]}

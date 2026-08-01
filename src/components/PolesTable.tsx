@@ -7,14 +7,14 @@ import { Toolbar } from "@/components/Toolbar";
 import { Pagination } from "@/components/Pagination";
 import { OnlineIndicator } from "@/components/OnlineIndicator";
 import { StatGroup } from "@/components/StatGroup";
-import { formatPercent, isLightStatusWorking, tieredPercentClass } from "@/lib/text";
+import { formatPercent } from "@/lib/text";
 import { withQueryParam } from "@/lib/url";
 import type { PoleSummary } from "@/lib/types";
 
 const PAGE_SIZE = 10;
 
-function formatCoordinate(value: number | null): string {
-  return value === null ? "—" : value.toFixed(4);
+function formatCoordinate(value: number | null | undefined): string {
+  return value === null || value === undefined ? "—" : String(value);
 }
 
 export function PolesTable({ poles }: { poles: PoleSummary[] }) {
@@ -120,32 +120,9 @@ export function PolesTable({ poles }: { poles: PoleSummary[] }) {
                         <StatGroup
                           size="sm"
                           stats={[
-                            {
-                              value: panel,
-                              label: "Panel Status",
-                              valueClassName:
-                                pole.avgPanelPercentage === null
-                                  ? undefined
-                                  : tieredPercentClass(pole.avgPanelPercentage),
-                            },
-                            {
-                              value: battery,
-                              label: "Battery Status",
-                              valueClassName:
-                                pole.avgBatteryPercentage === null
-                                  ? undefined
-                                  : tieredPercentClass(pole.avgBatteryPercentage),
-                            },
-                            {
-                              value: light,
-                              label: "Light Status",
-                              valueClassName:
-                                pole.avgLightPercentage === null
-                                  ? undefined
-                                  : isLightStatusWorking(pole.lightStatus)
-                                    ? "text-[var(--status-active)]"
-                                    : "text-[var(--status-flagged)]",
-                            },
+                            { value: panel, label: "Panel Status" },
+                            { value: battery, label: "Battery Status" },
+                            { value: light, label: "Light Status" },
                           ]}
                         />
                       </td>

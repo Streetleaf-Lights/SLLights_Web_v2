@@ -64,10 +64,9 @@ export interface ProjectVitals {
   id: string;
   name: string;
   totalLights: number;
-  workingPercentage: number;
-  optimisticWorkingPercentage: number;
+  connectedLights: number;
   totalFaults: number;
-  totalNonTelemetryAvailable: number;
+  percentWorking: number;
   poles: PoleVital[];
 }
 

@@ -135,6 +135,18 @@ describe("CustomersTable", () => {
     expect(screen.getByText("Storm Hardening Phase 2")).toBeInTheDocument();
   });
 
+  it("does not show the project id in the expanded projects sub-list", async () => {
+    useSearchParamsMock.mockReturnValue(emptySearchParams);
+    const user = userEvent.setup();
+    render(<CustomersTable customers={customers} />);
+
+    const row = screen.getByText("Coastal Power & Light").closest("tr")!;
+    await user.click(row);
+
+    expect(screen.queryByText("p1")).not.toBeInTheDocument();
+    expect(screen.queryByText("p2")).not.toBeInTheDocument();
+  });
+
   it("collapses an expanded row when clicked again", async () => {
     useSearchParamsMock.mockReturnValue(emptySearchParams);
     const user = userEvent.setup();

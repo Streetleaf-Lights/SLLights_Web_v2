@@ -7,14 +7,14 @@ import { StatGroup } from "@/components/StatGroup";
 import { PoleMap } from "@/components/PoleMap";
 import { PoleVitalsChart } from "@/components/PoleVitalsChart";
 import { withQueryParam, withSearchContext } from "@/lib/url";
-import { formatPercent, formatTimestamp, isLightStatusWorking, tieredPercentClass } from "@/lib/text";
+import { formatPercent, formatTimestamp } from "@/lib/text";
 
-function formatCoordinate(value: number | null): string {
-  return value === null ? "—" : value.toFixed(4);
+function formatCoordinate(value: number | null | undefined): string {
+  return value === null || value === undefined ? "—" : String(value);
 }
 
-function formatVoltage(value: number | null): string {
-  return value === null ? "—" : `${value}V`;
+function formatVoltage(value: number | null | undefined): string {
+  return value === null || value === undefined ? "—" : `${value}V`;
 }
 
 export default async function PoleDetailPage({
@@ -115,10 +115,6 @@ export default async function PoleDetailPage({
               value:
                 pole.avgPanelPercentage === null ? "—" : formatPercent(pole.avgPanelPercentage),
               label: "Panel Status",
-              valueClassName:
-                pole.avgPanelPercentage === null
-                  ? undefined
-                  : tieredPercentClass(pole.avgPanelPercentage),
             },
             {
               value:
@@ -126,21 +122,11 @@ export default async function PoleDetailPage({
                   ? "—"
                   : formatPercent(pole.avgBatteryPercentage),
               label: "Battery Status",
-              valueClassName:
-                pole.avgBatteryPercentage === null
-                  ? undefined
-                  : tieredPercentClass(pole.avgBatteryPercentage),
             },
             {
               value:
                 pole.avgLightPercentage === null ? "—" : formatPercent(pole.avgLightPercentage),
               label: "Light Status",
-              valueClassName:
-                pole.avgLightPercentage === null
-                  ? undefined
-                  : isLightStatusWorking(pole.lightStatus)
-                    ? "text-[var(--status-active)]"
-                    : "text-[var(--status-flagged)]",
             },
           ]}
         />

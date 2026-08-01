@@ -87,6 +87,16 @@ export function InviteUserModal({ customers }: { customers: Customer[] }) {
       });
       const body = await res.json().catch(() => null);
 
+      if (res.status === 401) {
+        // The session actually expired server-side — an inline error here
+        // would be a dead end, since retrying would just fail the same
+        // way. Send them to sign back in instead.
+        setIsOpen(false);
+        router.push("/signin");
+        router.refresh();
+        return;
+      }
+
       if (!res.ok) {
         setFormError(body?.error ?? "Invite failed. Please try again.");
         setSubmitting(false);

@@ -70,20 +70,18 @@ const vitals: CustomerPoleVitals = {
   id: "r2",
   name: "Coastal Power & Light",
   totalLights: 88,
-  workingPercentage: 89.77,
-  optimisticWorkingPercentage: 96.0,
+  connectedLights: 84,
   totalFaults: 2,
-  totalNonTelemetryAvailable: 9,
+  percentWorking: 96.0,
   poles: [],
   projects: [
     {
       id: "p1",
       name: "Bayou District Rebuild",
       totalLights: 54,
-      workingPercentage: 90.74,
-      optimisticWorkingPercentage: 92.5,
+      connectedLights: 51,
       totalFaults: 1,
-      totalNonTelemetryAvailable: 5,
+      percentWorking: 92.5,
       poles: [
         { id: "pv1", poleNumber: "51079-1000", locationId: "loc-1", isOnline: true, lightStatus: "Working", installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null },
         { id: "pv2", poleNumber: "51079-1001", locationId: "loc-2", isOnline: true, lightStatus: "Daylight", installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null },
@@ -94,10 +92,9 @@ const vitals: CustomerPoleVitals = {
       id: "p2",
       name: "Storm Hardening Phase 2",
       totalLights: 34,
-      workingPercentage: 88.24,
-      optimisticWorkingPercentage: 100.0,
+      connectedLights: 34,
       totalFaults: 1,
-      totalNonTelemetryAvailable: 4,
+      percentWorking: 100.0,
       poles: [],
     },
   ],
@@ -303,39 +300,27 @@ describe("ProjectDetailPage", () => {
     });
     render(jsx);
 
-    // "Light Status" is both the section heading and the Poles table's
-    // column header — the section heading carries the mb-3 class.
-    const lightStatusHeading = screen
-      .getAllByText("Light Status")
-      .find((el) => el.className.includes("mb-3"));
-    expect(lightStatusHeading).toBeTruthy();
+    // Now that the Poles table no longer has a "Working" column, "Light
+    // Status" only appears once, as this section's heading.
+    expect(screen.getByText("Light Status")).toBeInTheDocument();
     expect(screen.getByLabelText("54 Total lights")).toBeInTheDocument();
-    // p1's optimisticWorkingPercentage is 92.5 -> "92.5%", label stays "Lights working"
-    const working = screen.getByLabelText("92.5% Lights working");
-    expect(working).toBeInTheDocument();
-    // 92.5 is >= 50, so it should render green (status-active).
-    expect(working.querySelector("div")?.className).toContain("text-[var(--status-active)]");
+    expect(screen.getByLabelText("51 Connected lights")).toBeInTheDocument();
     expect(screen.getByLabelText("1 Total faults")).toBeInTheDocument();
   });
 
-  it("colors Lights working red when the percentage is below 50", async () => {
+  it("shows a different project's own vitals when viewing that project", async () => {
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
-    getPoleVitalsForCustomerMock.mockResolvedValue({
-      ...vitals,
-      projects: [
-        { ...vitals.projects[0], optimisticWorkingPercentage: 35 },
-        vitals.projects[1],
-      ],
-    });
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
     const jsx = await ProjectDetailPage({
-      params: Promise.resolve({ id: "r2", projectId: "p1" }),
+      params: Promise.resolve({ id: "r2", projectId: "p2" }),
       searchParams: Promise.resolve({}),
     });
     render(jsx);
 
-    const working = screen.getByLabelText("35% Lights working");
-    expect(working.querySelector("div")?.className).toContain("text-[var(--status-flagged)]");
+    expect(screen.getByLabelText("34 Total lights")).toBeInTheDocument();
+    expect(screen.getByLabelText("34 Connected lights")).toBeInTheDocument();
+    expect(screen.getByLabelText("1 Total faults")).toBeInTheDocument();
   });
 
   it("shows a Poles section listing this project's poles", async () => {
@@ -379,21 +364,6 @@ describe("ProjectDetailPage", () => {
     expect(screen.getByText("No poles on file for this project yet.")).toBeInTheDocument();
   });
 
-  it("shows a different project's own vitals when viewing that project", async () => {
-    getCustomerMock.mockResolvedValue(customer);
-    getProjectsForCustomerMock.mockResolvedValue(projects);
-    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
-    const jsx = await ProjectDetailPage({
-      params: Promise.resolve({ id: "r2", projectId: "p2" }),
-      searchParams: Promise.resolve({}),
-    });
-    render(jsx);
-
-    expect(screen.getByLabelText("34 Total lights")).toBeInTheDocument();
-    expect(screen.getByLabelText("100% Lights working")).toBeInTheDocument();
-    expect(screen.getByLabelText("1 Total faults")).toBeInTheDocument();
-  });
-
   it("shows dashes when no vitals are available for this project", async () => {
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
@@ -405,7 +375,7 @@ describe("ProjectDetailPage", () => {
     render(jsx);
 
     expect(screen.getByLabelText("— Total lights")).toBeInTheDocument();
-    expect(screen.getByLabelText("— Lights working")).toBeInTheDocument();
+    expect(screen.getByLabelText("— Connected lights")).toBeInTheDocument();
     expect(screen.getByLabelText("— Total faults")).toBeInTheDocument();
   });
 
@@ -467,6 +437,31 @@ describe("ProjectDetailPage", () => {
     render(jsx);
 
     expect(screen.getByText("Location")).toBeInTheDocument();
+    expect(screen.getByRole("application", { name: "Map" })).toBeInTheDocument();
+  });
+
+  it("excludes poles with undefined (not just null) coordinates from the map, without crashing", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue({
+      ...vitals,
+      projects: [
+        {
+          ...vitals.projects[0],
+          poles: [
+            { ...vitals.projects[0].poles[0], lat: 29.9511, long: -90.0715 },
+            { ...vitals.projects[0].poles[1], lat: undefined, long: undefined },
+          ],
+        },
+        vitals.projects[1],
+      ],
+    });
+    const jsx = await ProjectDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
     expect(screen.getByRole("application", { name: "Map" })).toBeInTheDocument();
   });
 

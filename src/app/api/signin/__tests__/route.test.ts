@@ -21,6 +21,17 @@ function request(body: unknown) {
   });
 }
 
+function fakeJwt(payload: Record<string, unknown>): string {
+  const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  return `header.${encoded}.signature`;
+}
+
+function maxAgeFromSetCookie(res: Response): number | null {
+  const setCookie = res.headers.get("set-cookie") ?? "";
+  const match = setCookie.match(/Max-Age=(\d+)/i);
+  return match ? Number(match[1]) : null;
+}
+
 describe("POST /api/signin", () => {
   afterEach(() => {
     signInMock.mockReset();
@@ -53,6 +64,29 @@ describe("POST /api/signin", () => {
     const setCookie = res.headers.get("set-cookie") ?? "";
     expect(setCookie).toContain("session=jwt-token");
     expect(setCookie.toLowerCase()).toContain("httponly");
+  });
+
+  it("sizes the cookie's maxAge to match the token's own exp claim, not a hardcoded guess", async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const token = fakeJwt({ sub: "u1", role: "Streetleaf Admin", exp: now + 3600 });
+    signInMock.mockResolvedValue({ token, user: authUser });
+
+    const res = await POST(request({ email: "minh@streetleaf.com", password: "hunter2" }));
+
+    const maxAge = maxAgeFromSetCookie(res);
+    expect(maxAge).not.toBeNull();
+    expect(maxAge as number).toBeGreaterThan(3590);
+    expect(maxAge as number).toBeLessThanOrEqual(3600);
+  });
+
+  it("falls back to a conservative default maxAge when the token has no decodable exp", async () => {
+    signInMock.mockResolvedValue({ token: "not-a-real-jwt", user: authUser });
+
+    const res = await POST(request({ email: "minh@streetleaf.com", password: "hunter2" }));
+
+    // 12h fallback — shorter than any real token we've observed, so a bad
+    // decode can't accidentally outlive the actual token.
+    expect(maxAgeFromSetCookie(res)).toBe(60 * 60 * 12);
   });
 
   it("forwards the APIM error message and status on invalid credentials", async () => {

@@ -44,3 +44,28 @@ export function decodeSessionToken(token: string): SessionUser | null {
 export function homeRouteForRole(role: string | null | undefined): string {
   return role === "Customer Admin" ? "/projects" : "/customers";
 }
+
+/**
+ * Seconds remaining until the JWT's own `exp` claim, for sizing the
+ * session cookie's maxAge to match — otherwise a hardcoded guess can
+ * outlive the token itself (the cookie stays in the browser looking
+ * "signed in" while APIM has already invalidated the token, so every
+ * authenticated call starts failing with "session expired" well before
+ * the cookie would naturally clear). Returns null if the token can't be
+ * decoded or has no exp claim, so the caller can fall back to a default.
+ */
+export function getSecondsUntilExpiry(token: string): number | null {
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+
+  try {
+    const payloadJson = Buffer.from(parts[1], "base64url").toString("utf-8");
+    const payload = JSON.parse(payloadJson);
+    if (typeof payload?.exp !== "number") return null;
+
+    const secondsRemaining = payload.exp - Math.floor(Date.now() / 1000);
+    return secondsRemaining > 0 ? secondsRemaining : 0;
+  } catch {
+    return null;
+  }
+}

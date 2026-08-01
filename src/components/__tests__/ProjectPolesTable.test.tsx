@@ -14,7 +14,7 @@ describe("ProjectPolesTable", () => {
     { id: "p4", poleNumber: "51079-1003", locationId: "loc-4", isOnline: null, lightStatus: null, installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null },
   ];
 
-  it("renders a row per pole with pole number, online status, and light status", () => {
+  it("renders a row per pole with pole number and online status", () => {
     render(<ProjectPolesTable poles={poles} {...defaultProps} />);
     expect(screen.getByText("51079-1000")).toBeInTheDocument();
     // 2 rows are online (green "Online" spans), 1 is offline (red "Offline" span).
@@ -25,47 +25,10 @@ describe("ProjectPolesTable", () => {
     expect(screen.getByText("Offline")).toBeInTheDocument();
   });
 
-  it("labels the third column 'Working', not 'Light Status'", () => {
+  it("does not render a Working/Light Status column", () => {
     render(<ProjectPolesTable poles={poles} {...defaultProps} />);
-    expect(screen.getByRole("columnheader", { name: "Working" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Working" })).not.toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "Light Status" })).not.toBeInTheDocument();
-  });
-
-  it("shows 'Working' in green for a 'Working' light status", () => {
-    render(<ProjectPolesTable poles={poles} {...defaultProps} />);
-    const cells = screen.getAllByText("Working");
-    // 2 from the "Working" column cells; the header itself now also reads
-    // "Working" as plain column-header text (not colored).
-    const coloredCells = cells.filter((el) => el.tagName === "TD");
-    expect(coloredCells).toHaveLength(2); // one from "Working", one from "DayLight"
-    for (const cell of coloredCells) {
-      expect(cell.className).toContain("text-[var(--status-active)]");
-    }
-  });
-
-  it("shows 'Working' in green for the real API's 'DayLight' casing", () => {
-    render(<ProjectPolesTable poles={[poles[1]]} {...defaultProps} />);
-    const cell = screen.getByText("Working", { selector: "td" });
-    expect(cell.className).toContain("text-[var(--status-active)]");
-  });
-
-  it("shows any other status as-is in red", () => {
-    render(<ProjectPolesTable poles={[poles[2]]} {...defaultProps} />);
-    const cell = screen.getByText("Fault");
-    expect(cell.className).toContain("text-[var(--status-flagged)]");
-  });
-
-  it("shows a neutral dash (not red/green) for a null light status", () => {
-    render(<ProjectPolesTable poles={[poles[3]]} {...defaultProps} />);
-    // Both isOnline and lightStatus are null for this pole, so two "—" cells
-    // render; the light-status one is distinguished by its font-medium class.
-    const lightStatusCell = screen
-      .getAllByText("—")
-      .find((el) => el.tagName === "TD" && el.className.includes("font-medium"));
-    expect(lightStatusCell).toBeTruthy();
-    expect(lightStatusCell?.className).toContain("text-[var(--ink-faint)]");
-    expect(lightStatusCell?.className).not.toContain("status-active");
-    expect(lightStatusCell?.className).not.toContain("status-flagged");
   });
 
   it("shows a green dot + Online for isOnline=true", () => {

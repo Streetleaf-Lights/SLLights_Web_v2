@@ -1,9 +1,12 @@
 import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 import { ApimError, registerUser } from "@/lib/apim";
+import { getSecondsUntilExpiry } from "@/lib/auth-role";
 
-// Matches /api/signin's cookie lifetime.
-const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24;
+// Fallback only — used if the token can't be decoded for some reason.
+// Deliberately conservative (shorter than we've observed the real tokens
+// living) so a bad decode doesn't accidentally outlive the actual token.
+const FALLBACK_SESSION_MAX_AGE_SECONDS = 60 * 60 * 12;
 
 /**
  * POST /api/registeruser — the client posts { token, password } here rather
@@ -39,7 +42,7 @@ export async function POST(request: Request) {
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      maxAge: SESSION_MAX_AGE_SECONDS,
+      maxAge: getSecondsUntilExpiry(sessionToken) ?? FALLBACK_SESSION_MAX_AGE_SECONDS,
     });
     return response;
   } catch (err) {

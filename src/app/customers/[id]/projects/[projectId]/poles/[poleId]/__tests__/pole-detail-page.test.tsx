@@ -63,20 +63,18 @@ const vitals: CustomerPoleVitals = {
   id: "r2",
   name: "Coastal Power & Light",
   totalLights: 1,
-  workingPercentage: 100,
-  optimisticWorkingPercentage: 100,
+  connectedLights: 1,
   totalFaults: 0,
-  totalNonTelemetryAvailable: 0,
+  percentWorking: 100,
   poles: [],
   projects: [
     {
       id: "p1",
       name: "Bayou District Rebuild",
       totalLights: 1,
-      workingPercentage: 100,
-      optimisticWorkingPercentage: 100,
+      connectedLights: 1,
       totalFaults: 0,
-      totalNonTelemetryAvailable: 0,
+      percentWorking: 100,
       poles: [
         {
           id: "pole1",
@@ -225,9 +223,41 @@ describe("PoleDetailPage", () => {
 
     expect(screen.getByText("2026-07-26 13:25:41")).toBeInTheDocument(); // lastUpdate, tz stripped
     expect(screen.getByText("2025-08-28")).toBeInTheDocument(); // installDate
-    expect(screen.getByText("28.3032")).toBeInTheDocument(); // lat, 4 decimals
-    expect(screen.getByText("-82.2750")).toBeInTheDocument(); // long, 4 decimals
+    expect(screen.getByText("28.3031566")).toBeInTheDocument(); // lat, full precision, not rounded
+    expect(screen.getByText("-82.2750467")).toBeInTheDocument(); // long, full precision, not rounded
     expect(screen.getByText("Online")).toBeInTheDocument();
+  });
+
+  it("does not crash and shows dashes when lat/long/battery voltage are undefined (not just null)", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue({
+      ...vitals,
+      projects: [
+        {
+          ...vitals.projects[0],
+          poles: [
+            {
+              ...vitals.projects[0].poles[0],
+              lat: undefined,
+              long: undefined,
+              batteryVoltage1: undefined,
+              batteryVoltage2: undefined,
+            },
+          ],
+        },
+      ],
+    });
+    const jsx = await PoleDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(screen.getByText("Lat:").parentElement).toHaveTextContent("Lat: —");
+    expect(screen.getByText("Long:").parentElement).toHaveTextContent("Long: —");
+    expect(screen.getByLabelText("— Battery Voltage 1")).toBeInTheDocument();
+    expect(screen.getByLabelText("— Battery Voltage 2")).toBeInTheDocument();
   });
 
   it("shows a System Status section with Panel/Battery/Light Status percentages", async () => {
@@ -411,7 +441,7 @@ describe("PoleDetailPage", () => {
     expect(onlineEl.closest("div")?.parentElement).not.toBe(latLine?.parentElement);
   });
 
-  it("colors Panel/Battery Status green at or above 80%", async () => {
+  it("does not color-code Panel/Battery/Light Status values (System Status is neutral now)", async () => {
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
     getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
@@ -421,89 +451,15 @@ describe("PoleDetailPage", () => {
     });
     render(jsx);
 
-    // avgBatteryPercentage is 90.43 -> green
-    const battery = screen.getByLabelText("90.4% Battery Status");
-    expect(battery.querySelector("div")?.className).toContain("text-[var(--status-active)]");
-  });
-
-  it("colors Panel/Battery Status red below 50%", async () => {
-    getCustomerMock.mockResolvedValue(customer);
-    getProjectsForCustomerMock.mockResolvedValue(projects);
-    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
-    const jsx = await PoleDetailPage({
-      params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
-      searchParams: Promise.resolve({}),
-    });
-    render(jsx);
-
-    // avgPanelPercentage is 10.79 -> red
     const panel = screen.getByLabelText("10.8% Panel Status");
-    expect(panel.querySelector("div")?.className).toContain("text-[var(--status-flagged)]");
-  });
-
-  it("colors Panel/Battery Status yellow/warning between 50% and 80%", async () => {
-    getCustomerMock.mockResolvedValue(customer);
-    getProjectsForCustomerMock.mockResolvedValue(projects);
-    getPoleVitalsForCustomerMock.mockResolvedValue({
-      ...vitals,
-      projects: [
-        {
-          ...vitals.projects[0],
-          poles: [{ ...vitals.projects[0].poles[0], avgPanelPercentage: 65 }],
-        },
-      ],
-    });
-    const jsx = await PoleDetailPage({
-      params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
-      searchParams: Promise.resolve({}),
-    });
-    render(jsx);
-
-    const panel = screen.getByLabelText("65% Panel Status");
-    expect(panel.querySelector("div")?.className).toContain("text-[var(--status-warning)]");
-  });
-
-  it("colors Light Status green when lightStatus is DayLight, regardless of its own percentage value", async () => {
-    getCustomerMock.mockResolvedValue(customer);
-    getProjectsForCustomerMock.mockResolvedValue(projects);
-    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
-    const jsx = await PoleDetailPage({
-      params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
-      searchParams: Promise.resolve({}),
-    });
-    render(jsx);
-
-    // avgLightPercentage is only 11.3 (low, since it's daytime) but
-    // lightStatus is "DayLight" — this should still be green, not red like
-    // the tiered Panel/Battery treatment would give for the same number.
+    const battery = screen.getByLabelText("90.4% Battery Status");
     const light = screen.getByLabelText("11.3% Light Status");
-    expect(light.querySelector("div")?.className).toContain("text-[var(--status-active)]");
-  });
-
-  it("colors Light Status red when lightStatus is not Working/DayLight", async () => {
-    getCustomerMock.mockResolvedValue(customer);
-    getProjectsForCustomerMock.mockResolvedValue(projects);
-    getPoleVitalsForCustomerMock.mockResolvedValue({
-      ...vitals,
-      projects: [
-        {
-          ...vitals.projects[0],
-          poles: [
-            { ...vitals.projects[0].poles[0], lightStatus: "Fault", avgLightPercentage: 95 },
-          ],
-        },
-      ],
-    });
-    const jsx = await PoleDetailPage({
-      params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
-      searchParams: Promise.resolve({}),
-    });
-    render(jsx);
-
-    // Even a high percentage (95) should be red here, since it's driven by
-    // the lightStatus value, not the percentage's own magnitude.
-    const light = screen.getByLabelText("95% Light Status");
-    expect(light.querySelector("div")?.className).toContain("text-[var(--status-flagged)]");
+    for (const stat of [panel, battery, light]) {
+      const valueClass = stat.querySelector("div")?.className ?? "";
+      expect(valueClass).not.toContain("text-[var(--status-active)]");
+      expect(valueClass).not.toContain("text-[var(--status-flagged)]");
+      expect(valueClass).not.toContain("text-[var(--status-warning)]");
+    }
   });
 
   it("renders a not-found state when the customer doesn't exist", async () => {

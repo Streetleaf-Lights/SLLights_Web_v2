@@ -19,7 +19,8 @@ const PERIOD_OPTIONS: { type: PeriodType; label: string; limit: number }[] = [
 ];
 
 /** "2026-07-30 11:00:00-04:00" -> "11:00 AM" (Hour) or "Jul 30" (Day). */
-function formatPeriodLabel(periodStart: string, periodType: PeriodType): string {
+function formatPeriodLabel(periodStart: string | null | undefined, periodType: PeriodType): string {
+  if (!periodStart) return "—";
   const date = new Date(periodStart.replace(" ", "T"));
   if (Number.isNaN(date.getTime())) return periodStart;
   return periodType === "Hour"
@@ -88,10 +89,15 @@ export function PoleVitalsChart({ poleId }: { poleId: string }) {
   }, [poleId, periodType]);
 
   // Sort chronologically regardless of the order the API returns them in,
-  // so the chart always reads left-to-right oldest-to-newest.
+  // so the chart always reads left-to-right oldest-to-newest. A missing
+  // periodStart (seen elsewhere in this API as an omitted-rather-than-null
+  // field) sorts as if it were the epoch rather than crashing.
   const chartData = (vitals ?? [])
     .slice()
-    .sort((a, b) => new Date(a.periodStart).getTime() - new Date(b.periodStart).getTime())
+    .sort(
+      (a, b) =>
+        new Date(a.periodStart ?? 0).getTime() - new Date(b.periodStart ?? 0).getTime(),
+    )
     .map((vital) => ({
       label: formatPeriodLabel(vital.periodStart, periodType),
       battery: vital.avgBatteryPercentage,

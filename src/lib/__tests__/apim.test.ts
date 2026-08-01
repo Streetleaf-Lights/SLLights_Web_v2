@@ -407,28 +407,25 @@ describe("getPoleVitalsForCustomer", () => {
     id: "recD6nliOfFlp0VFh",
     name: "Acacia Fields CDD",
     totalLights: 88,
-    workingPercentage: 89.77,
-    optimisticWorkingPercentage: 100.0,
+    connectedLights: 84,
     totalFaults: 0,
-    totalNonTelemetryAvailable: 9,
+    percentWorking: 100.0,
     projects: [
       {
         id: "reczugRdlKOZ6ehTn",
         name: "Acacia Fields CDD - Boger Ph 1A Ph 1B",
         totalLights: 54,
-        workingPercentage: 90.74,
-        optimisticWorkingPercentage: 100.0,
+        connectedLights: 51,
         totalFaults: 0,
-        totalNonTelemetryAvailable: 5,
+        percentWorking: 100.0,
       },
       {
         id: "recZWPEWVW3gLSqJm",
         name: "Acacia Fields CDD - Plazewski",
         totalLights: 34,
-        workingPercentage: 88.24,
-        optimisticWorkingPercentage: 100.0,
+        connectedLights: 32,
         totalFaults: 0,
-        totalNonTelemetryAvailable: 4,
+        percentWorking: 100.0,
       },
     ],
   };
@@ -452,13 +449,13 @@ describe("getPoleVitalsForCustomer", () => {
     const vitals = await getPoleVitalsForCustomer("recD6nliOfFlp0VFh");
 
     expect(vitals?.totalLights).toBe(88);
-    expect(vitals?.optimisticWorkingPercentage).toBe(100.0);
+    expect(vitals?.percentWorking).toBe(100.0);
     expect(vitals?.totalFaults).toBe(0);
     expect(vitals?.projects).toHaveLength(2);
     expect(vitals?.projects[0]).toMatchObject({
       id: "reczugRdlKOZ6ehTn",
       totalLights: 54,
-      optimisticWorkingPercentage: 100.0,
+      percentWorking: 100.0,
     });
   });
 

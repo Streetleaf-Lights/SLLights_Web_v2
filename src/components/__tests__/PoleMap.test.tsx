@@ -54,4 +54,22 @@ describe("PoleMap", () => {
       undefined,
     );
   });
+
+  it("passes no points when lat is undefined (the API omits the field entirely rather than nulling it)", () => {
+    render(<PoleMap lat={undefined} long={-90.0715} />);
+
+    expect(LocationMapMock).toHaveBeenCalledWith(
+      expect.objectContaining({ points: [] }),
+      undefined,
+    );
+  });
+
+  it("passes no points when long is undefined", () => {
+    render(<PoleMap lat={29.9511} long={undefined} />);
+
+    expect(LocationMapMock).toHaveBeenCalledWith(
+      expect.objectContaining({ points: [] }),
+      undefined,
+    );
+  });
 });

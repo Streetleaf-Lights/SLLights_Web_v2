@@ -55,14 +55,36 @@ describe("POST /api/signout", () => {
     expect(setCookie).toContain("session=;");
   });
 
-  it("forwards the APIM error message and status on failure, without clearing the cookie", async () => {
-    signOutMock.mockRejectedValue(new ApimError("token expired", 401));
+  it("treats an already-expired/invalid token (401) as already signed out — clears the cookie and returns success", async () => {
+    signOutMock.mockRejectedValue(new ApimError("session expired, please sign in again", 401));
 
     const res = await POST(request());
     const body = await res.json();
 
-    expect(res.status).toBe(401);
-    expect(body).toEqual({ error: "token expired" });
+    expect(res.status).toBe(200);
+    expect(body).toEqual({ success: true });
+    const setCookie = res.headers.get("set-cookie") ?? "";
+    expect(setCookie).toContain("session=;");
+  });
+
+  it("treats a 403 (forbidden/invalid token) the same way — clears the cookie and returns success", async () => {
+    signOutMock.mockRejectedValue(new ApimError("invalid token", 403));
+
+    const res = await POST(request());
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body).toEqual({ success: true });
+  });
+
+  it("forwards the APIM error message and status for a genuine failure (not 401/403), without clearing the cookie", async () => {
+    signOutMock.mockRejectedValue(new ApimError("APIM is temporarily unavailable", 503));
+
+    const res = await POST(request());
+    const body = await res.json();
+
+    expect(res.status).toBe(503);
+    expect(body).toEqual({ error: "APIM is temporarily unavailable" });
     expect(res.headers.get("set-cookie")).toBeNull();
   });
 
