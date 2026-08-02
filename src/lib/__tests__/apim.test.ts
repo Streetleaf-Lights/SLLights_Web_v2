@@ -165,6 +165,17 @@ describe("apimFetch", () => {
     expect(init.next.tags).toEqual(["users"]);
   });
 
+  it("uses cache: no-store (and skips next.revalidate) when noStore is set", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => [] });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await apimFetch("/getPoles", { noStore: true });
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.cache).toBe("no-store");
+    expect(init.next).toBeUndefined();
+  });
+
   it("throws an ApimError when the response is not ok", async () => {
     vi.stubGlobal(
       "fetch",
@@ -513,6 +524,18 @@ describe("getPoles", () => {
     expect(url).toContain("/getPoles?summary=true");
   });
 
+  it("uses cache: no-store, since the unfiltered response is always well over Next's 2MB cache limit", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => [rawSummaryPole] });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getPoles();
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.cache).toBe("no-store");
+  });
+
   it("returns the poles as-is (already matches our PoleSummary shape)", async () => {
     vi.stubGlobal(
       "fetch",
@@ -532,6 +555,39 @@ describe("getPoles", () => {
     expect(poles[0]).not.toHaveProperty("lastUpdate");
     expect(poles[0]).not.toHaveProperty("batteryVoltage1");
     expect(poles[0]).not.toHaveProperty("batteryVoltage2");
+  });
+
+  it("sorts the returned poles by poleNumber, regardless of the order the backend returns them in", async () => {
+    const outOfOrderPoles = [
+      { ...rawSummaryPole, id: "p2", poleNumber: "PAS-4939" },
+      { ...rawSummaryPole, id: "p1", poleNumber: "PAS-4938" },
+      { ...rawSummaryPole, id: "p3", poleNumber: "PAS-4940" },
+    ];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, json: async () => outOfOrderPoles }),
+    );
+
+    const poles = await getPoles();
+
+    expect(poles.map((p) => p.poleNumber)).toEqual(["PAS-4938", "PAS-4939", "PAS-4940"]);
+  });
+
+  it("sorts poleNumber numerically, not lexicographically (PAS-4938 before PAS-10000)", async () => {
+    const outOfOrderPoles = [
+      { ...rawSummaryPole, id: "p2", poleNumber: "PAS-10000" },
+      { ...rawSummaryPole, id: "p1", poleNumber: "PAS-4938" },
+    ];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, json: async () => outOfOrderPoles }),
+    );
+
+    const poles = await getPoles();
+
+    // A plain lexicographic sort would put "PAS-10000" first (since '1' < '4'
+    // as characters) — the numeric-aware sort should not.
+    expect(poles.map((p) => p.poleNumber)).toEqual(["PAS-4938", "PAS-10000"]);
   });
 
   it("applies the customerId filter alongside summary=true", async () => {

@@ -59,10 +59,15 @@ export class ApimError extends Error {
  * Next.js's revalidateTag — used by getUsers() so /api/inviteuser can force
  * the next getUsers() call to hit APIM fresh, rather than the person having
  * to wait out the full APIM_CACHE_SECONDS window after inviting someone.
+ *
+ * `noStore` skips Next.js's Data Cache entirely — for responses known to
+ * exceed its 2MB per-entry limit (e.g. the ~14k-pole /getPoles response),
+ * where the framework would otherwise log a "Failed to set fetch cache"
+ * warning on every single request while gaining no caching benefit anyway.
  */
 export async function apimFetch<T>(
   path: string,
-  options?: { tags?: string[] },
+  options?: { tags?: string[]; noStore?: boolean },
 ): Promise<T> {
   if (!APIM_BASE_URL) {
     throw new ApimError(
@@ -76,7 +81,9 @@ export async function apimFetch<T>(
         "Content-Type": "application/json",
         "Ocp-Apim-Subscription-Key": APIM_SUBSCRIPTION_KEY,
       },
-      next: { revalidate: APIM_CACHE_SECONDS, tags: options?.tags },
+      ...(options?.noStore
+        ? { cache: "no-store" as const }
+        : { next: { revalidate: APIM_CACHE_SECONDS, tags: options?.tags } }),
     });
 
     if (!res.ok) {
@@ -235,12 +242,23 @@ function buildPoleQuery(filters?: PoleFilters & { summary?: boolean }): string {
  * customerId. Summary mode lifts the 1000-row cap the plain endpoint
  * applies — needed since the whole system has ~14k poles — in exchange for
  * a lighter per-pole payload (no lastUpdate or battery voltages).
+ *
+ * Sorted here by poleNumber (numeric-aware, so "PAS-4938" precedes
+ * "PAS-10000" rather than following it lexicographically) since the
+ * backend's own ordering isn't reliably poleNumber order.
+ *
+ * Uses noStore: the unfiltered response is ~9MB — comfortably over Next's
+ * 2MB Data Cache limit — so caching it would fail on every request anyway
+ * (logged as a "Failed to set fetch cache" warning), with zero benefit.
  */
 export async function getPoles(filters?: PoleFilters): Promise<PoleSummary[]> {
   const raw = await apimFetch<PoleSummary[]>(
     `/getPoles${buildPoleQuery({ ...filters, summary: true })}`,
+    { noStore: true },
   );
-  return raw;
+  return raw
+    .slice()
+    .sort((a, b) => a.poleNumber.localeCompare(b.poleNumber, undefined, { numeric: true }));
 }
 
 /**
