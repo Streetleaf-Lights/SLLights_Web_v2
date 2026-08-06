@@ -83,6 +83,13 @@ describe("CustomersTable", () => {
     expect(screen.getByText("504-555-0132")).toBeInTheDocument();
   });
 
+  it("does not show a loading spinner next to the customer link by default", () => {
+    useSearchParamsMock.mockReturnValue(emptySearchParams);
+    render(<CustomersTable customers={customers} />);
+
+    expect(screen.queryByRole("status", { name: "Loading" })).not.toBeInTheDocument();
+  });
+
   it("shows the total count in the toolbar", () => {
     useSearchParamsMock.mockReturnValue(emptySearchParams);
     render(<CustomersTable customers={customers} />);

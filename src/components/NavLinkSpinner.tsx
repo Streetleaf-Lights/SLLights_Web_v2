@@ -31,7 +31,11 @@ function SpinnerIcon() {
  * pages are simple lookups) never flashes a spinner at all — it only shows
  * up once a transition has genuinely been slow.
  */
-export function NavLinkSpinner() {
+export function NavLinkSpinner({
+  className = "ml-auto text-[var(--sidebar-accent-strong)]",
+}: {
+  className?: string;
+}) {
   const { pending } = useLinkStatus();
   const [elapsed, setElapsed] = useState(false);
 
@@ -46,7 +50,7 @@ export function NavLinkSpinner() {
 
   if (!pending || !elapsed) return null;
   return (
-    <span role="status" aria-label="Loading" className="ml-auto text-[var(--sidebar-accent-strong)]">
+    <span role="status" aria-label="Loading" className={className}>
       <SpinnerIcon />
     </span>
   );

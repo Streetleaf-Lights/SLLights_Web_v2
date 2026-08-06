@@ -2,6 +2,7 @@
 
 import { Fragment, useMemo, useState } from "react";
 import Link from "next/link";
+import { NavLinkSpinner } from "@/components/NavLinkSpinner";
 import { useSearchParams } from "next/navigation";
 import type { Customer } from "@/lib/types";
 import { Pagination } from "@/components/Pagination";
@@ -105,9 +106,10 @@ export function CustomersTable({ customers }: { customers: Customer[] }) {
                         <Link
                           href={withQueryParam(`/customers/${customer.id}`, "cust_q", query)}
                           onClick={(e) => e.stopPropagation()}
-                          className="hover:underline"
+                          className="inline-flex items-center gap-1.5 hover:underline"
                         >
                           {customer.name}
+                          <NavLinkSpinner className="text-[var(--ink-faint)]" />
                         </Link>
                       </td>
                       <td className="py-3 pr-4 tabular-nums text-[var(--ink-muted)]">

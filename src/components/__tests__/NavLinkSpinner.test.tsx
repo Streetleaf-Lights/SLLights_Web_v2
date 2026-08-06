@@ -49,6 +49,27 @@ describe("NavLinkSpinner", () => {
     expect(screen.getByRole("status", { name: "Loading" })).toBeInTheDocument();
   });
 
+  it("defaults to the sidebar's styling when no className is given", () => {
+    useLinkStatusMock.mockReturnValue({ pending: true });
+    render(<NavLinkSpinner />);
+
+    act(() => vi.advanceTimersByTime(2000));
+    expect(screen.getByRole("status")).toHaveClass(
+      "ml-auto",
+      "text-[var(--sidebar-accent-strong)]",
+    );
+  });
+
+  it("uses a custom className when given, for reuse outside the sidebar", () => {
+    useLinkStatusMock.mockReturnValue({ pending: true });
+    render(<NavLinkSpinner className="text-[var(--ink-faint)]" />);
+
+    act(() => vi.advanceTimersByTime(2000));
+    const status = screen.getByRole("status");
+    expect(status).toHaveClass("text-[var(--ink-faint)]");
+    expect(status).not.toHaveClass("ml-auto");
+  });
+
   it("never shows the spinner if pending resolves before 2s", () => {
     useLinkStatusMock.mockReturnValue({ pending: true });
     const { rerender } = render(<NavLinkSpinner />);
