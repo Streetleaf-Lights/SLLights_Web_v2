@@ -125,6 +125,22 @@ describe("PoleVitalsChart", () => {
     expect(screen.getByText("Light %")).toBeInTheDocument();
   });
 
+  it("lists the legend/lines in order: Light, Panel, Battery", async () => {
+    vi.stubGlobal("fetch", mockVitalsResponse(true, { vitals: sampleVitals }));
+
+    const { container } = render(<PoleVitalsChart poleId="recAOlPiepBddUcCv" />);
+    await screen.findByText("Light %");
+
+    const text = container.textContent ?? "";
+    const lightIndex = text.indexOf("Light %");
+    const panelIndex = text.indexOf("Panel %");
+    const batteryIndex = text.indexOf("Battery %");
+
+    expect(lightIndex).toBeGreaterThanOrEqual(0);
+    expect(panelIndex).toBeGreaterThan(lightIndex);
+    expect(batteryIndex).toBeGreaterThan(panelIndex);
+  });
+
   it("does not crash when a vital entry has a missing/undefined periodStart", async () => {
     const vitalsWithMissingPeriodStart = [
       { ...sampleVitals[0], periodStart: undefined },

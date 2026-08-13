@@ -9,6 +9,20 @@ import type { PoleVital } from "@/lib/types";
 
 const PAGE_SIZE = 10;
 
+/** Same OK/Fault mapping and coloring as the pole detail page's Working Status section. */
+function poleStatusLabel(isFault: boolean | null | undefined): {
+  text: string;
+  className: string;
+} {
+  if (isFault === null || isFault === undefined) {
+    return { text: "—", className: "text-[var(--ink-faint)]" };
+  }
+  return {
+    text: isFault ? "Fault" : "OK",
+    className: isFault ? "text-[var(--status-flagged)]" : "text-[var(--status-active)]",
+  };
+}
+
 export function ProjectPolesTable({
   poles,
   customerId,
@@ -43,11 +57,13 @@ export function ProjectPolesTable({
           <thead>
             <tr className="border-b border-[var(--border)] bg-[var(--surface-sunken)] text-[11.5px] uppercase tracking-wide text-[var(--ink-muted)]">
               <th className="py-2.5 pl-4 pr-4 font-medium">Pole Number</th>
-              <th className="py-2.5 pr-8 font-medium">Online</th>
+              <th className="py-2.5 pr-4 font-medium">48h Connected</th>
+              <th className="py-2.5 pr-8 font-medium">48h Overall Status</th>
             </tr>
           </thead>
           <tbody>
             {pagePoles.map((pole) => {
+              const status = poleStatusLabel(pole.isPoleFault);
               return (
                 <tr
                   key={pole.id}
@@ -65,9 +81,10 @@ export function ProjectPolesTable({
                       {pole.poleNumber}
                     </Link>
                   </td>
-                  <td className="py-3 pr-8">
+                  <td className="py-3 pr-4">
                     <OnlineIndicator isOnline={pole.isOnline} />
                   </td>
+                  <td className={`py-3 pr-8 font-medium ${status.className}`}>{status.text}</td>
                 </tr>
               );
             })}

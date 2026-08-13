@@ -2,8 +2,6 @@ import Link from "next/link";
 import { getCustomer, getPoleVitalsForCustomer, getProjectsForCustomer } from "@/lib/apim";
 import { PageHeader } from "@/components/PageHeader";
 import { Breadcrumbs, leadingCrumb } from "@/components/Breadcrumbs";
-import { OnlineIndicator } from "@/components/OnlineIndicator";
-import { StatGroup } from "@/components/StatGroup";
 import { PoleMap } from "@/components/PoleMap";
 import { PoleVitalsChart } from "@/components/PoleVitalsChart";
 import { withQueryParam, withSearchContext } from "@/lib/url";
@@ -15,6 +13,68 @@ function formatCoordinate(value: number | null | undefined): string {
 
 function formatVoltage(value: number | null | undefined): string {
   return value === null || value === undefined ? "—" : `${value}V`;
+}
+
+function formatNumber(value: number | null | undefined): string {
+  return value === null || value === undefined ? "—" : String(value);
+}
+
+/** Green "okLabel" when false, red "faultLabel" when true, neutral dash when null/undefined. */
+function faultStatus(
+  isFault: boolean | null | undefined,
+  okLabel: string,
+  faultLabel: string,
+): { text: string; className: string } {
+  if (isFault === null || isFault === undefined) {
+    return { text: "—", className: "text-[var(--ink-faint)]" };
+  }
+  return {
+    text: isFault ? faultLabel : okLabel,
+    className: isFault ? "text-[var(--status-flagged)]" : "text-[var(--status-active)]",
+  };
+}
+
+/** Green "Online" when true, red "Offline" when false, neutral dash when null/undefined. */
+function connectionStatus(isOnline: boolean | null | undefined): {
+  text: string;
+  className: string;
+} {
+  if (isOnline === null || isOnline === undefined) {
+    return { text: "—", className: "text-[var(--ink-faint)]" };
+  }
+  return {
+    text: isOnline ? "Online" : "Offline",
+    className: isOnline ? "text-[var(--status-active)]" : "text-[var(--status-flagged)]",
+  };
+}
+
+function StatusBox({
+  title,
+  status,
+  metrics,
+}: {
+  title: string;
+  status: { text: string; className: string };
+  metrics: { label: string; value: string }[];
+}) {
+  return (
+    <div className="flex-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-5">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-[13px] font-semibold text-[var(--ink)]">{title}</span>
+        <span className={`text-[13px] font-semibold ${status.className}`}>{status.text}</span>
+      </div>
+      {metrics.length > 0 && (
+        <div className="mt-4 flex flex-col gap-2">
+          {metrics.map((metric) => (
+            <div key={metric.label} className="flex items-center justify-between gap-3 text-[12.5px]">
+              <span className="text-[var(--ink-faint)]">{metric.label}</span>
+              <span className="font-mono-data text-[var(--ink)]">{metric.value}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default async function PoleDetailPage({
@@ -65,6 +125,9 @@ export default async function PoleDetailPage({
     );
   }
 
+  const connected = connectionStatus(pole.isOnline);
+  const overallStatus = faultStatus(pole.isPoleFault, "OK", "Fault");
+
   return (
     <>
       <Breadcrumbs
@@ -99,49 +162,72 @@ export default async function PoleDetailPage({
               <span className="text-[var(--ink-faint)]">Long:</span> {formatCoordinate(pole.long)}
             </span>
           </div>
-          <div>
-            <OnlineIndicator isOnline={pole.isOnline} />
+          <div className="flex flex-col gap-1">
+            <span>
+              <span className="text-[var(--ink-faint)]">48h Connected:</span>{" "}
+              <span className={connected.className}>{connected.text}</span>
+            </span>
+            <span>
+              <span className="text-[var(--ink-faint)]">48h Overall Status:</span>{" "}
+              <span className={overallStatus.className}>{overallStatus.text}</span>
+            </span>
           </div>
         </div>
       </div>
 
-      <div className="mx-8 mt-6">
-        <div className="mb-3 text-[11px] uppercase tracking-wide text-[var(--ink-muted)]">
-          System Status
-        </div>
-        <StatGroup
-          stats={[
-            {
-              value:
-                pole.avgPanelPercentage === null ? "—" : formatPercent(pole.avgPanelPercentage),
-              label: "Panel Status",
-            },
-            {
-              value:
-                pole.avgBatteryPercentage === null
-                  ? "—"
-                  : formatPercent(pole.avgBatteryPercentage),
-              label: "Battery Status",
-            },
-            {
-              value:
-                pole.avgLightPercentage === null ? "—" : formatPercent(pole.avgLightPercentage),
-              label: "Light Status",
-            },
-          ]}
-        />
-      </div>
-
       <div className="mx-8 mb-6 mt-6">
         <div className="mb-3 text-[11px] uppercase tracking-wide text-[var(--ink-muted)]">
-          Battery Status
+          Statuses
         </div>
-        <StatGroup
-          stats={[
-            { value: formatVoltage(pole.batteryVoltage1), label: "Battery Voltage 1" },
-            { value: formatVoltage(pole.batteryVoltage2), label: "Battery Voltage 2" },
-          ]}
-        />
+        <div className="flex flex-col gap-4 sm:flex-row">
+          <StatusBox
+            title="Light"
+            status={faultStatus(pole.isLedFault, "OK", "Fault")}
+            metrics={[
+              { label: "48h Average Light %", value: formatPercent(pole.avgLightPercentage) },
+              { label: "Latest Light Power 1", value: formatNumber(pole.lampPower1) },
+              { label: "Latest Light Power 2", value: formatNumber(pole.lampPower2) },
+            ]}
+          />
+          <StatusBox
+            title="Panel"
+            status={faultStatus(pole.isPanelFault, "OK", "Fault")}
+            metrics={[
+              { label: "48h Average Panel %", value: formatPercent(pole.avgPanelPercentage) },
+              { label: "Latest Panel Voltage", value: formatVoltage(pole.solarBoardVoltage) },
+              {
+                label: "Latest Panel Electric Current",
+                value: formatNumber(pole.solarBoardElecCurrent),
+              },
+            ]}
+          />
+          <StatusBox
+            title="Battery"
+            status={faultStatus(pole.isBatteryFault, "OK", "Fault")}
+            metrics={[
+              { label: "48h Average Battery %", value: formatPercent(pole.avgBatteryPercentage) },
+              {
+                label: "Latest Electric Current 1",
+                value: formatNumber(pole.batteryElecCurrent1),
+              },
+              {
+                label: "Latest Electric Current 2",
+                value: formatNumber(pole.batteryElecCurrent2),
+              },
+              { label: "Latest Battery Voltage 1", value: formatVoltage(pole.batteryVoltage1) },
+              { label: "Latest Battery Voltage 2", value: formatVoltage(pole.batteryVoltage2) },
+              {
+                label: "Minimum Charging Voltage",
+                value: formatVoltage(pole.batteryChargingMin),
+              },
+            ]}
+          />
+          <StatusBox
+            title="Issue"
+            status={faultStatus(pole.isOpenIssueFault, "No Issue", "Open Issue")}
+            metrics={[]}
+          />
+        </div>
       </div>
 
       <div className="mx-8 mb-6">

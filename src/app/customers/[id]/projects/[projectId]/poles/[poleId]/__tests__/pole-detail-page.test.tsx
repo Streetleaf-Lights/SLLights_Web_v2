@@ -88,9 +88,21 @@ const vitals: CustomerPoleVitals = {
           lastUpdate: "2026-07-26 13:25:41+00:00",
           batteryVoltage1: 13.509,
           batteryVoltage2: 13.785,
+          lampPower1: 45,
+          lampPower2: 46,
+          batteryElecCurrent1: 90,
+          batteryElecCurrent2: 100,
+          solarBoardVoltage: 18.565,
+          solarBoardElecCurrent: 4.443,
+          batteryChargingMin: 13.5,
           avgBatteryPercentage: 90.43,
           avgPanelPercentage: 10.79,
           avgLightPercentage: 11.3,
+          isLedFault: false,
+          isBatteryFault: false,
+          isPanelFault: false,
+          isOpenIssueFault: false,
+          isPoleFault: false,
         },
       ],
     },
@@ -211,7 +223,7 @@ describe("PoleDetailPage", () => {
     );
   });
 
-  it("shows Last Update, Install Date, Lat, Long, and online status in the header", async () => {
+  it("shows Last Update, Install Date, Lat, Long, Connected, and Overall Status in the header", async () => {
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
     getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
@@ -225,7 +237,10 @@ describe("PoleDetailPage", () => {
     expect(screen.getByText("2025-08-28")).toBeInTheDocument(); // installDate
     expect(screen.getByText("28.3031566")).toBeInTheDocument(); // lat, full precision, not rounded
     expect(screen.getByText("-82.2750467")).toBeInTheDocument(); // long, full precision, not rounded
-    expect(screen.getByText("Online")).toBeInTheDocument();
+    expect(screen.getByText("48h Connected:").parentElement).toHaveTextContent("48h Connected: Online");
+    expect(screen.getByText("48h Overall Status:").parentElement).toHaveTextContent(
+      "48h Overall Status: OK",
+    );
   });
 
   it("does not crash and shows dashes when lat/long/battery voltage are undefined (not just null)", async () => {
@@ -256,11 +271,11 @@ describe("PoleDetailPage", () => {
 
     expect(screen.getByText("Lat:").parentElement).toHaveTextContent("Lat: —");
     expect(screen.getByText("Long:").parentElement).toHaveTextContent("Long: —");
-    expect(screen.getByLabelText("— Battery Voltage 1")).toBeInTheDocument();
-    expect(screen.getByLabelText("— Battery Voltage 2")).toBeInTheDocument();
+    expect(screen.getByText("Latest Battery Voltage 1").nextElementSibling).toHaveTextContent("—");
+    expect(screen.getByText("Latest Battery Voltage 2").nextElementSibling).toHaveTextContent("—");
   });
 
-  it("shows a System Status section with Panel/Battery/Light Status percentages", async () => {
+  it("shows a Statuses section with Light/Panel/Battery/Issue boxes, all OK/No Issue (green) with correct metrics when no faults are flagged", async () => {
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
     getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
@@ -270,13 +285,123 @@ describe("PoleDetailPage", () => {
     });
     render(jsx);
 
-    expect(screen.getByText("System Status")).toBeInTheDocument();
-    expect(screen.getByLabelText("10.8% Panel Status")).toBeInTheDocument();
-    expect(screen.getByLabelText("90.4% Battery Status")).toBeInTheDocument();
-    expect(screen.getByLabelText("11.3% Light Status")).toBeInTheDocument();
+    expect(screen.getByText("Statuses")).toBeInTheDocument();
+    expect(screen.getByText("Light")).toBeInTheDocument();
+    expect(screen.getByText("Panel")).toBeInTheDocument();
+    expect(screen.getByText("Battery")).toBeInTheDocument();
+    expect(screen.getByText("Issue")).toBeInTheDocument();
+
+    const okStats = screen.getAllByText("OK");
+    expect(okStats).toHaveLength(4); // Overall Status (header) + Light, Panel, Battery boxes
+    for (const stat of okStats) {
+      expect(stat.className).toContain("text-[var(--status-active)]");
+    }
+    const noIssue = screen.getByText("No Issue");
+    expect(noIssue.className).toContain("text-[var(--status-active)]");
+
+    expect(screen.getByText("48h Average Light %").nextElementSibling).toHaveTextContent("11.3%");
+    expect(screen.getByText("Latest Light Power 1").nextElementSibling).toHaveTextContent("45");
+    expect(screen.getByText("Latest Light Power 2").nextElementSibling).toHaveTextContent("46");
+
+    expect(screen.getByText("48h Average Panel %").nextElementSibling).toHaveTextContent("10.8%");
+    expect(screen.getByText("Latest Panel Voltage").nextElementSibling).toHaveTextContent("18.565V");
+    expect(screen.getByText("Latest Panel Electric Current").nextElementSibling).toHaveTextContent("4.443");
+
+    expect(screen.getByText("48h Average Battery %").nextElementSibling).toHaveTextContent("90.4%");
+    expect(screen.getByText("Latest Electric Current 1").nextElementSibling).toHaveTextContent("90");
+    expect(screen.getByText("Latest Electric Current 2").nextElementSibling).toHaveTextContent("100");
+    expect(screen.getByText("Latest Battery Voltage 1").nextElementSibling).toHaveTextContent("13.509V");
+    expect(screen.getByText("Latest Battery Voltage 2").nextElementSibling).toHaveTextContent("13.785V");
+    expect(screen.getByText("Minimum Charging Voltage").nextElementSibling).toHaveTextContent("13.5V");
   });
 
-  it("shows a Battery Status section with both battery voltages", async () => {
+  it("shows Fault (red) for a flagged component, and Open Issue (red) for an open issue", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue({
+      ...vitals,
+      projects: [
+        {
+          ...vitals.projects[0],
+          poles: [
+            {
+              ...vitals.projects[0].poles[0],
+              isPoleFault: true,
+              isLedFault: true,
+              isPanelFault: true,
+              isBatteryFault: true,
+              isOpenIssueFault: true,
+            },
+          ],
+        },
+      ],
+    });
+    const jsx = await PoleDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    // "Overall Status: Fault" in the header, plus Light/Panel/Battery boxes -> 4 total.
+    const faultStats = screen.getAllByText("Fault");
+    expect(faultStats).toHaveLength(4);
+    for (const stat of faultStats) {
+      expect(stat.className).toContain("text-[var(--status-flagged)]");
+    }
+    const openIssue = screen.getByText("Open Issue");
+    expect(openIssue.className).toContain("text-[var(--status-flagged)]");
+  });
+
+  it("shows dashes (no color) in Statuses and the header when fault/online flags are null", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue({
+      ...vitals,
+      projects: [
+        {
+          ...vitals.projects[0],
+          poles: [
+            {
+              ...vitals.projects[0].poles[0],
+              isOnline: null,
+              isPoleFault: null,
+              isLedFault: null,
+              isPanelFault: null,
+              isBatteryFault: null,
+              isOpenIssueFault: null,
+            },
+          ],
+        },
+      ],
+    });
+    const jsx = await PoleDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(screen.getByText("48h Connected:").parentElement).toHaveTextContent("48h Connected: —");
+    expect(screen.getByText("48h Overall Status:").parentElement).toHaveTextContent(
+      "48h Overall Status: —",
+    );
+
+    // Light/Panel/Battery boxes' status + Issue box's status -> 4 dashes,
+    // none of them colored.
+    const boxHeadings = [
+      screen.getByText("Light"),
+      screen.getByText("Panel"),
+      screen.getByText("Battery"),
+      screen.getByText("Issue"),
+    ];
+    for (const heading of boxHeadings) {
+      const statusEl = heading.nextElementSibling;
+      expect(statusEl).toHaveTextContent("—");
+      expect(statusEl?.className).not.toContain("status-active");
+      expect(statusEl?.className).not.toContain("status-flagged");
+    }
+  });
+
+  it("places the Statuses section above Vitals History and Location", async () => {
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
     getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
@@ -286,8 +411,11 @@ describe("PoleDetailPage", () => {
     });
     render(jsx);
 
-    expect(screen.getByLabelText("13.509V Battery Voltage 1")).toBeInTheDocument();
-    expect(screen.getByLabelText("13.785V Battery Voltage 2")).toBeInTheDocument();
+    const statusesHeading = screen.getByText("Statuses");
+    const vitalsHeading = screen.getByText("Vitals History");
+    expect(
+      statusesHeading.compareDocumentPosition(vitalsHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("shows a Location section with a map container when the pole has coordinates", async () => {
@@ -355,9 +483,21 @@ describe("PoleDetailPage", () => {
               lastUpdate: null,
               batteryVoltage1: null,
               batteryVoltage2: null,
+              lampPower1: null,
+              lampPower2: null,
+              batteryElecCurrent1: null,
+              batteryElecCurrent2: null,
+              solarBoardVoltage: null,
+              solarBoardElecCurrent: null,
+              batteryChargingMin: null,
               avgBatteryPercentage: null,
               avgPanelPercentage: null,
               avgLightPercentage: null,
+              isLedFault: null,
+              isBatteryFault: null,
+              isPanelFault: null,
+              isOpenIssueFault: null,
+              isPoleFault: null,
             },
           ],
         },
@@ -394,9 +534,21 @@ describe("PoleDetailPage", () => {
               lastUpdate: null,
               batteryVoltage1: null,
               batteryVoltage2: null,
+              lampPower1: null,
+              lampPower2: null,
+              batteryElecCurrent1: null,
+              batteryElecCurrent2: null,
+              solarBoardVoltage: null,
+              solarBoardElecCurrent: null,
+              batteryChargingMin: null,
               avgBatteryPercentage: null,
               avgPanelPercentage: null,
               avgLightPercentage: null,
+              isLedFault: null,
+              isBatteryFault: null,
+              isPanelFault: null,
+              isOpenIssueFault: null,
+              isPoleFault: null,
             },
           ],
         },
@@ -408,14 +560,23 @@ describe("PoleDetailPage", () => {
     });
     render(jsx);
 
-    expect(screen.getByLabelText("— Panel Status")).toBeInTheDocument();
-    expect(screen.getByLabelText("— Battery Status")).toBeInTheDocument();
-    expect(screen.getByLabelText("— Light Status")).toBeInTheDocument();
-    expect(screen.getByLabelText("— Battery Voltage 1")).toBeInTheDocument();
-    expect(screen.getByLabelText("— Battery Voltage 2")).toBeInTheDocument();
+    expect(screen.getByText("48h Connected:").parentElement).toHaveTextContent("48h Connected: —");
+    expect(screen.getByText("48h Overall Status:").parentElement).toHaveTextContent(
+      "48h Overall Status: —",
+    );
+    for (const heading of [
+      screen.getByText("Light"),
+      screen.getByText("Panel"),
+      screen.getByText("Battery"),
+      screen.getByText("Issue"),
+    ]) {
+      expect(heading.nextElementSibling).toHaveTextContent("—");
+    }
+    expect(screen.getByText("Latest Battery Voltage 1").nextElementSibling).toHaveTextContent("—");
+    expect(screen.getByText("Latest Battery Voltage 2").nextElementSibling).toHaveTextContent("—");
   });
 
-  it("groups Last Update + Install Date in one column, Lat + Long in another, and Online on its own", async () => {
+  it("groups Last Update + Install Date in one column, Lat + Long in another, and Connected + Overall Status in a third", async () => {
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
     getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
@@ -429,37 +590,18 @@ describe("PoleDetailPage", () => {
     const installDateLine = screen.getByText("Install Date:").parentElement;
     const latLine = screen.getByText("Lat:").parentElement;
     const longLine = screen.getByText("Long:").parentElement;
-    const onlineEl = screen.getByText("Online");
+    const connectedLine = screen.getByText("48h Connected:").parentElement;
+    const overallStatusLine = screen.getByText("48h Overall Status:").parentElement;
 
     // Last Update and Install Date share the same column (parent).
     expect(lastUpdateLine?.parentElement).toBe(installDateLine?.parentElement);
     // Lat and Long share a different column from Last Update/Install Date.
     expect(latLine?.parentElement).toBe(longLine?.parentElement);
     expect(latLine?.parentElement).not.toBe(lastUpdateLine?.parentElement);
-    // Online sits in its own column, separate from both date and coordinate groups.
-    expect(onlineEl.closest("div")?.parentElement).not.toBe(lastUpdateLine?.parentElement);
-    expect(onlineEl.closest("div")?.parentElement).not.toBe(latLine?.parentElement);
-  });
-
-  it("does not color-code Panel/Battery/Light Status values (System Status is neutral now)", async () => {
-    getCustomerMock.mockResolvedValue(customer);
-    getProjectsForCustomerMock.mockResolvedValue(projects);
-    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
-    const jsx = await PoleDetailPage({
-      params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
-      searchParams: Promise.resolve({}),
-    });
-    render(jsx);
-
-    const panel = screen.getByLabelText("10.8% Panel Status");
-    const battery = screen.getByLabelText("90.4% Battery Status");
-    const light = screen.getByLabelText("11.3% Light Status");
-    for (const stat of [panel, battery, light]) {
-      const valueClass = stat.querySelector("div")?.className ?? "";
-      expect(valueClass).not.toContain("text-[var(--status-active)]");
-      expect(valueClass).not.toContain("text-[var(--status-flagged)]");
-      expect(valueClass).not.toContain("text-[var(--status-warning)]");
-    }
+    // Connected and Overall Status share a third column, separate from the other two.
+    expect(connectedLine?.parentElement).toBe(overallStatusLine?.parentElement);
+    expect(connectedLine?.parentElement).not.toBe(lastUpdateLine?.parentElement);
+    expect(connectedLine?.parentElement).not.toBe(latLine?.parentElement);
   });
 
   it("renders a not-found state when the customer doesn't exist", async () => {

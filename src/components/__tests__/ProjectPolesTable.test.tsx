@@ -8,10 +8,10 @@ const defaultProps = { customerId: "cust-1", projectId: "proj-1" };
 
 describe("ProjectPolesTable", () => {
   const poles: PoleVital[] = [
-    { id: "p1", poleNumber: "51079-1000", locationId: "loc-1", isOnline: true, lightStatus: "Working", installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null },
-    { id: "p2", poleNumber: "51079-1001", locationId: "loc-2", isOnline: true, lightStatus: "DayLight", installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null },
-    { id: "p3", poleNumber: "51079-1002", locationId: "loc-3", isOnline: false, lightStatus: "Fault", installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null },
-    { id: "p4", poleNumber: "51079-1003", locationId: "loc-4", isOnline: null, lightStatus: null, installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null },
+    { id: "p1", poleNumber: "51079-1000", locationId: "loc-1", isOnline: true, lightStatus: "Working", installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, lampPower1: null, lampPower2: null, batteryElecCurrent1: null, batteryElecCurrent2: null, solarBoardVoltage: null, solarBoardElecCurrent: null, batteryChargingMin: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null, isLedFault: null, isBatteryFault: null, isPanelFault: null, isOpenIssueFault: null, isPoleFault: null },
+    { id: "p2", poleNumber: "51079-1001", locationId: "loc-2", isOnline: true, lightStatus: "DayLight", installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, lampPower1: null, lampPower2: null, batteryElecCurrent1: null, batteryElecCurrent2: null, solarBoardVoltage: null, solarBoardElecCurrent: null, batteryChargingMin: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null, isLedFault: null, isBatteryFault: null, isPanelFault: null, isOpenIssueFault: null, isPoleFault: null },
+    { id: "p3", poleNumber: "51079-1002", locationId: "loc-3", isOnline: false, lightStatus: "Fault", installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, lampPower1: null, lampPower2: null, batteryElecCurrent1: null, batteryElecCurrent2: null, solarBoardVoltage: null, solarBoardElecCurrent: null, batteryChargingMin: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null, isLedFault: null, isBatteryFault: null, isPanelFault: null, isOpenIssueFault: null, isPoleFault: null },
+    { id: "p4", poleNumber: "51079-1003", locationId: "loc-4", isOnline: null, lightStatus: null, installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, lampPower1: null, lampPower2: null, batteryElecCurrent1: null, batteryElecCurrent2: null, solarBoardVoltage: null, solarBoardElecCurrent: null, batteryChargingMin: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null, isLedFault: null, isBatteryFault: null, isPanelFault: null, isOpenIssueFault: null, isPoleFault: null },
   ];
 
   it("renders a row per pole with pole number and online status", () => {
@@ -29,6 +29,43 @@ describe("ProjectPolesTable", () => {
     render(<ProjectPolesTable poles={poles} {...defaultProps} />);
     expect(screen.queryByRole("columnheader", { name: "Working" })).not.toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "Light Status" })).not.toBeInTheDocument();
+  });
+
+  it("renders a 48h Overall Status column", () => {
+    render(<ProjectPolesTable poles={poles} {...defaultProps} />);
+    expect(screen.getByRole("columnheader", { name: "48h Overall Status" })).toBeInTheDocument();
+  });
+
+  it("shows a dash (no color) for Pole Status when isPoleFault is null", () => {
+    render(<ProjectPolesTable poles={poles} {...defaultProps} />);
+    // All 4 fixture poles have isPoleFault: null — check the last cell of
+    // each row (Pole Status), not just any "—" (OnlineIndicator also shows
+    // one for a null online status, e.g. pole p4).
+    const rows = screen.getAllByRole("row").slice(1); // skip the header row
+    expect(rows).toHaveLength(4);
+    for (const row of rows) {
+      const cells = row.querySelectorAll("td");
+      const poleStatusCell = cells[cells.length - 1];
+      expect(poleStatusCell).toHaveTextContent("—");
+      expect(poleStatusCell.className).not.toContain("status-active");
+      expect(poleStatusCell.className).not.toContain("status-flagged");
+    }
+  });
+
+  it("shows green OK for Pole Status when isPoleFault is false", () => {
+    const polesWithStatus = [{ ...poles[0], isPoleFault: false }];
+    render(<ProjectPolesTable poles={polesWithStatus} {...defaultProps} />);
+
+    const ok = screen.getByText("OK");
+    expect(ok.className).toContain("text-[var(--status-active)]");
+  });
+
+  it("shows red Fault for Pole Status when isPoleFault is true", () => {
+    const polesWithStatus = [{ ...poles[0], isPoleFault: true }];
+    render(<ProjectPolesTable poles={polesWithStatus} {...defaultProps} />);
+
+    const fault = screen.getByText("Fault");
+    expect(fault.className).toContain("text-[var(--status-flagged)]");
   });
 
   it("shows a green dot + Online for isOnline=true", () => {
@@ -51,8 +88,7 @@ describe("ProjectPolesTable", () => {
   it("shows a dash with no dot (not 'Offline') when isOnline is null", () => {
     render(<ProjectPolesTable poles={[poles[3]]} {...defaultProps} />);
     expect(screen.queryByText("Offline")).not.toBeInTheDocument();
-    const onlineDataCells = screen.getAllByText("Online").filter((el) => el.tagName === "TD");
-    expect(onlineDataCells).toHaveLength(0);
+    expect(screen.queryAllByText("Online")).toHaveLength(0);
   });
 
   it("links the pole number to the pole detail page", () => {
@@ -118,9 +154,21 @@ describe("ProjectPolesTable", () => {
       lastUpdate: null,
       batteryVoltage1: null,
       batteryVoltage2: null,
+      lampPower1: null,
+      lampPower2: null,
+      batteryElecCurrent1: null,
+      batteryElecCurrent2: null,
+      solarBoardVoltage: null,
+      solarBoardElecCurrent: null,
+      batteryChargingMin: null,
       avgBatteryPercentage: null,
       avgPanelPercentage: null,
       avgLightPercentage: null,
+      isLedFault: null,
+      isBatteryFault: null,
+      isPanelFault: null,
+      isOpenIssueFault: null,
+      isPoleFault: null,
     }));
     const user = userEvent.setup();
     render(<ProjectPolesTable poles={many} {...defaultProps} />);

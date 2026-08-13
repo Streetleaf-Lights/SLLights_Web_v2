@@ -18,6 +18,16 @@ const PERIOD_OPTIONS: { type: PeriodType; label: string; limit: number }[] = [
   { type: "Day", label: "Daily", limit: 30 },
 ];
 
+// Recharts' default <Legend> otherwise sorts entries alphabetically by
+// dataKey ("battery" < "light" < "panel") regardless of <Line> JSX order —
+// this fixed list drives a custom legend renderer instead, so it always
+// shows Light, Panel, Battery.
+const LEGEND_ORDER: { value: string; color: string }[] = [
+  { value: "Light %", color: "var(--status-active)" },
+  { value: "Panel %", color: "var(--status-warning)" },
+  { value: "Battery %", color: "var(--accent)" },
+];
+
 /** "2026-07-30 11:00:00-04:00" -> "11:00 AM" (Hour) or "Jul 30" (Day). */
 function formatPeriodLabel(periodStart: string | null | undefined, periodType: PeriodType): string {
   if (!periodStart) return "—";
@@ -100,9 +110,9 @@ export function PoleVitalsChart({ poleId }: { poleId: string }) {
     )
     .map((vital) => ({
       label: formatPeriodLabel(vital.periodStart, periodType),
-      battery: vital.avgBatteryPercentage,
-      panel: vital.avgPanelPercentage,
       light: vital.avgLightPercentage,
+      panel: vital.avgPanelPercentage,
+      battery: vital.avgBatteryPercentage,
     }));
 
   return (
@@ -139,12 +149,28 @@ export function PoleVitalsChart({ poleId }: { poleId: string }) {
               <XAxis dataKey="label" tick={{ fontSize: 11 }} stroke="var(--ink-faint)" />
               <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} stroke="var(--ink-faint)" width={36} />
               <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, borderColor: "var(--border)" }} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Legend
+                wrapperStyle={{ fontSize: 12 }}
+                content={() => (
+                  <ul className="m-0 flex list-none justify-center gap-4 p-0">
+                    {LEGEND_ORDER.map((entry) => (
+                      <li key={entry.value} className="flex items-center gap-1.5">
+                        <span
+                          className="inline-block h-2.5 w-2.5 rounded-full"
+                          style={{ backgroundColor: entry.color }}
+                          aria-hidden="true"
+                        />
+                        <span style={{ color: entry.color }}>{entry.value}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              />
               <Line
                 type="monotone"
-                dataKey="battery"
-                name="Battery %"
-                stroke="var(--accent)"
+                dataKey="light"
+                name="Light %"
+                stroke="var(--status-active)"
                 strokeWidth={2}
                 dot={false}
                 connectNulls
@@ -160,9 +186,9 @@ export function PoleVitalsChart({ poleId }: { poleId: string }) {
               />
               <Line
                 type="monotone"
-                dataKey="light"
-                name="Light %"
-                stroke="var(--status-active)"
+                dataKey="battery"
+                name="Battery %"
+                stroke="var(--accent)"
                 strokeWidth={2}
                 dot={false}
                 connectNulls

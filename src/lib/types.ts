@@ -54,6 +54,18 @@ export interface PoleVital {
   lastUpdate: string | null;
   batteryVoltage1: number | null;
   batteryVoltage2: number | null;
+  lampPower1: number | null;
+  lampPower2: number | null;
+  batteryElecCurrent1: number | null;
+  batteryElecCurrent2: number | null;
+  solarBoardVoltage: number | null;
+  solarBoardElecCurrent: number | null;
+  batteryChargingMin: number | null;
+  isLedFault: boolean | null;
+  isBatteryFault: boolean | null;
+  isPanelFault: boolean | null;
+  isOpenIssueFault: boolean | null;
+  isPoleFault: boolean | null;
   avgBatteryPercentage: number | null;
   avgPanelPercentage: number | null;
   avgLightPercentage: number | null;
