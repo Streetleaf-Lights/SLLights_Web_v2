@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { PoleVitalsChart } from "@/components/PoleVitalsChart";
+import { formatPeriodLabel, formatTickLabel, PoleVitalsChart } from "@/components/PoleVitalsChart";
 
 // Recharts' ResponsiveContainer needs real DOM dimensions to render its
 // children (legend, lines, axes); jsdom reports 0x0 by default, which
@@ -139,6 +139,92 @@ describe("PoleVitalsChart", () => {
     expect(lightIndex).toBeGreaterThanOrEqual(0);
     expect(panelIndex).toBeGreaterThan(lightIndex);
     expect(batteryIndex).toBeGreaterThan(panelIndex);
+  });
+
+  it("shows the date (not a time) at midnight — the day boundary", () => {
+    expect(formatPeriodLabel("2026-07-30 00:00:00-04:00", "Hour")).toBe("Jul 30");
+  });
+
+  it("shows just the hour (no date, no minutes) for any other hour", () => {
+    expect(formatPeriodLabel("2026-07-30 11:00:00-04:00", "Hour")).toMatch(/^\d{1,2}\s?(AM|PM)$/);
+    expect(formatPeriodLabel("2026-07-30 19:00:00-04:00", "Hour")).toMatch(/^\d{1,2}\s?(AM|PM)$/);
+  });
+
+  it("legitimately repeats the same hour-only text across different days (disambiguated by the nearest midnight label, not per-point uniqueness)", () => {
+    const label1 = formatPeriodLabel("2026-07-30 11:00:00-04:00", "Hour");
+    const label2 = formatPeriodLabel("2026-07-31 11:00:00-04:00", "Hour");
+
+    expect(label1).toBe(label2);
+  });
+
+  it("formats a Daily label as month + day", () => {
+    expect(formatPeriodLabel("2026-07-30 11:00:00-04:00", "Day")).toBe("Jul 30");
+  });
+
+  it("looks up a tick's label by its actual data-point index, not by the tick's position among however many Recharts chose to render", () => {
+    // Simulates 48 hourly chartData rows, the way the component builds
+    // them (each row's own "index" field is its position in this array).
+    // Recharts thins the ticks it actually shows/labels when there isn't
+    // room for all 48 — so the *value* passed to tickFormatter for a given
+    // rendered tick is this real data-point index (e.g. 42), which can be
+    // completely different from that tick's position among the rendered
+    // subset (e.g. it might be only the 6th tick shown). Using the latter
+    // to look up chartData previously caused every label to point at the
+    // wrong data point once thinning kicked in.
+    const chartData = Array.from({ length: 48 }, (_, i) => ({
+      periodStart: `2026-07-30 ${String(i % 24).padStart(2, "0")}:00:00-04:00`,
+    }));
+
+    // Data-point index 42 -> hour 18 (6 PM) on the 2nd day covered by this
+    // 48h window. If the tick-position argument were used instead (e.g.
+    // this being only the 6th tick actually rendered), it would incorrectly
+    // resolve to chartData[6] -> hour 6 (6 AM) instead.
+    expect(formatTickLabel(chartData, 42, "Hour")).toBe(
+      formatPeriodLabel(chartData[42].periodStart, "Hour"),
+    );
+    expect(formatTickLabel(chartData, 42, "Hour")).not.toBe(
+      formatPeriodLabel(chartData[6].periodStart, "Hour"),
+    );
+  });
+
+  it("renders successfully with duplicate same-hour-text points across two days, without crashing", async () => {
+    // This is the scenario the axis-key fix (see the component's chartData
+    // comment) targets: two points that legitimately render identical
+    // display text via formatPeriodLabel, but must still each resolve to
+    // their own distinct data when hovered/rendered — not collapse onto
+    // or resolve to each other. Recharts never renders actual <path>
+    // geometry in jsdom (verified directly — lines don't draw here even
+    // with container dimensions mocked), so this checks what jsdom *can*
+    // verify: the chart mounts cleanly and the full series set renders,
+    // with the fix's correctness otherwise covered by the formatPeriodLabel
+    // unit tests above and the mapping's structural 1:1 index assignment.
+    const sameHourDifferentDays = [
+      {
+        periodStart: "2026-07-30 19:00:00-04:00",
+        periodEnd: "2026-07-30 20:00:00-04:00",
+        lightStatus: "DayLight",
+        isOnline: true,
+        avgBatteryPercentage: 5,
+        avgPanelPercentage: 5,
+        avgLightPercentage: 5,
+      },
+      {
+        periodStart: "2026-07-31 19:00:00-04:00",
+        periodEnd: "2026-07-31 20:00:00-04:00",
+        lightStatus: "DayLight",
+        isOnline: true,
+        avgBatteryPercentage: 95,
+        avgPanelPercentage: 95,
+        avgLightPercentage: 95,
+      },
+    ];
+    vi.stubGlobal("fetch", mockVitalsResponse(true, { vitals: sameHourDifferentDays }));
+
+    render(<PoleVitalsChart poleId="recAOlPiepBddUcCv" />);
+
+    expect(await screen.findByText("Light %")).toBeInTheDocument();
+    expect(screen.getByText("Panel %")).toBeInTheDocument();
+    expect(screen.getByText("Battery %")).toBeInTheDocument();
   });
 
   it("does not crash when a vital entry has a missing/undefined periodStart", async () => {

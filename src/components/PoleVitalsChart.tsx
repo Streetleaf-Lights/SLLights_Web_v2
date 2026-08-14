@@ -28,14 +28,74 @@ const LEGEND_ORDER: { value: string; color: string }[] = [
   { value: "Battery %", color: "var(--accent)" },
 ];
 
-/** "2026-07-30 11:00:00-04:00" -> "11:00 AM" (Hour) or "Jul 30" (Day). */
-function formatPeriodLabel(periodStart: string | null | undefined, periodType: PeriodType): string {
+/**
+ * Parses the wall-clock date/time as authored in the string, ignoring its
+ * embedded UTC offset — matching formatTimestamp's convention elsewhere in
+ * this app of displaying API timestamps literally rather than converting
+ * them to the viewer's own browser timezone. That matters here specifically
+ * because Date's local getters (getHours, toLocaleTimeString with no
+ * explicit timeZone) reinterpret the instant in the *viewer's* timezone —
+ * so "00:00:00-04:00" would only read as hour 0 for a viewer who happens
+ * to also be in -04:00; anyone else would see the "day boundary" label
+ * appear at the wrong hour, or not at midnight at all.
+ */
+function parseWallClock(periodStart: string): Date | null {
+  const match = periodStart.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/);
+  if (!match) return null;
+  const [, year, month, day, hour, minute, second] = match;
+  return new Date(
+    Date.UTC(
+      Number(year),
+      Number(month) - 1,
+      Number(day),
+      Number(hour),
+      Number(minute),
+      Number(second),
+    ),
+  );
+}
+
+/**
+ * "2026-07-30 11:00:00-04:00" -> "11 AM" (Hour) or "Jul 30" (Day).
+ *
+ * For Hourly, the date is shown specifically at the midnight (12 AM) point
+ * — the day boundary — and just the hour otherwise; the reader identifies
+ * which day a given hour belongs to via the nearest earlier date landmark,
+ * the same convention most time-series chart libraries use. This means
+ * the same display text (e.g. "7 PM") legitimately repeats once per day —
+ * see the dataKey/tickFormatter split in the component below for why that
+ * no longer risks mismatched tooltips the way it would if this formatted
+ * string were used as the axis's own unique key.
+ */
+export function formatPeriodLabel(periodStart: string | null | undefined, periodType: PeriodType): string {
   if (!periodStart) return "—";
-  const date = new Date(periodStart.replace(" ", "T"));
-  if (Number.isNaN(date.getTime())) return periodStart;
-  return periodType === "Hour"
-    ? date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
-    : date.toLocaleDateString([], { month: "short", day: "numeric" });
+  const date = parseWallClock(periodStart);
+  if (!date) return periodStart;
+  if (periodType === "Day") {
+    return date.toLocaleDateString([], { month: "short", day: "numeric", timeZone: "UTC" });
+  }
+  return date.getUTCHours() === 0
+    ? date.toLocaleDateString([], { month: "short", day: "numeric", timeZone: "UTC" })
+    : date.toLocaleTimeString([], { hour: "numeric", timeZone: "UTC" });
+}
+
+/**
+ * Resolves an X-axis tick's label by looking up its underlying data point.
+ *
+ * Recharts calls tickFormatter as (entry.value, i) — `dataPointIndex`
+ * (first arg) is this tick's actual data value, i.e. our chartData row's
+ * "index" field. The second arg Recharts provides is the tick's position
+ * within Recharts' own ticks array, which gets thinned down when there
+ * isn't room to label every point — NOT an index into chartData — so it
+ * must never be used to look chartData up; doing so once caused every
+ * label to point at the wrong data point whenever ticks got thinned.
+ */
+export function formatTickLabel(
+  chartData: { periodStart: string | null | undefined }[],
+  dataPointIndex: number,
+  periodType: PeriodType,
+): string {
+  return formatPeriodLabel(chartData[dataPointIndex]?.periodStart, periodType);
 }
 
 function ChartMessage({ tone, children }: { tone: "muted" | "error"; children: React.ReactNode }) {
@@ -102,14 +162,24 @@ export function PoleVitalsChart({ poleId }: { poleId: string }) {
   // so the chart always reads left-to-right oldest-to-newest. A missing
   // periodStart (seen elsewhere in this API as an omitted-rather-than-null
   // field) sorts as if it were the epoch rather than crashing.
+  //
+  // `index` (not the formatted label) is the axis's dataKey. Recharts
+  // matches hovered/rendered points back to axis ticks by this dataKey's
+  // *value* in some code paths — if that value is pre-formatted display
+  // text like "7 PM", two points sharing that text (e.g. two different
+  // days, or the new "hour-only except at midnight" labeling below) can
+  // resolve to the wrong point's tick/coordinate. An index is always
+  // unique, so this can't happen; the actual display text is produced
+  // separately via tickFormatter/labelFormatter below.
   const chartData = (vitals ?? [])
     .slice()
     .sort(
       (a, b) =>
         new Date(a.periodStart ?? 0).getTime() - new Date(b.periodStart ?? 0).getTime(),
     )
-    .map((vital) => ({
-      label: formatPeriodLabel(vital.periodStart, periodType),
+    .map((vital, index) => ({
+      index,
+      periodStart: vital.periodStart,
       light: vital.avgLightPercentage,
       panel: vital.avgPanelPercentage,
       battery: vital.avgBatteryPercentage,
@@ -146,9 +216,19 @@ export function PoleVitalsChart({ poleId }: { poleId: string }) {
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 4, right: 8, bottom: 0, left: -12 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="label" tick={{ fontSize: 11 }} stroke="var(--ink-faint)" />
+              <XAxis
+                dataKey="index"
+                tickFormatter={(value) => formatTickLabel(chartData, value, periodType)}
+                tick={{ fontSize: 11 }}
+                stroke="var(--ink-faint)"
+              />
               <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} stroke="var(--ink-faint)" width={36} />
-              <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, borderColor: "var(--border)" }} />
+              <Tooltip
+                labelFormatter={(_value, payload) =>
+                  formatPeriodLabel(payload?.[0]?.payload?.periodStart, periodType)
+                }
+                contentStyle={{ fontSize: 12, borderRadius: 8, borderColor: "var(--border)" }}
+              />
               <Legend
                 wrapperStyle={{ fontSize: 12 }}
                 content={() => (
