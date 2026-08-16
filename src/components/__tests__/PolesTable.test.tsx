@@ -197,7 +197,7 @@ describe("PolesTable", () => {
     expect(screen.queryByRole("columnheader", { name: "System Status" })).not.toBeInTheDocument();
   });
 
-  it("Statuses is a single boxed group with Panel, Battery, and Light", () => {
+  it("Statuses is a single boxed group with Light, Panel, and Battery in that order", () => {
     render(<PolesTable poles={poles} />);
     const panel = screen.getByLabelText("19.3% Panel");
     const battery = screen.getByLabelText("80.1% Battery");
@@ -206,6 +206,11 @@ describe("PolesTable", () => {
     expect(panel.parentElement).toBe(battery.parentElement);
     expect(panel.parentElement).toBe(light.parentElement);
     expect(panel.parentElement?.parentElement?.className).toContain("rounded-lg");
+
+    // Light, Panel, Battery in that left-to-right order.
+    const box = panel.parentElement as HTMLElement;
+    const columns = Array.from(box.children).map((col) => col.textContent);
+    expect(columns).toEqual([light.textContent, panel.textContent, battery.textContent]);
   });
 
   it("does not color-code Panel/Battery/Light values (Statuses is neutral now)", () => {

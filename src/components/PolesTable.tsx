@@ -72,14 +72,14 @@ export function PolesTable({ poles }: { poles: PoleSummary[] }) {
               <tbody>
                 {pagePoles.map((pole) => {
                   const connected = connectionStatus(pole.isOnline, pole.lastUpdate);
+                  const light =
+                    pole.avgLightPercentage === null ? "—" : formatPercent(pole.avgLightPercentage);
                   const panel =
                     pole.avgPanelPercentage === null ? "—" : formatPercent(pole.avgPanelPercentage);
                   const battery =
                     pole.avgBatteryPercentage === null
                       ? "—"
                       : formatPercent(pole.avgBatteryPercentage);
-                  const light =
-                    pole.avgLightPercentage === null ? "—" : formatPercent(pole.avgLightPercentage);
                   return (
                     <tr
                       key={pole.id}
@@ -120,9 +120,9 @@ export function PolesTable({ poles }: { poles: PoleSummary[] }) {
                         <StatGroup
                           size="sm"
                           stats={[
+                            { value: light, label: "Light" },
                             { value: panel, label: "Panel" },
                             { value: battery, label: "Battery" },
-                            { value: light, label: "Light" },
                           ]}
                         />
                       </td>
