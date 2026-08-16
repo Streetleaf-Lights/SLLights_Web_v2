@@ -19,6 +19,16 @@ function formatNumber(value: number | null | undefined): string {
   return value === null || value === undefined ? "—" : String(value);
 }
 
+/**
+ * "Recent X" for a currently-reporting pole, "Last Known X" for a silent
+ * one — these metrics (lamp power, board voltage/current, etc.) are all
+ * single point-in-time readings, not 48h averages, so the wording needs
+ * its own prefix rather than reusing the "48h Average ..." pattern above.
+ */
+function recentLabel(isSilent: boolean, label: string): string {
+  return `${isSilent ? "Last Known" : "Recent"} ${label}`;
+}
+
 /** Green "okLabel" when false, red "faultLabel" when true, neutral dash when null/undefined. */
 function faultStatus(
   isFault: boolean | null | undefined,
@@ -177,8 +187,8 @@ export default async function PoleDetailPage({
                 label: isSilent ? "Last Known 48h Average Light %" : "48h Average Light %",
                 value: formatPercent(pole.avgLightPercentage),
               },
-              { label: "Latest Light Power 1", value: formatNumber(pole.lampPower1) },
-              { label: "Latest Light Power 2", value: formatNumber(pole.lampPower2) },
+              { label: recentLabel(isSilent, "Light Power 1"), value: formatNumber(pole.lampPower1) },
+              { label: recentLabel(isSilent, "Light Power 2"), value: formatNumber(pole.lampPower2) },
             ]}
           />
           <StatusBox
@@ -189,9 +199,12 @@ export default async function PoleDetailPage({
                 label: isSilent ? "Last Known 48h Average Panel %" : "48h Average Panel %",
                 value: formatPercent(pole.avgPanelPercentage),
               },
-              { label: "Latest Panel Voltage", value: formatVoltage(pole.solarBoardVoltage) },
               {
-                label: "Latest Panel Electric Current",
+                label: recentLabel(isSilent, "Panel Voltage"),
+                value: formatVoltage(pole.solarBoardVoltage),
+              },
+              {
+                label: recentLabel(isSilent, "Panel Electric Current"),
                 value: formatNumber(pole.solarBoardElecCurrent),
               },
             ]}
@@ -205,15 +218,21 @@ export default async function PoleDetailPage({
                 value: formatPercent(pole.avgBatteryPercentage),
               },
               {
-                label: "Latest Electric Current 1",
+                label: recentLabel(isSilent, "Electric Current 1"),
                 value: formatNumber(pole.batteryElecCurrent1),
               },
               {
-                label: "Latest Electric Current 2",
+                label: recentLabel(isSilent, "Electric Current 2"),
                 value: formatNumber(pole.batteryElecCurrent2),
               },
-              { label: "Latest Battery Voltage 1", value: formatVoltage(pole.batteryVoltage1) },
-              { label: "Latest Battery Voltage 2", value: formatVoltage(pole.batteryVoltage2) },
+              {
+                label: recentLabel(isSilent, "Battery Voltage 1"),
+                value: formatVoltage(pole.batteryVoltage1),
+              },
+              {
+                label: recentLabel(isSilent, "Battery Voltage 2"),
+                value: formatVoltage(pole.batteryVoltage2),
+              },
               {
                 label: "Minimum Charging Voltage",
                 value: formatVoltage(pole.batteryChargingMin),

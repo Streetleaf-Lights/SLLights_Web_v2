@@ -348,8 +348,8 @@ describe("PoleDetailPage", () => {
 
     expect(screen.getByText("Lat:").parentElement).toHaveTextContent("Lat: —");
     expect(screen.getByText("Long:").parentElement).toHaveTextContent("Long: —");
-    expect(screen.getByText("Latest Battery Voltage 1").nextElementSibling).toHaveTextContent("—");
-    expect(screen.getByText("Latest Battery Voltage 2").nextElementSibling).toHaveTextContent("—");
+    expect(screen.getByText("Recent Battery Voltage 1").nextElementSibling).toHaveTextContent("—");
+    expect(screen.getByText("Recent Battery Voltage 2").nextElementSibling).toHaveTextContent("—");
   });
 
   it("shows a Statuses section with Light/Panel/Battery/Issue boxes, all OK/No Issue (green) with correct metrics when no faults are flagged", async () => {
@@ -377,18 +377,18 @@ describe("PoleDetailPage", () => {
     expect(noIssue.className).toContain("text-[var(--status-active)]");
 
     expect(screen.getByText("48h Average Light %").nextElementSibling).toHaveTextContent("11.3%");
-    expect(screen.getByText("Latest Light Power 1").nextElementSibling).toHaveTextContent("45");
-    expect(screen.getByText("Latest Light Power 2").nextElementSibling).toHaveTextContent("46");
+    expect(screen.getByText("Recent Light Power 1").nextElementSibling).toHaveTextContent("45");
+    expect(screen.getByText("Recent Light Power 2").nextElementSibling).toHaveTextContent("46");
 
     expect(screen.getByText("48h Average Panel %").nextElementSibling).toHaveTextContent("10.8%");
-    expect(screen.getByText("Latest Panel Voltage").nextElementSibling).toHaveTextContent("18.565V");
-    expect(screen.getByText("Latest Panel Electric Current").nextElementSibling).toHaveTextContent("4.443");
+    expect(screen.getByText("Recent Panel Voltage").nextElementSibling).toHaveTextContent("18.565V");
+    expect(screen.getByText("Recent Panel Electric Current").nextElementSibling).toHaveTextContent("4.443");
 
     expect(screen.getByText("48h Average Battery %").nextElementSibling).toHaveTextContent("90.4%");
-    expect(screen.getByText("Latest Electric Current 1").nextElementSibling).toHaveTextContent("90");
-    expect(screen.getByText("Latest Electric Current 2").nextElementSibling).toHaveTextContent("100");
-    expect(screen.getByText("Latest Battery Voltage 1").nextElementSibling).toHaveTextContent("13.509V");
-    expect(screen.getByText("Latest Battery Voltage 2").nextElementSibling).toHaveTextContent("13.785V");
+    expect(screen.getByText("Recent Electric Current 1").nextElementSibling).toHaveTextContent("90");
+    expect(screen.getByText("Recent Electric Current 2").nextElementSibling).toHaveTextContent("100");
+    expect(screen.getByText("Recent Battery Voltage 1").nextElementSibling).toHaveTextContent("13.509V");
+    expect(screen.getByText("Recent Battery Voltage 2").nextElementSibling).toHaveTextContent("13.785V");
     expect(screen.getByText("Minimum Charging Voltage").nextElementSibling).toHaveTextContent("13.5V");
   });
 
@@ -434,8 +434,35 @@ describe("PoleDetailPage", () => {
     expect(
       screen.getByText("Last Known 48h Average Battery %").nextElementSibling,
     ).toHaveTextContent("90.4%");
-    // The "Latest ..." metric labels are unaffected (not "48h"-qualified).
-    expect(screen.getByText("Latest Light Power 1").nextElementSibling).toHaveTextContent("45");
+
+    // Every point-in-time metric label (previously "Latest ...") gets
+    // "Last Known" for a silent pole, with the same underlying values.
+    expect(screen.getByText("Last Known Light Power 1").nextElementSibling).toHaveTextContent("45");
+    expect(screen.getByText("Last Known Light Power 2").nextElementSibling).toHaveTextContent("46");
+    expect(screen.getByText("Last Known Panel Voltage").nextElementSibling).toHaveTextContent(
+      "18.565V",
+    );
+    expect(
+      screen.getByText("Last Known Panel Electric Current").nextElementSibling,
+    ).toHaveTextContent("4.443");
+    expect(screen.getByText("Last Known Electric Current 1").nextElementSibling).toHaveTextContent(
+      "90",
+    );
+    expect(screen.getByText("Last Known Electric Current 2").nextElementSibling).toHaveTextContent(
+      "100",
+    );
+    expect(screen.getByText("Last Known Battery Voltage 1").nextElementSibling).toHaveTextContent(
+      "13.509V",
+    );
+    expect(screen.getByText("Last Known Battery Voltage 2").nextElementSibling).toHaveTextContent(
+      "13.785V",
+    );
+    // Minimum Charging Voltage isn't "Latest"-prefixed, so it's untouched.
+    expect(screen.getByText("Minimum Charging Voltage").nextElementSibling).toHaveTextContent(
+      "13.5V",
+    );
+    expect(screen.queryByText("Last Known Charging Voltage")).not.toBeInTheDocument();
+    expect(screen.queryByText("Recent Light Power 1")).not.toBeInTheDocument();
 
     // Vitals History heading
     expect(screen.getByText("Last Known Vital History")).toBeInTheDocument();
@@ -462,7 +489,9 @@ describe("PoleDetailPage", () => {
 
     expect(screen.getByText("Statuses")).toBeInTheDocument();
     expect(screen.getByText("Vitals History")).toBeInTheDocument();
+    expect(screen.getByText("Recent Light Power 1")).toBeInTheDocument();
     expect(screen.queryByText("Last Known Status")).not.toBeInTheDocument();
+    expect(screen.queryByText("Last Known Light Power 1")).not.toBeInTheDocument();
   });
 
   it("shows Fault (red) for a flagged component, and Open Issue (red) for an open issue", async () => {
@@ -726,8 +755,8 @@ describe("PoleDetailPage", () => {
     ]) {
       expect(heading.nextElementSibling).toHaveTextContent("—");
     }
-    expect(screen.getByText("Latest Battery Voltage 1").nextElementSibling).toHaveTextContent("—");
-    expect(screen.getByText("Latest Battery Voltage 2").nextElementSibling).toHaveTextContent("—");
+    expect(screen.getByText("Last Known Battery Voltage 1").nextElementSibling).toHaveTextContent("—");
+    expect(screen.getByText("Last Known Battery Voltage 2").nextElementSibling).toHaveTextContent("—");
   });
 
   it("groups Last Update + Install Date in one column, Lat + Long in another, and Connected + Overall Status in a third", async () => {
