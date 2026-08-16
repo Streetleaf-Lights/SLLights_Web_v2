@@ -417,7 +417,7 @@ describe("PoleDetailPage", () => {
     expect(screen.queryByText("48h Overall Status:")).not.toBeInTheDocument();
 
     // Section heading (box titles Light/Panel/Battery/Issue stay the same)
-    expect(screen.getByText("Last Known Status")).toBeInTheDocument();
+    expect(screen.getByText("Last Known Statuses")).toBeInTheDocument();
     expect(screen.queryByText("Statuses")).not.toBeInTheDocument();
     expect(screen.getByText("Light")).toBeInTheDocument();
     expect(screen.getByText("Panel")).toBeInTheDocument();
@@ -490,7 +490,7 @@ describe("PoleDetailPage", () => {
     expect(screen.getByText("Statuses")).toBeInTheDocument();
     expect(screen.getByText("Vitals History")).toBeInTheDocument();
     expect(screen.getByText("Recent Light Power 1")).toBeInTheDocument();
-    expect(screen.queryByText("Last Known Status")).not.toBeInTheDocument();
+    expect(screen.queryByText("Last Known Statuses")).not.toBeInTheDocument();
     expect(screen.queryByText("Last Known Light Power 1")).not.toBeInTheDocument();
   });
 

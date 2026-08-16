@@ -176,7 +176,7 @@ export default async function PoleDetailPage({
 
       <div className="mx-8 mb-6 mt-6">
         <div className="mb-3 text-[11px] uppercase tracking-wide text-[var(--ink-muted)]">
-          {isSilent ? "Last Known Status" : "Statuses"}
+          {isSilent ? "Last Known Statuses" : "Statuses"}
         </div>
         <div className="flex flex-col gap-4 sm:flex-row">
           <StatusBox
