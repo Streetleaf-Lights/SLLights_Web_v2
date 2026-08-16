@@ -5,7 +5,7 @@ import { Breadcrumbs, leadingCrumb } from "@/components/Breadcrumbs";
 import { PoleMap } from "@/components/PoleMap";
 import { PoleVitalsChart } from "@/components/PoleVitalsChart";
 import { withQueryParam, withSearchContext } from "@/lib/url";
-import { formatPercent, formatTimestamp } from "@/lib/text";
+import { formatPercent, formatTimestamp, connectionStatus, isSilentPole } from "@/lib/text";
 
 function formatCoordinate(value: number | null | undefined): string {
   return value === null || value === undefined ? "—" : String(value);
@@ -31,20 +31,6 @@ function faultStatus(
   return {
     text: isFault ? faultLabel : okLabel,
     className: isFault ? "text-[var(--status-flagged)]" : "text-[var(--status-active)]",
-  };
-}
-
-/** Green "Online" when true, red "Offline" when false, neutral dash when null/undefined. */
-function connectionStatus(isOnline: boolean | null | undefined): {
-  text: string;
-  className: string;
-} {
-  if (isOnline === null || isOnline === undefined) {
-    return { text: "—", className: "text-[var(--ink-faint)]" };
-  }
-  return {
-    text: isOnline ? "Online" : "Offline",
-    className: isOnline ? "text-[var(--status-active)]" : "text-[var(--status-flagged)]",
   };
 }
 
@@ -125,8 +111,9 @@ export default async function PoleDetailPage({
     );
   }
 
-  const connected = connectionStatus(pole.isOnline);
+  const connected = connectionStatus(pole.isOnline, pole.lastUpdate);
   const overallStatus = faultStatus(pole.isPoleFault, "OK", "Fault");
+  const isSilent = isSilentPole(pole.lastUpdate);
 
   return (
     <>
@@ -168,7 +155,9 @@ export default async function PoleDetailPage({
               <span className={connected.className}>{connected.text}</span>
             </span>
             <span>
-              <span className="text-[var(--ink-faint)]">48h Overall Status:</span>{" "}
+              <span className="text-[var(--ink-faint)]">
+                {isSilent ? "Last Known 48h Overall Status:" : "48h Overall Status:"}
+              </span>{" "}
               <span className={overallStatus.className}>{overallStatus.text}</span>
             </span>
           </div>
@@ -177,14 +166,17 @@ export default async function PoleDetailPage({
 
       <div className="mx-8 mb-6 mt-6">
         <div className="mb-3 text-[11px] uppercase tracking-wide text-[var(--ink-muted)]">
-          Statuses
+          {isSilent ? "Last Known Status" : "Statuses"}
         </div>
         <div className="flex flex-col gap-4 sm:flex-row">
           <StatusBox
             title="Light"
             status={faultStatus(pole.isLedFault, "OK", "Fault")}
             metrics={[
-              { label: "48h Average Light %", value: formatPercent(pole.avgLightPercentage) },
+              {
+                label: isSilent ? "Last Known 48h Average Light %" : "48h Average Light %",
+                value: formatPercent(pole.avgLightPercentage),
+              },
               { label: "Latest Light Power 1", value: formatNumber(pole.lampPower1) },
               { label: "Latest Light Power 2", value: formatNumber(pole.lampPower2) },
             ]}
@@ -193,7 +185,10 @@ export default async function PoleDetailPage({
             title="Panel"
             status={faultStatus(pole.isPanelFault, "OK", "Fault")}
             metrics={[
-              { label: "48h Average Panel %", value: formatPercent(pole.avgPanelPercentage) },
+              {
+                label: isSilent ? "Last Known 48h Average Panel %" : "48h Average Panel %",
+                value: formatPercent(pole.avgPanelPercentage),
+              },
               { label: "Latest Panel Voltage", value: formatVoltage(pole.solarBoardVoltage) },
               {
                 label: "Latest Panel Electric Current",
@@ -205,7 +200,10 @@ export default async function PoleDetailPage({
             title="Battery"
             status={faultStatus(pole.isBatteryFault, "OK", "Fault")}
             metrics={[
-              { label: "48h Average Battery %", value: formatPercent(pole.avgBatteryPercentage) },
+              {
+                label: isSilent ? "Last Known 48h Average Battery %" : "48h Average Battery %",
+                value: formatPercent(pole.avgBatteryPercentage),
+              },
               {
                 label: "Latest Electric Current 1",
                 value: formatNumber(pole.batteryElecCurrent1),
@@ -232,7 +230,7 @@ export default async function PoleDetailPage({
 
       <div className="mx-8 mb-6">
         <div className="mb-3 text-[11px] uppercase tracking-wide text-[var(--ink-muted)]">
-          Vitals History
+          {isSilent ? "Last Known Vital History" : "Vitals History"}
         </div>
         <PoleVitalsChart poleId={pole.id} />
       </div>

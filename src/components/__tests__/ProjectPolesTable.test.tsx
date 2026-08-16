@@ -17,7 +17,7 @@ describe("ProjectPolesTable", () => {
   it("renders a row per pole with pole number and online status", () => {
     render(<ProjectPolesTable poles={poles} {...defaultProps} />);
     expect(screen.getByText("51079-1000")).toBeInTheDocument();
-    // 2 rows are online (green "Online" spans), 1 is offline (red "Offline" span).
+    // 2 rows are online (green "Online" cells), 1 is offline (red "Offline" cell).
     const onlineSpans = screen
       .getAllByText("Online")
       .filter((el) => el.className.includes("status-active"));
@@ -68,24 +68,35 @@ describe("ProjectPolesTable", () => {
     expect(fault.className).toContain("text-[var(--status-flagged)]");
   });
 
-  it("shows a green dot + Online for isOnline=true", () => {
+  it("shows Online (green, no dot) for isOnline=true", () => {
     render(<ProjectPolesTable poles={[poles[0]]} {...defaultProps} />);
-    const onlineCell = screen
-      .getAllByText("Online")
-      .map((el) => el.closest("span"))
-      .find((el) => el && el.tagName === "SPAN");
-    expect(onlineCell?.className).toContain("text-[var(--status-active)]");
-    expect(onlineCell?.querySelector("span[aria-hidden]")).toBeTruthy();
+    const onlineCell = screen.getByText("Online");
+    expect(onlineCell.className).toContain("text-[var(--status-active)]");
+    expect(onlineCell.querySelector("span[aria-hidden]")).toBeFalsy();
   });
 
-  it("shows a red dot + Offline for isOnline=false", () => {
+  it("shows Offline (red, no dot) for isOnline=false", () => {
     render(<ProjectPolesTable poles={[poles[2]]} {...defaultProps} />);
-    const offlineCell = screen.getByText("Offline").closest("span");
-    expect(offlineCell?.className).toContain("text-[var(--status-flagged)]");
-    expect(offlineCell?.querySelector("span[aria-hidden]")).toBeTruthy();
+    const offlineCell = screen.getByText("Offline");
+    expect(offlineCell.className).toContain("text-[var(--status-flagged)]");
   });
 
-  it("shows a dash with no dot (not 'Offline') when isOnline is null", () => {
+  it("shows Disconnected (red) when isOnline is null but lastUpdate is present", () => {
+    const poleWithLastUpdate = { ...poles[3], lastUpdate: "2026-07-26 13:25:41+00:00" };
+    render(<ProjectPolesTable poles={[poleWithLastUpdate]} {...defaultProps} />);
+    const cell = screen.getByText("Disconnected");
+    expect(cell.className).toContain("text-[var(--status-flagged)]");
+  });
+
+  it("shows Unknown (neutral) when isOnline and lastUpdate are both null", () => {
+    const poleWithNoTelemetry = { ...poles[3], lastUpdate: null };
+    render(<ProjectPolesTable poles={[poleWithNoTelemetry]} {...defaultProps} />);
+    const cell = screen.getByText("Unknown");
+    expect(cell.className).not.toContain("status-active");
+    expect(cell.className).not.toContain("status-flagged");
+  });
+
+  it("does not show Online or Offline text when isOnline is null", () => {
     render(<ProjectPolesTable poles={[poles[3]]} {...defaultProps} />);
     expect(screen.queryByText("Offline")).not.toBeInTheDocument();
     expect(screen.queryAllByText("Online")).toHaveLength(0);

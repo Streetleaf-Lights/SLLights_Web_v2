@@ -2,6 +2,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import type { Customer, CustomerPoleVitals, Project } from "@/lib/types";
 
+/**
+ * A timestamp within the last 48h, formatted like the API's own
+ * (space-separated, explicit offset). isSilentPole compares lastUpdate
+ * against the real current time, so a hardcoded past date would drift
+ * into "silent" territory (and start failing these "normal" tests) the
+ * further away the actual test-run date gets from when it was written.
+ */
+function recentTimestamp(hoursAgo = 1): string {
+  const iso = new Date(Date.now() - hoursAgo * 60 * 60 * 1000).toISOString();
+  return iso.replace("T", " ").replace(/\.\d{3}Z$/, "+00:00");
+}
+
+const RECENT_LAST_UPDATE = recentTimestamp(1);
+const RECENT_LAST_UPDATE_DISPLAY = RECENT_LAST_UPDATE.replace("+00:00", "");
+
 const { getCustomerMock, getProjectsForCustomerMock, getPoleVitalsForCustomerMock } = vi.hoisted(
   () => ({
     getCustomerMock: vi.fn(),
@@ -85,7 +100,7 @@ const vitals: CustomerPoleVitals = {
           installDate: "2025-08-28",
           lat: 28.3031566,
           long: -82.2750467,
-          lastUpdate: "2026-07-26 13:25:41+00:00",
+          lastUpdate: RECENT_LAST_UPDATE,
           batteryVoltage1: 13.509,
           batteryVoltage2: 13.785,
           lampPower1: 45,
@@ -233,13 +248,75 @@ describe("PoleDetailPage", () => {
     });
     render(jsx);
 
-    expect(screen.getByText("2026-07-26 13:25:41")).toBeInTheDocument(); // lastUpdate, tz stripped
+    expect(screen.getByText(RECENT_LAST_UPDATE_DISPLAY)).toBeInTheDocument(); // lastUpdate, tz stripped
     expect(screen.getByText("2025-08-28")).toBeInTheDocument(); // installDate
     expect(screen.getByText("28.3031566")).toBeInTheDocument(); // lat, full precision, not rounded
     expect(screen.getByText("-82.2750467")).toBeInTheDocument(); // long, full precision, not rounded
     expect(screen.getByText("48h Connected:").parentElement).toHaveTextContent("48h Connected: Online");
     expect(screen.getByText("48h Overall Status:").parentElement).toHaveTextContent(
       "48h Overall Status: OK",
+    );
+  });
+
+  it("shows Disconnected for 48h Connected when isOnline is null but the pole has reported before (lastUpdate present)", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue({
+      ...vitals,
+      projects: [
+        {
+          ...vitals.projects[0],
+          poles: [
+            {
+              ...vitals.projects[0].poles[0],
+              isOnline: null,
+              lastUpdate: "2026-07-26 13:25:41+00:00",
+            },
+          ],
+        },
+      ],
+    });
+    const jsx = await PoleDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    const connected = screen.getByText("48h Connected:").parentElement;
+    expect(connected).toHaveTextContent("48h Connected: Disconnected");
+    expect(connected?.querySelector("span:last-child")?.className).toContain(
+      "text-[var(--status-flagged)]",
+    );
+  });
+
+  it("shows Unknown for 48h Connected when isOnline is null and the pole has never reported (lastUpdate also null)", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue({
+      ...vitals,
+      projects: [
+        {
+          ...vitals.projects[0],
+          poles: [
+            {
+              ...vitals.projects[0].poles[0],
+              isOnline: null,
+              lastUpdate: null,
+            },
+          ],
+        },
+      ],
+    });
+    const jsx = await PoleDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    const connected = screen.getByText("48h Connected:").parentElement;
+    expect(connected).toHaveTextContent("48h Connected: Unknown");
+    expect(connected?.querySelector("span:last-child")?.className).toContain(
+      "text-[var(--ink-faint)]",
     );
   });
 
@@ -315,6 +392,79 @@ describe("PoleDetailPage", () => {
     expect(screen.getByText("Minimum Charging Voltage").nextElementSibling).toHaveTextContent("13.5V");
   });
 
+  it("uses 'Last Known' labels (header, section, and box metrics) for a silent pole — lastUpdate more than 48h ago — while showing the exact same underlying values", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue({
+      ...vitals,
+      projects: [
+        {
+          ...vitals.projects[0],
+          poles: [{ ...vitals.projects[0].poles[0], lastUpdate: recentTimestamp(72) }],
+        },
+      ],
+    });
+    const jsx = await PoleDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    // Header
+    expect(
+      screen.getByText("Last Known 48h Overall Status:").parentElement,
+    ).toHaveTextContent("Last Known 48h Overall Status: OK");
+    expect(screen.queryByText("48h Overall Status:")).not.toBeInTheDocument();
+
+    // Section heading (box titles Light/Panel/Battery/Issue stay the same)
+    expect(screen.getByText("Last Known Status")).toBeInTheDocument();
+    expect(screen.queryByText("Statuses")).not.toBeInTheDocument();
+    expect(screen.getByText("Light")).toBeInTheDocument();
+    expect(screen.getByText("Panel")).toBeInTheDocument();
+    expect(screen.getByText("Battery")).toBeInTheDocument();
+    expect(screen.getByText("Issue")).toBeInTheDocument();
+
+    // Metric labels get the prefix, and the underlying values are unchanged.
+    expect(screen.getByText("Last Known 48h Average Light %").nextElementSibling).toHaveTextContent(
+      "11.3%",
+    );
+    expect(screen.getByText("Last Known 48h Average Panel %").nextElementSibling).toHaveTextContent(
+      "10.8%",
+    );
+    expect(
+      screen.getByText("Last Known 48h Average Battery %").nextElementSibling,
+    ).toHaveTextContent("90.4%");
+    // The "Latest ..." metric labels are unaffected (not "48h"-qualified).
+    expect(screen.getByText("Latest Light Power 1").nextElementSibling).toHaveTextContent("45");
+
+    // Vitals History heading
+    expect(screen.getByText("Last Known Vital History")).toBeInTheDocument();
+    expect(screen.queryByText("Vitals History")).not.toBeInTheDocument();
+  });
+
+  it("uses normal (non-'Last Known') labels right up to 48h, and switches to 'Last Known' just past it", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue({
+      ...vitals,
+      projects: [
+        {
+          ...vitals.projects[0],
+          poles: [{ ...vitals.projects[0].poles[0], lastUpdate: recentTimestamp(47) }],
+        },
+      ],
+    });
+    const jsx = await PoleDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(screen.getByText("Statuses")).toBeInTheDocument();
+    expect(screen.getByText("Vitals History")).toBeInTheDocument();
+    expect(screen.queryByText("Last Known Status")).not.toBeInTheDocument();
+  });
+
   it("shows Fault (red) for a flagged component, and Open Issue (red) for an open issue", async () => {
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
@@ -352,7 +502,7 @@ describe("PoleDetailPage", () => {
     expect(openIssue.className).toContain("text-[var(--status-flagged)]");
   });
 
-  it("shows dashes (no color) in Statuses and the header when fault/online flags are null", async () => {
+  it("shows Disconnected (not a dash) for 48h Connected when isOnline is null but lastUpdate is present, and dashes for the null fault flags", async () => {
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
     getPoleVitalsForCustomerMock.mockResolvedValue({
@@ -380,7 +530,9 @@ describe("PoleDetailPage", () => {
     });
     render(jsx);
 
-    expect(screen.getByText("48h Connected:").parentElement).toHaveTextContent("48h Connected: —");
+    expect(screen.getByText("48h Connected:").parentElement).toHaveTextContent(
+      "48h Connected: Disconnected",
+    );
     expect(screen.getByText("48h Overall Status:").parentElement).toHaveTextContent(
       "48h Overall Status: —",
     );
@@ -513,7 +665,7 @@ describe("PoleDetailPage", () => {
     expect(screen.queryByRole("application", { name: "Map" })).not.toBeInTheDocument();
   });
 
-  it("shows dashes for header fields and stat sections when a pole has no telemetry", async () => {
+  it("shows Unknown for 48h Connected (not a dash) when both isOnline and lastUpdate are null, and dashes elsewhere for a pole with no telemetry", async () => {
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
     getPoleVitalsForCustomerMock.mockResolvedValue({
@@ -560,9 +712,11 @@ describe("PoleDetailPage", () => {
     });
     render(jsx);
 
-    expect(screen.getByText("48h Connected:").parentElement).toHaveTextContent("48h Connected: —");
-    expect(screen.getByText("48h Overall Status:").parentElement).toHaveTextContent(
-      "48h Overall Status: —",
+    expect(screen.getByText("48h Connected:").parentElement).toHaveTextContent(
+      "48h Connected: Unknown",
+    );
+    expect(screen.getByText("Last Known 48h Overall Status:").parentElement).toHaveTextContent(
+      "Last Known 48h Overall Status: —",
     );
     for (const heading of [
       screen.getByText("Light"),

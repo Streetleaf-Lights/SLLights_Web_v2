@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  connectionStatus,
   formatLightStatus,
   formatPercent,
   formatTimestamp,
   initials,
   isLightStatusWorking,
+  isSilentPole,
   tieredPercentClass,
 } from "@/lib/text";
 
@@ -204,5 +206,71 @@ describe("formatTimestamp", () => {
 
   it("leaves a timestamp with no offset unchanged", () => {
     expect(formatTimestamp("2026-07-26 13:25:41")).toBe("2026-07-26 13:25:41");
+  });
+});
+
+describe("connectionStatus", () => {
+  it("shows green Online when isOnline is true", () => {
+    expect(connectionStatus(true, "2026-07-26 13:25:41+00:00")).toEqual({
+      text: "Online",
+      className: "text-[var(--status-active)]",
+    });
+  });
+
+  it("shows red Offline when isOnline is false", () => {
+    expect(connectionStatus(false, "2026-07-26 13:25:41+00:00")).toEqual({
+      text: "Offline",
+      className: "text-[var(--status-flagged)]",
+    });
+  });
+
+  it("shows red Disconnected when isOnline is null but lastUpdate is present (has reported before)", () => {
+    expect(connectionStatus(null, "2026-07-26 13:25:41+00:00")).toEqual({
+      text: "Disconnected",
+      className: "text-[var(--status-flagged)]",
+    });
+  });
+
+  it("shows neutral Unknown when isOnline and lastUpdate are both null (never reported)", () => {
+    expect(connectionStatus(null, null)).toEqual({
+      text: "Unknown",
+      className: "text-[var(--ink-faint)]",
+    });
+  });
+
+  it("treats undefined the same as null for both isOnline and lastUpdate", () => {
+    expect(connectionStatus(undefined, "2026-07-26 13:25:41+00:00")).toEqual({
+      text: "Disconnected",
+      className: "text-[var(--status-flagged)]",
+    });
+    expect(connectionStatus(undefined, undefined)).toEqual({
+      text: "Unknown",
+      className: "text-[var(--ink-faint)]",
+    });
+  });
+});
+
+describe("isSilentPole", () => {
+  function hoursAgoTimestamp(hours: number): string {
+    return new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+  }
+
+  it("is false for a lastUpdate within the last 48h", () => {
+    expect(isSilentPole(hoursAgoTimestamp(1))).toBe(false);
+    expect(isSilentPole(hoursAgoTimestamp(47))).toBe(false);
+  });
+
+  it("is true for a lastUpdate more than 48h old", () => {
+    expect(isSilentPole(hoursAgoTimestamp(49))).toBe(true);
+    expect(isSilentPole(hoursAgoTimestamp(24 * 30))).toBe(true);
+  });
+
+  it("is true when lastUpdate is null or undefined (never reported)", () => {
+    expect(isSilentPole(null)).toBe(true);
+    expect(isSilentPole(undefined)).toBe(true);
+  });
+
+  it("is true for an unparseable lastUpdate", () => {
+    expect(isSilentPole("not-a-real-date")).toBe(true);
   });
 });

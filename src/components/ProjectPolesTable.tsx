@@ -3,8 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Pagination } from "@/components/Pagination";
-import { OnlineIndicator } from "@/components/OnlineIndicator";
 import { withSearchContext } from "@/lib/url";
+import { connectionStatus } from "@/lib/text";
 import type { PoleVital } from "@/lib/types";
 
 const PAGE_SIZE = 10;
@@ -63,6 +63,7 @@ export function ProjectPolesTable({
           </thead>
           <tbody>
             {pagePoles.map((pole) => {
+              const connected = connectionStatus(pole.isOnline, pole.lastUpdate);
               const status = poleStatusLabel(pole.isPoleFault);
               return (
                 <tr
@@ -81,8 +82,8 @@ export function ProjectPolesTable({
                       {pole.poleNumber}
                     </Link>
                   </td>
-                  <td className="py-3 pr-4">
-                    <OnlineIndicator isOnline={pole.isOnline} />
+                  <td className={`py-3 pr-4 font-medium ${connected.className}`}>
+                    {connected.text}
                   </td>
                   <td className={`py-3 pr-8 font-medium ${status.className}`}>{status.text}</td>
                 </tr>

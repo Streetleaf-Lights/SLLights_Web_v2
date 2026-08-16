@@ -80,6 +80,29 @@ export function formatPeriodLabel(periodStart: string | null | undefined, period
 }
 
 /**
+ * "2026-07-30 11:00:00-04:00" -> "Jul 30, 11 AM" (Hour) or "Jul 30" (Day).
+ *
+ * Unlike formatPeriodLabel's axis-tick text (which only shows the date at
+ * the midnight/day-boundary point, to avoid crowding every tick), the
+ * tooltip always includes the date — there's only ever one tooltip visible
+ * at a time, so there's no crowding concern, and always showing the date
+ * removes any need to trace back to the nearest earlier midnight tick to
+ * know which day a given hour belongs to.
+ */
+export function formatTooltipLabel(
+  periodStart: string | null | undefined,
+  periodType: PeriodType,
+): string {
+  if (!periodStart) return "—";
+  const date = parseWallClock(periodStart);
+  if (!date) return periodStart;
+  const dateText = date.toLocaleDateString([], { month: "short", day: "numeric", timeZone: "UTC" });
+  if (periodType === "Day") return dateText;
+  const timeText = date.toLocaleTimeString([], { hour: "numeric", timeZone: "UTC" });
+  return `${dateText}, ${timeText}`;
+}
+
+/**
  * Resolves an X-axis tick's label by looking up its underlying data point.
  *
  * Recharts calls tickFormatter as (entry.value, i) — `dataPointIndex`
@@ -225,7 +248,7 @@ export function PoleVitalsChart({ poleId }: { poleId: string }) {
               <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} stroke="var(--ink-faint)" width={36} />
               <Tooltip
                 labelFormatter={(_value, payload) =>
-                  formatPeriodLabel(payload?.[0]?.payload?.periodStart, periodType)
+                  formatTooltipLabel(payload?.[0]?.payload?.periodStart, periodType)
                 }
                 contentStyle={{ fontSize: 12, borderRadius: 8, borderColor: "var(--border)" }}
               />

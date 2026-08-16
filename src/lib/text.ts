@@ -59,3 +59,40 @@ export function formatLightStatus(status: string | null | undefined): { label: s
     className: isWorking ? "text-[var(--status-active)]" : "text-[var(--status-flagged)]",
   };
 }
+
+/**
+ * Green "Online" when true, red "Offline" when false. When isOnline is
+ * null, the pole has no current online-status reading — whether that
+ * means it's actually disconnected or we just don't know depends on
+ * whether it has ever reported in at all: "Disconnected" if lastUpdate is
+ * present (it has reported before, just not its online status), "Unknown"
+ * if lastUpdate is also null (no telemetry of any kind exists yet).
+ */
+export function connectionStatus(
+  isOnline: boolean | null | undefined,
+  lastUpdate: string | null | undefined,
+): { text: string; className: string } {
+  if (isOnline === null || isOnline === undefined) {
+    return lastUpdate === null || lastUpdate === undefined
+      ? { text: "Unknown", className: "text-[var(--ink-faint)]" }
+      : { text: "Disconnected", className: "text-[var(--status-flagged)]" };
+  }
+  return {
+    text: isOnline ? "Online" : "Offline",
+    className: isOnline ? "text-[var(--status-active)]" : "text-[var(--status-flagged)]",
+  };
+}
+
+/**
+ * A "silent" pole is one whose lastUpdate is more than 48 hours old (or
+ * missing entirely) — its "48h" stats are stale, describing whatever it
+ * last reported rather than its current state, so callers should label
+ * them as "Last Known" rather than presenting them as live.
+ */
+export function isSilentPole(lastUpdate: string | null | undefined): boolean {
+  if (!lastUpdate) return true;
+  const parsed = new Date(lastUpdate.replace(" ", "T"));
+  if (Number.isNaN(parsed.getTime())) return true;
+  const hoursSinceUpdate = (Date.now() - parsed.getTime()) / (1000 * 60 * 60);
+  return hoursSinceUpdate > 48;
+}

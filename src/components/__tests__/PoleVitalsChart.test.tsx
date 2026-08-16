@@ -1,7 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { formatPeriodLabel, formatTickLabel, PoleVitalsChart } from "@/components/PoleVitalsChart";
+import {
+  formatPeriodLabel,
+  formatTickLabel,
+  formatTooltipLabel,
+  PoleVitalsChart,
+} from "@/components/PoleVitalsChart";
 
 // Recharts' ResponsiveContainer needs real DOM dimensions to render its
 // children (legend, lines, axes); jsdom reports 0x0 by default, which
@@ -159,6 +164,22 @@ describe("PoleVitalsChart", () => {
 
   it("formats a Daily label as month + day", () => {
     expect(formatPeriodLabel("2026-07-30 11:00:00-04:00", "Day")).toBe("Jul 30");
+  });
+
+  it("tooltip label always includes the day, unlike the axis tick (which only shows it at midnight)", () => {
+    expect(formatTooltipLabel("2026-07-30 18:00:00-04:00", "Hour")).toBe("Jul 30, 6 PM");
+    // Confirm this really differs from the axis tick text for the same point.
+    expect(formatPeriodLabel("2026-07-30 18:00:00-04:00", "Hour")).toBe("6 PM");
+  });
+
+  it("tooltip label for Daily is just the date (no time component to add)", () => {
+    expect(formatTooltipLabel("2026-07-30 11:00:00-04:00", "Day")).toBe("Jul 30");
+  });
+
+  it("tooltip label handles a missing/malformed periodStart the same way formatPeriodLabel does", () => {
+    expect(formatTooltipLabel(null, "Hour")).toBe("—");
+    expect(formatTooltipLabel(undefined, "Hour")).toBe("—");
+    expect(formatTooltipLabel("not-a-real-date", "Hour")).toBe("not-a-real-date");
   });
 
   it("looks up a tick's label by its actual data-point index, not by the tick's position among however many Recharts chose to render", () => {
