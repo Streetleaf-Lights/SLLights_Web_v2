@@ -17,18 +17,22 @@ function recentTimestamp(hoursAgo = 1): string {
 const RECENT_LAST_UPDATE = recentTimestamp(1);
 const RECENT_LAST_UPDATE_DISPLAY = RECENT_LAST_UPDATE.replace("+00:00", "");
 
-const { getCustomerMock, getProjectsForCustomerMock, getPoleVitalsForCustomerMock } = vi.hoisted(
-  () => ({
+const { getCustomerMock, getProjectsForCustomerMock, getPoleVitalsForCustomerMock, getSessionUserMock } =
+  vi.hoisted(() => ({
     getCustomerMock: vi.fn(),
     getProjectsForCustomerMock: vi.fn(),
     getPoleVitalsForCustomerMock: vi.fn(),
-  }),
-);
+    getSessionUserMock: vi.fn(),
+  }));
 
 vi.mock("@/lib/apim", () => ({
   getCustomer: getCustomerMock,
   getProjectsForCustomer: getProjectsForCustomerMock,
   getPoleVitalsForCustomer: getPoleVitalsForCustomerMock,
+}));
+
+vi.mock("@/lib/session", () => ({
+  getSessionUser: getSessionUserMock,
 }));
 
 // LocationMap (used by PoleMap) loads the real Google Maps JS API otherwise —
@@ -128,6 +132,8 @@ describe("PoleDetailPage", () => {
   beforeEach(() => {
     vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_API_KEY", "test-api-key");
     vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID", "test-map-id");
+    getSessionUserMock.mockReset();
+    getSessionUserMock.mockResolvedValue({ id: "u1", role: "Streetleaf Admin", customerId: null });
   });
 
   afterEach(() => {

@@ -6,6 +6,7 @@ import { PoleMap } from "@/components/PoleMap";
 import { PoleVitalsChart } from "@/components/PoleVitalsChart";
 import { withQueryParam, withSearchContext } from "@/lib/url";
 import { formatPercent, formatTimestamp, connectionStatus, isSilentPole } from "@/lib/text";
+import { getSessionUser } from "@/lib/session";
 
 function formatCoordinate(value: number | null | undefined): string {
   return value === null || value === undefined ? "—" : String(value);
@@ -82,10 +83,11 @@ export default async function PoleDetailPage({
 }) {
   const { id, projectId, poleId } = await params;
   const { cust_q, pole_q } = await searchParams;
-  const [customer, projects, vitals] = await Promise.all([
+  const [customer, projects, vitals, sessionUser] = await Promise.all([
     getCustomer(id),
     getProjectsForCustomer(id),
     getPoleVitalsForCustomer(id),
+    getSessionUser(),
   ]);
   const project = projects.find((p) => p.id === projectId);
   const projectVitals = vitals?.projects.find((p) => p.id === projectId);
@@ -105,7 +107,7 @@ export default async function PoleDetailPage({
       <>
         <Breadcrumbs
           items={[
-            leadingCrumb(cust_q, pole_q),
+            leadingCrumb(cust_q, pole_q, sessionUser?.role),
             ...(customer ? [{ label: customer.name, href: customerHref }] : []),
             ...(customer && project ? [{ label: project.name, href: projectHref }] : []),
           ]}
@@ -129,7 +131,7 @@ export default async function PoleDetailPage({
     <>
       <Breadcrumbs
         items={[
-          leadingCrumb(cust_q, pole_q),
+          leadingCrumb(cust_q, pole_q, sessionUser?.role),
           { label: customer.name, href: customerHref },
           { label: project.name, href: projectHref },
         ]}

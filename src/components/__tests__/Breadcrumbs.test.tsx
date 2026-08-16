@@ -49,6 +49,24 @@ describe("Breadcrumbs", () => {
       "/customers?cust_q=coastal",
     );
   });
+
+  it("filters out null entries (e.g. a hidden leading crumb) without rendering an empty slot or separator", () => {
+    render(
+      <Breadcrumbs
+        items={[
+          null,
+          { label: "Coastal Power & Light", href: "/customers/r2" },
+          { label: "Bayou District Rebuild" },
+        ]}
+      />,
+    );
+    expect(screen.getByText("Coastal Power & Light")).toBeInTheDocument();
+    expect(screen.getByText("Bayou District Rebuild")).toBeInTheDocument();
+    // The remaining first item should not carry a trailing separator meant
+    // for a crumb before it that no longer exists, and there's exactly one
+    // separator between the two remaining crumbs.
+    expect(screen.getAllByText("/")).toHaveLength(1);
+  });
 });
 
 describe("customersCrumb", () => {
@@ -109,5 +127,32 @@ describe("leadingCrumb", () => {
 
   it("prioritizes the pole search when both cust_q and pole_q are active", () => {
     expect(leadingCrumb("coastal", "12057")).toEqual(polesCrumb("12057"));
+  });
+
+  it("hides the leading crumb entirely for a Customer Admin (no search active — would otherwise be the Customers crumb)", () => {
+    expect(leadingCrumb(undefined, undefined, "Customer Admin")).toBeNull();
+  });
+
+  it("hides the leading crumb for a Customer Admin even with a customer search active", () => {
+    expect(leadingCrumb("coastal", undefined, "Customer Admin")).toBeNull();
+  });
+
+  it("still shows the Poles crumb for a Customer Admin (they do have access to /poles)", () => {
+    expect(leadingCrumb(undefined, "12057", "Customer Admin")).toEqual(polesCrumb("12057"));
+  });
+
+  it("still shows the Poles crumb for a Customer Admin even when a customer search is also active", () => {
+    expect(leadingCrumb("coastal", "12057", "Customer Admin")).toEqual(polesCrumb("12057"));
+  });
+
+  it("shows the plain Customers crumb for any other role", () => {
+    expect(leadingCrumb(undefined, undefined, "Streetleaf Admin")).toEqual(
+      customersCrumb(undefined),
+    );
+  });
+
+  it("shows the plain Customers crumb when role is null/undefined (not logged in / unknown)", () => {
+    expect(leadingCrumb(undefined, undefined, null)).toEqual(customersCrumb(undefined));
+    expect(leadingCrumb(undefined, undefined, undefined)).toEqual(customersCrumb(undefined));
   });
 });

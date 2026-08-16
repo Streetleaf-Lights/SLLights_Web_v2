@@ -2,19 +2,27 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import type { Customer, CustomerPoleVitals, Project } from "@/lib/types";
 
-const { getCustomerMock, getProjectsForCustomerMock, getPoleVitalsForCustomerMock } = vi.hoisted(
-  () => ({
+const { getCustomerMock, getProjectsForCustomerMock, getPoleVitalsForCustomerMock, getSessionUserMock } =
+  vi.hoisted(() => ({
     getCustomerMock: vi.fn(),
     getProjectsForCustomerMock: vi.fn(),
     getPoleVitalsForCustomerMock: vi.fn(),
-  }),
-);
+    getSessionUserMock: vi.fn(),
+  }));
 
 vi.mock("@/lib/apim", () => ({
   getCustomer: getCustomerMock,
   getProjectsForCustomer: getProjectsForCustomerMock,
   getPoleVitalsForCustomer: getPoleVitalsForCustomerMock,
 }));
+
+vi.mock("@/lib/session", () => ({
+  getSessionUser: getSessionUserMock,
+}));
+
+// Most tests here don't care about role; default to a Streetleaf Admin so
+// the leading breadcrumb renders normally unless a test overrides this.
+getSessionUserMock.mockResolvedValue({ id: "u1", role: "Streetleaf Admin", customerId: null });
 
 import CustomerDetailPage from "@/app/customers/[id]/page";
 

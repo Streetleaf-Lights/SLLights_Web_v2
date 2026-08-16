@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Breadcrumbs, leadingCrumb } from "@/components/Breadcrumbs";
 import { CustomerOverview } from "@/components/CustomerOverview";
 import { withQueryParam } from "@/lib/url";
+import { getSessionUser } from "@/lib/session";
 
 export default async function CustomerDetailPage({
   params,
@@ -14,13 +15,13 @@ export default async function CustomerDetailPage({
 }) {
   const { id } = await params;
   const { cust_q, pole_q } = await searchParams;
-  const customer = await getCustomer(id);
+  const [customer, sessionUser] = await Promise.all([getCustomer(id), getSessionUser()]);
   const customersHref = withQueryParam("/customers", "cust_q", cust_q);
 
   if (!customer) {
     return (
       <>
-        <Breadcrumbs items={[leadingCrumb(cust_q, pole_q)]} />
+        <Breadcrumbs items={[leadingCrumb(cust_q, pole_q, sessionUser?.role)]} />
         <PageHeader title="Customer not found" />
         <p className="px-8 py-6 text-[13px] text-[var(--ink-muted)]">
           We couldn&rsquo;t find a customer with id{" "}
@@ -40,7 +41,7 @@ export default async function CustomerDetailPage({
 
   return (
     <>
-      <Breadcrumbs items={[leadingCrumb(cust_q, pole_q)]} />
+      <Breadcrumbs items={[leadingCrumb(cust_q, pole_q, sessionUser?.role)]} />
       <CustomerOverview
         customer={customer}
         projects={projects}

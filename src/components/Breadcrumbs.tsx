@@ -42,16 +42,28 @@ export function polesCrumb(poleQ?: string): Crumb {
  * Picks the leading breadcrumb crumb based on which search (if either) led
  * to this page: a pole search takes priority over a customer search, since
  * it's the more specific/recent context when both happen to be present.
+ *
+ * Returns null (no leading crumb at all) for a Customer Admin landing on
+ * the Customers variant — they can't access /customers (see proxy.ts), so
+ * a link there would be a dead end. The Poles variant is unaffected, since
+ * Customer Admins do have access to /poles.
  */
-export function leadingCrumb(custQ?: string, poleQ?: string): Crumb {
-  return poleQ ? polesCrumb(poleQ) : customersCrumb(custQ);
+export function leadingCrumb(
+  custQ: string | undefined,
+  poleQ: string | undefined,
+  role?: string | null,
+): Crumb | null {
+  if (poleQ) return polesCrumb(poleQ);
+  if (role === "Customer Admin") return null;
+  return customersCrumb(custQ);
 }
 
-export function Breadcrumbs({ items }: { items: Crumb[] }) {
+export function Breadcrumbs({ items }: { items: (Crumb | null)[] }) {
+  const crumbs = items.filter((item): item is Crumb => item !== null);
   return (
     <nav className="flex items-center gap-1.5 px-8 pb-3 pt-5 text-[12.5px] text-[var(--ink-faint)]">
-      {items.map((item, i) => {
-        const isLast = i === items.length - 1;
+      {crumbs.map((item, i) => {
+        const isLast = i === crumbs.length - 1;
         const node: ReactNode = item.href ? (
           <Link href={item.href} className="hover:text-[var(--accent)] hover:underline">
             {item.label}

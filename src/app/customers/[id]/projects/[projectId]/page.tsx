@@ -6,6 +6,7 @@ import { StatGroup } from "@/components/StatGroup";
 import { ProjectPolesTable } from "@/components/ProjectPolesTable";
 import { LocationMap } from "@/components/LocationMap";
 import { withQueryParam, withSearchContext } from "@/lib/url";
+import { getSessionUser } from "@/lib/session";
 
 export default async function ProjectDetailPage({
   params,
@@ -16,10 +17,11 @@ export default async function ProjectDetailPage({
 }) {
   const { id, projectId } = await params;
   const { cust_q, pole_q } = await searchParams;
-  const [customer, projects, vitals] = await Promise.all([
+  const [customer, projects, vitals, sessionUser] = await Promise.all([
     getCustomer(id),
     getProjectsForCustomer(id),
     getPoleVitalsForCustomer(id),
+    getSessionUser(),
   ]);
   const project = projects.find((p) => p.id === projectId);
   const projectVitals = vitals?.projects.find((p) => p.id === projectId);
@@ -34,7 +36,7 @@ export default async function ProjectDetailPage({
       <>
         <Breadcrumbs
           items={[
-            leadingCrumb(cust_q, pole_q),
+            leadingCrumb(cust_q, pole_q, sessionUser?.role),
             ...(customer ? [{ label: customer.name, href: customerHref }] : []),
           ]}
         />
@@ -57,7 +59,10 @@ export default async function ProjectDetailPage({
   return (
     <>
       <Breadcrumbs
-        items={[leadingCrumb(cust_q, pole_q), { label: customer.name, href: customerHref }]}
+        items={[
+          leadingCrumb(cust_q, pole_q, sessionUser?.role),
+          { label: customer.name, href: customerHref },
+        ]}
       />
 
       <div className="flex flex-col justify-center gap-1 border-b border-t border-[var(--border)] bg-[var(--surface)] px-8 py-5">
