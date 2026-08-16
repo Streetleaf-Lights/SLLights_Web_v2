@@ -24,6 +24,7 @@ describe("PolesTable", () => {
       installDate: "2022-04-06",
       lat: 27.74143766,
       long: -82.40508593,
+      lastUpdate: "2026-07-26 13:25:41+00:00",
       lightStatus: "DayLight",
       isOnline: true,
       avgBatteryPercentage: 80.06,
@@ -51,6 +52,7 @@ describe("PolesTable", () => {
       installDate: null,
       lat: null,
       long: null,
+      lastUpdate: "2026-07-26 13:25:41+00:00",
       lightStatus: null,
       isOnline: false,
       avgBatteryPercentage: null,
@@ -167,6 +169,19 @@ describe("PolesTable", () => {
     expect(row2.getByText("—, —")).toBeInTheDocument();
   });
 
+  it("shows Disconnected (red) for 48h Connected when isOnline is null but lastUpdate is present (has reported before)", () => {
+    render(<PolesTable poles={[{ ...poles[0], isOnline: null }]} />);
+    const cell = screen.getByText("Disconnected");
+    expect(cell.className).toContain("text-[var(--status-flagged)]");
+  });
+
+  it("shows Unknown (neutral) for 48h Connected when isOnline and lastUpdate are both null (never reported)", () => {
+    render(<PolesTable poles={[{ ...poles[0], isOnline: null, lastUpdate: null }]} />);
+    const cell = screen.getByText("Unknown");
+    expect(cell.className).not.toContain("status-active");
+    expect(cell.className).not.toContain("status-flagged");
+  });
+
   it("does not render a Customer/Project column", () => {
     render(<PolesTable poles={poles} />);
     expect(screen.queryByText(/Customer:/)).not.toBeInTheDocument();
@@ -174,22 +189,30 @@ describe("PolesTable", () => {
     expect(screen.queryByRole("columnheader", { name: /Customer/ })).not.toBeInTheDocument();
   });
 
-  it("System Status is a single boxed group with Panel, Battery, and Light Status", () => {
+  it("labels the columns Pole / 48h Connected / Statuses", () => {
     render(<PolesTable poles={poles} />);
-    const panel = screen.getByLabelText("19.3% Panel Status");
-    const battery = screen.getByLabelText("80.1% Battery Status");
-    const light = screen.getByLabelText("0% Light Status");
+    expect(screen.getByRole("columnheader", { name: "48h Connected" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Statuses" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Online / Location" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "System Status" })).not.toBeInTheDocument();
+  });
+
+  it("Statuses is a single boxed group with Panel, Battery, and Light", () => {
+    render(<PolesTable poles={poles} />);
+    const panel = screen.getByLabelText("19.3% Panel");
+    const battery = screen.getByLabelText("80.1% Battery");
+    const light = screen.getByLabelText("0% Light");
     // All three share the same box (grandparent), confirming it's one group, not 3 separate boxes.
     expect(panel.parentElement).toBe(battery.parentElement);
     expect(panel.parentElement).toBe(light.parentElement);
     expect(panel.parentElement?.parentElement?.className).toContain("rounded-lg");
   });
 
-  it("does not color-code Panel/Battery/Light Status values (System Status is neutral now)", () => {
+  it("does not color-code Panel/Battery/Light values (Statuses is neutral now)", () => {
     render(<PolesTable poles={poles} />);
-    const panel = screen.getByLabelText("19.3% Panel Status");
-    const battery = screen.getByLabelText("80.1% Battery Status");
-    const light = screen.getByLabelText("0% Light Status");
+    const panel = screen.getByLabelText("19.3% Panel");
+    const battery = screen.getByLabelText("80.1% Battery");
+    const light = screen.getByLabelText("0% Light");
     for (const stat of [panel, battery, light]) {
       const valueClass = stat.querySelector("div")?.className ?? "";
       expect(valueClass).not.toContain("text-[var(--status-active)]");
@@ -208,14 +231,14 @@ describe("PolesTable", () => {
     } as unknown as PoleSummary;
     render(<PolesTable poles={[poleWithMissingLightStatus]} />);
 
-    expect(screen.getByLabelText("0% Light Status")).toBeInTheDocument();
+    expect(screen.getByLabelText("0% Light")).toBeInTheDocument();
   });
 
-  it("shows dashes in System Status for a pole with no telemetry", () => {
+  it("shows dashes in Statuses for a pole with no telemetry", () => {
     render(<PolesTable poles={poles} />);
-    expect(screen.getByLabelText("— Panel Status")).toBeInTheDocument();
-    expect(screen.getByLabelText("— Battery Status")).toBeInTheDocument();
-    expect(screen.getByLabelText("— Light Status")).toBeInTheDocument();
+    expect(screen.getByLabelText("— Panel")).toBeInTheDocument();
+    expect(screen.getByLabelText("— Battery")).toBeInTheDocument();
+    expect(screen.getByLabelText("— Light")).toBeInTheDocument();
   });
 
   it("does not crash and shows a dash when lat/long are undefined (not just null)", () => {
@@ -260,6 +283,7 @@ describe("PolesTable", () => {
       installDate: null,
       lat: null,
       long: null,
+      lastUpdate: null,
       lightStatus: null,
       isOnline: null,
       avgBatteryPercentage: null,
@@ -302,6 +326,7 @@ describe("PolesTable", () => {
       installDate: null,
       lat: null,
       long: null,
+      lastUpdate: null,
       lightStatus: null,
       isOnline: null,
       avgBatteryPercentage: null,

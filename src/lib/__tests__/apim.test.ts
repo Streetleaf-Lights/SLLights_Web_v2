@@ -494,8 +494,9 @@ describe("getPoles", () => {
     vi.unstubAllGlobals();
   });
 
-  // Matches the real /getPoles?summary=true shape: no lastUpdate, no
-  // batteryVoltage1/2 (those only come back from the full, non-summary form).
+  // Matches the real /getPoles?summary=true shape: has lastUpdate now, but
+  // still no batteryVoltage1/2 (those only come back from the full,
+  // non-summary form).
   const rawSummaryPole = {
     id: "recmb0TRqqEmAnT9T",
     poleNumber: "TEC-2691",
@@ -503,6 +504,7 @@ describe("getPoles", () => {
     installDate: "2025-04-22",
     lat: 0.0,
     long: 0.0,
+    lastUpdate: "2026-07-26 13:25:41+00:00",
     lightStatus: null,
     isOnline: null,
     avgBatteryPercentage: null,
@@ -551,8 +553,9 @@ describe("getPoles", () => {
       customerId: "recwx649JfiRmWqxF",
       projectId: "rec08jIrGQcE5tmNb",
     });
-    // Summary responses don't have these — confirm we don't invent them.
-    expect(poles[0]).not.toHaveProperty("lastUpdate");
+    // Summary responses now include lastUpdate, but still not these two —
+    // confirm we don't invent them.
+    expect(poles[0]).toHaveProperty("lastUpdate", "2026-07-26 13:25:41+00:00");
     expect(poles[0]).not.toHaveProperty("batteryVoltage1");
     expect(poles[0]).not.toHaveProperty("batteryVoltage2");
   });

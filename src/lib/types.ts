@@ -103,7 +103,7 @@ export interface Pole extends PoleVital {
  * full system has ~14k poles — summary mode lifts that cap in exchange for
  * omitting lastUpdate and the two battery voltage fields.
  */
-export type PoleSummary = Omit<PoleVital, "lastUpdate" | "batteryVoltage1" | "batteryVoltage2"> & {
+export type PoleSummary = Omit<PoleVital, "batteryVoltage1" | "batteryVoltage2"> & {
   customerId: string;
   projectId: string;
 };

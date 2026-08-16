@@ -5,9 +5,8 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Toolbar } from "@/components/Toolbar";
 import { Pagination } from "@/components/Pagination";
-import { OnlineIndicator } from "@/components/OnlineIndicator";
 import { StatGroup } from "@/components/StatGroup";
-import { formatPercent } from "@/lib/text";
+import { formatPercent, connectionStatus } from "@/lib/text";
 import { withQueryParam } from "@/lib/url";
 import type { PoleSummary } from "@/lib/types";
 
@@ -66,12 +65,13 @@ export function PolesTable({ poles }: { poles: PoleSummary[] }) {
               <thead>
                 <tr className="border-b border-[var(--border)] bg-[var(--surface-sunken)] text-[11.5px] uppercase tracking-wide text-[var(--ink-muted)]">
                   <th className="py-2.5 pl-4 pr-4 font-medium">Pole</th>
-                  <th className="py-2.5 pr-4 font-medium">Online / Location</th>
-                  <th className="py-2.5 pr-8 font-medium">System Status</th>
+                  <th className="py-2.5 pr-4 font-medium">48h Connected</th>
+                  <th className="py-2.5 pr-8 font-medium">Statuses</th>
                 </tr>
               </thead>
               <tbody>
                 {pagePoles.map((pole) => {
+                  const connected = connectionStatus(pole.isOnline, pole.lastUpdate);
                   const panel =
                     pole.avgPanelPercentage === null ? "—" : formatPercent(pole.avgPanelPercentage);
                   const battery =
@@ -111,7 +111,7 @@ export function PolesTable({ poles }: { poles: PoleSummary[] }) {
                         </div>
                       </td>
                       <td className="py-3 pr-4 text-[12.5px]">
-                        <OnlineIndicator isOnline={pole.isOnline} />
+                        <span className={connected.className}>{connected.text}</span>
                         <div className="mt-1 font-mono-data text-[11.5px] text-[var(--ink-faint)]">
                           {formatCoordinate(pole.lat)}, {formatCoordinate(pole.long)}
                         </div>
@@ -120,9 +120,9 @@ export function PolesTable({ poles }: { poles: PoleSummary[] }) {
                         <StatGroup
                           size="sm"
                           stats={[
-                            { value: panel, label: "Panel Status" },
-                            { value: battery, label: "Battery Status" },
-                            { value: light, label: "Light Status" },
+                            { value: panel, label: "Panel" },
+                            { value: battery, label: "Battery" },
+                            { value: light, label: "Light" },
                           ]}
                         />
                       </td>
