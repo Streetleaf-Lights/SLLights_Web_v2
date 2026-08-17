@@ -1,6 +1,7 @@
 type Status =
   | "active"
   | "inactive"
+  | "pending"
   | "planned"
   | "decommissioned"
   | "flagged"
@@ -15,6 +16,7 @@ const STYLES: Record<Status, { fg: string; bg: string; label: string }> = {
     bg: "var(--status-decommissioned-bg)",
     label: "Inactive",
   },
+  pending: { fg: "var(--status-warning)", bg: "var(--status-warning-bg)", label: "Pending" },
   planned: { fg: "var(--status-planned)", bg: "var(--status-planned-bg)", label: "Planned" },
   decommissioned: {
     fg: "var(--status-decommissioned)",

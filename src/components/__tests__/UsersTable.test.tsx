@@ -22,6 +22,14 @@ function mockDeleteResponse(ok: boolean, body: unknown = { success: true }, stat
   });
 }
 
+function mockReinviteResponse(ok: boolean, body: unknown = { success: true }, status = ok ? 200 : 400) {
+  return vi.fn().mockResolvedValue({
+    ok,
+    status,
+    json: () => Promise.resolve(body),
+  });
+}
+
 describe("UsersTable", () => {
   afterEach(() => {
     pushMock.mockClear();
@@ -47,6 +55,15 @@ describe("UsersTable", () => {
       status: "Inactive",
       customerId: "cust-004",
       customerName: "Summit Rural Electric",
+    },
+    {
+      id: "user-pending",
+      name: "Priya Nair",
+      email: "priya@example.com",
+      role: "Editor",
+      status: "Pending",
+      customerId: "cust-005",
+      customerName: "Riverside Cooperative",
     },
   ];
 
@@ -111,7 +128,99 @@ describe("UsersTable", () => {
 
   it("renders a Delete button for each row", () => {
     render(<UsersTable users={users} />);
-    expect(screen.getAllByRole("button", { name: "Delete" })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: "Delete" })).toHaveLength(3);
+  });
+
+  it("renders a Re-invite button only for a Pending user, not Active/Inactive ones", () => {
+    render(<UsersTable users={users} />);
+    expect(screen.getAllByRole("button", { name: "Re-invite" })).toHaveLength(1);
+
+    const pendingRow = screen.getByText("Priya Nair").closest("tr") as HTMLElement;
+    expect(within(pendingRow).getByRole("button", { name: "Re-invite" })).toBeInTheDocument();
+  });
+
+  it("sends the pending user's id to /api/resendinvite and shows a success message on Re-invite", async () => {
+    const fetchMock = mockReinviteResponse(true);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const user = userEvent.setup();
+    render(<UsersTable users={users} />);
+    await user.click(screen.getByRole("button", { name: "Re-invite" }));
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/resendinvite",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ userId: "user-pending" }),
+      }),
+    );
+    expect(await screen.findByText("Invite sent.")).toBeInTheDocument();
+  });
+
+  it("shows a disabled 'Sending…' label while the resend request is in flight", async () => {
+    let resolveFetch: (value: unknown) => void = () => {};
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockReturnValue(
+        new Promise((resolve) => {
+          resolveFetch = resolve;
+        }),
+      ),
+    );
+
+    const user = userEvent.setup();
+    render(<UsersTable users={users} />);
+    await user.click(screen.getByRole("button", { name: "Re-invite" }));
+
+    const button = await screen.findByRole("button", { name: "Sending…" });
+    expect(button).toBeDisabled();
+
+    resolveFetch({ ok: true, status: 200, json: () => Promise.resolve({ success: true }) });
+    await screen.findByText("Invite sent.");
+  });
+
+  it("shows the server's error message when the resend fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockReinviteResponse(false, { error: "user already registered" }, 409),
+    );
+
+    const user = userEvent.setup();
+    render(<UsersTable users={users} />);
+    await user.click(screen.getByRole("button", { name: "Re-invite" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("user already registered");
+  });
+
+  it("shows a fallback error message when the resend request itself throws", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network down")));
+
+    const user = userEvent.setup();
+    render(<UsersTable users={users} />);
+    await user.click(screen.getByRole("button", { name: "Re-invite" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Something went wrong. Please try again.",
+    );
+  });
+
+  it("redirects to /signin on a 401 from the resend request", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockReinviteResponse(false, { error: "session expired" }, 401),
+    );
+
+    const user = userEvent.setup();
+    render(<UsersTable users={users} />);
+    await user.click(screen.getByRole("button", { name: "Re-invite" }));
+
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/signin"));
+    expect(refreshMock).toHaveBeenCalled();
+  });
+
+  it("does not render a Re-invite button when canDelete is false (Customer Admin viewing users)", () => {
+    render(<UsersTable users={users} canDelete={false} />);
+    expect(screen.queryByRole("button", { name: "Re-invite" })).not.toBeInTheDocument();
   });
 
   it("shows the Actions column header by default", () => {

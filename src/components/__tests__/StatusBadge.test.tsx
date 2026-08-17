@@ -6,6 +6,7 @@ describe("StatusBadge", () => {
   it.each([
     ["active", "Active"],
     ["inactive", "Inactive"],
+    ["pending", "Pending"],
     ["planned", "Planned"],
     ["decommissioned", "Decommissioned"],
     ["flagged", "Flagged"],

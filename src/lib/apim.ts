@@ -395,6 +395,37 @@ export async function inviteUser(
 }
 
 /**
+ * POST /resendInvite — re-sends the invitation email to a user who's still
+ * in "Pending" status (accepted an invite that hasn't been completed via
+ * registration yet). Doesn't change any user data itself, so unlike
+ * inviteUser/deleteUser there's no "users" cache tag to invalidate after
+ * this succeeds.
+ */
+export async function resendInvite(userId: string, token: string): Promise<void> {
+  if (!APIM_BASE_URL) {
+    throw new ApimError("NEXT_PUBLIC_APIM_BASE_URL is not configured. Set it in .env.local.");
+  }
+
+  const res = await fetch(`${APIM_BASE_URL}/resendInvite`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Ocp-Apim-Subscription-Key": APIM_SUBSCRIPTION_KEY,
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ userId }),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    const message =
+      body && typeof body.error === "string" ? body.error : "Resend invite failed.";
+    throw new ApimError(message, res.status);
+  }
+}
+
+/**
  * POST /deleteUser?userId=... — userId goes in the query string, not the
  * body (unlike inviteUser). Like inviteUser, requires the caller's own JWT
  * as a Bearer token on top of the subscription key, and bypasses apimFetch

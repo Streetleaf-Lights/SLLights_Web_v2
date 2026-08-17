@@ -17,6 +17,7 @@ import {
   normalizeProject,
   parseJsonStringArray,
   registerUser,
+  resendInvite,
   resetPassword,
   signIn,
   signOut,
@@ -960,6 +961,69 @@ describe("inviteUser", () => {
         "jwt-token",
       ),
     ).rejects.toMatchObject({ message: "Invite failed.", status: 500 });
+  });
+});
+
+describe("resendInvite", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("sends userId as a JSON body (not a query param) with the token as a Bearer Authorization header", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await resendInvite("user1", "jwt-token");
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toMatch(/\/resendInvite$/);
+    expect(init.method).toBe("POST");
+    expect(init.headers.Authorization).toBe("Bearer jwt-token");
+    expect(JSON.parse(init.body)).toEqual({ userId: "user1" });
+  });
+
+  it("does not request caching (this is a mutating call)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await resendInvite("user1", "jwt-token");
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.cache).toBe("no-store");
+  });
+
+  it("resolves with no value on success", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
+
+    await expect(resendInvite("user1", "jwt-token")).resolves.toBeUndefined();
+  });
+
+  it("throws an ApimError carrying the server's error message on failure", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+        json: async () => ({ error: "user not found" }),
+      }),
+    );
+
+    await expect(resendInvite("user1", "jwt-token")).rejects.toMatchObject({
+      message: "user not found",
+      status: 404,
+    });
+  });
+
+  it("falls back to a generic message when the error body isn't the expected shape", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => null }),
+    );
+
+    await expect(resendInvite("user1", "jwt-token")).rejects.toMatchObject({
+      message: "Resend invite failed.",
+      status: 500,
+    });
   });
 });
 

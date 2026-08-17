@@ -9,17 +9,70 @@ import { initials } from "@/lib/text";
 
 const PAGE_SIZE = 10;
 
+function statusBadgeKind(status: string | null | undefined): "active" | "pending" | "inactive" {
+  const normalized = (status ?? "").toLowerCase();
+  if (normalized === "active") return "active";
+  if (normalized === "pending") return "pending";
+  return "inactive";
+}
+
 export function UsersTable({ users, canDelete = true }: { users: User[]; canDelete?: boolean }) {
   const router = useRouter();
   const [page, setPage] = useState(1);
   const [pendingDelete, setPendingDelete] = useState<User | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [reinvitingUserId, setReinvitingUserId] = useState<string | null>(null);
+  const [reinviteResult, setReinviteResult] = useState<{
+    userId: string;
+    text: string;
+    isError: boolean;
+  } | null>(null);
 
   function closeConfirm() {
     setPendingDelete(null);
     setDeleting(false);
     setDeleteError(null);
+  }
+
+  async function handleReinvite(user: User) {
+    setReinvitingUserId(user.id);
+    setReinviteResult(null);
+    try {
+      const res = await fetch("/api/resendinvite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id }),
+      });
+      const body = await res.json().catch(() => null);
+
+      if (res.status === 401) {
+        // Same reasoning as handleConfirmDelete — an inline error here
+        // would be a dead end, since retrying would just fail the same way.
+        router.push("/signin");
+        router.refresh();
+        return;
+      }
+
+      if (!res.ok) {
+        setReinviteResult({
+          userId: user.id,
+          text: body?.error ?? "Resend failed. Please try again.",
+          isError: true,
+        });
+        return;
+      }
+
+      setReinviteResult({ userId: user.id, text: "Invite sent.", isError: false });
+    } catch {
+      setReinviteResult({
+        userId: user.id,
+        text: "Something went wrong. Please try again.",
+        isError: true,
+      });
+    } finally {
+      setReinvitingUserId(null);
+    }
   }
 
   async function handleConfirmDelete() {
@@ -99,22 +152,44 @@ export function UsersTable({ users, canDelete = true }: { users: User[]; canDele
                 </td>
                 <td className="py-3 pr-4 text-[var(--ink)]">{user.role}</td>
                 <td className="py-3 pr-4">
-                  <StatusBadge
-                    status={(user.status ?? "").toLowerCase() === "active" ? "active" : "inactive"}
-                  />
+                  <StatusBadge status={statusBadgeKind(user.status)} />
                 </td>
                 <td className="py-3 pr-4 text-[var(--ink)]">
                   {user.customerId === null ? "Streetleaf" : user.customerName}
                 </td>
                 {canDelete && (
                   <td className="py-3 pr-8 text-right">
-                    <button
-                      type="button"
-                      onClick={() => setPendingDelete(user)}
-                      className="rounded-md border border-[var(--border)] px-2.5 py-1 text-[12px] font-medium text-[var(--status-flagged)] hover:bg-[var(--status-flagged-bg)]"
-                    >
-                      Delete
-                    </button>
+                    <div className="flex items-center justify-end gap-2">
+                      {statusBadgeKind(user.status) === "pending" && (
+                        <button
+                          type="button"
+                          onClick={() => handleReinvite(user)}
+                          disabled={reinvitingUserId === user.id}
+                          className="rounded-md border border-[var(--border)] px-2.5 py-1 text-[12px] font-medium text-[var(--accent-ink)] hover:bg-[var(--accent-soft)] disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {reinvitingUserId === user.id ? "Sending…" : "Re-invite"}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setPendingDelete(user)}
+                        className="rounded-md border border-[var(--border)] px-2.5 py-1 text-[12px] font-medium text-[var(--status-flagged)] hover:bg-[var(--status-flagged-bg)]"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                    {reinviteResult?.userId === user.id && (
+                      <p
+                        role={reinviteResult.isError ? "alert" : "status"}
+                        className={`mt-1 text-[11px] ${
+                          reinviteResult.isError
+                            ? "text-[var(--status-flagged)]"
+                            : "text-[var(--status-active)]"
+                        }`}
+                      >
+                        {reinviteResult.text}
+                      </p>
+                    )}
                   </td>
                 )}
               </tr>
