@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { homeRouteForRole } from "@/lib/auth-role";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -31,7 +30,6 @@ function EyeOffIcon() {
 }
 
 export function SignInForm() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [emailTouched, setEmailTouched] = useState(false);
   const [password, setPassword] = useState("");
@@ -74,11 +72,15 @@ export function SignInForm() {
       }
 
       // The httpOnly session cookie is already set by the route handler at
-      // this point — router.push just navigates, it isn't what establishes
-      // the session. router.refresh() ensures any server components on the
-      // destination page re-render with the now-authenticated request.
-      router.push(homeRouteForRole(body?.user?.role));
-      router.refresh();
+      // this point. A full navigation (not router.push) is deliberate here:
+      // if the destination route was visited earlier in this tab while
+      // unauthenticated, Next's client-side Router Cache can hold onto that
+      // now-stale (pre-login) result and router.push can silently reuse it,
+      // leaving the person stuck looking at the sign-in page despite being
+      // genuinely signed in — a fresh tab (no stale cache) navigates fine.
+      // A full navigation always hits the server fresh, sidestepping that
+      // cache entirely.
+      window.location.href = homeRouteForRole(body?.user?.role);
     } catch {
       setFormError("Something went wrong. Please try again.");
       setSubmitting(false);

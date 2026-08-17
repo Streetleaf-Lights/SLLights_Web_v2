@@ -2,14 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const { pushMock, refreshMock, searchParamsGetMock } = vi.hoisted(() => ({
-  pushMock: vi.fn(),
-  refreshMock: vi.fn(),
+const { searchParamsGetMock } = vi.hoisted(() => ({
   searchParamsGetMock: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: pushMock, refresh: refreshMock }),
   useSearchParams: () => ({ get: searchParamsGetMock }),
 }));
 
@@ -26,10 +23,16 @@ const VALID_TOKEN = "52111603-53d7-4a99-a027-a105b4d527b5";
 
 describe("RegisterForm", () => {
   beforeEach(() => {
-    pushMock.mockClear();
-    refreshMock.mockClear();
     searchParamsGetMock.mockReset();
     searchParamsGetMock.mockReturnValue(VALID_TOKEN);
+    // RegisterForm does a full navigation (window.location.href = ...)
+    // rather than router.push, so it can't be verified via a next/navigation
+    // mock — jsdom doesn't implement real navigation, so replace location
+    // with a plain mutable object and assert against its href afterward.
+    Object.defineProperty(window, "location", {
+      value: { href: "" },
+      writable: true,
+    });
   });
 
   afterEach(() => {
@@ -221,7 +224,7 @@ describe("RegisterForm", () => {
     );
   });
 
-  it("redirects to /customers and refreshes on a successful registration", async () => {
+  it("navigates to /customers on a successful registration", async () => {
     vi.stubGlobal("fetch", mockRegisterResponse(true, { user: { id: "1" } }));
 
     const user = userEvent.setup();
@@ -230,8 +233,7 @@ describe("RegisterForm", () => {
     await user.type(screen.getByLabelText("Confirm Password"), "Pass.123");
     await user.click(screen.getByRole("button", { name: "Set Password" }));
 
-    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/customers"));
-    expect(refreshMock).toHaveBeenCalled();
+    await waitFor(() => expect(window.location.href).toBe("/customers"));
   });
 
   it("redirects a Customer Admin to /poles instead of /customers", async () => {
@@ -246,7 +248,7 @@ describe("RegisterForm", () => {
     await user.type(screen.getByLabelText("Confirm Password"), "Pass.123");
     await user.click(screen.getByRole("button", { name: "Set Password" }));
 
-    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/projects"));
+    await waitFor(() => expect(window.location.href).toBe("/projects"));
   });
 
   it("shows the server's error message and does not redirect on an invalid/expired invite link", async () => {
@@ -262,7 +264,7 @@ describe("RegisterForm", () => {
     await user.click(screen.getByRole("button", { name: "Set Password" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("invalid or expired invite link");
-    expect(pushMock).not.toHaveBeenCalled();
+    expect(window.location.href).toBe("");
   });
 
   it("shows a fallback error message when the request itself fails", async () => {
@@ -300,7 +302,7 @@ describe("RegisterForm", () => {
     expect(button).toBeDisabled();
 
     resolveFetch({ ok: true, json: () => Promise.resolve({ user: { id: "1" } }) });
-    await waitFor(() => expect(pushMock).toHaveBeenCalled());
+    await waitFor(() => expect(window.location.href).not.toBe(""));
   });
 
   it("does not navigate away on submit (default form action is prevented)", async () => {

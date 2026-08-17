@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { homeRouteForRole } from "@/lib/auth-role";
 
 const SPECIAL_CHAR_PATTERN = /[^A-Za-z0-9]/;
@@ -73,7 +73,6 @@ function RuleRow({ met, children }: { met: boolean; children: React.ReactNode })
 }
 
 export function RegisterForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const inviteToken = searchParams.get("token") ?? "";
 
@@ -124,10 +123,12 @@ export function RegisterForm() {
       }
 
       // The httpOnly session cookie is already set by the route handler at
-      // this point, same as sign-in — push just navigates, refresh ensures
-      // server components re-render with the now-authenticated request.
-      router.push(homeRouteForRole(body?.user?.role));
-      router.refresh();
+      // this point. A full navigation (not router.push) is deliberate — see
+      // the same comment in SignInForm for why: router.push can silently
+      // reuse a stale pre-login Router Cache entry for the destination
+      // route, leaving the person stuck looking at this page despite being
+      // genuinely signed in.
+      window.location.href = homeRouteForRole(body?.user?.role);
     } catch {
       setFormError("Something went wrong. Please try again.");
       setSubmitting(false);

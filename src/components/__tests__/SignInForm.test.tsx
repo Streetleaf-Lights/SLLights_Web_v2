@@ -1,16 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-
-const { pushMock, refreshMock } = vi.hoisted(() => ({
-  pushMock: vi.fn(),
-  refreshMock: vi.fn(),
-}));
-
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: pushMock, refresh: refreshMock }),
-}));
-
 import { SignInForm } from "@/components/SignInForm";
 
 function mockSignInResponse(ok: boolean, body: unknown) {
@@ -22,8 +12,14 @@ function mockSignInResponse(ok: boolean, body: unknown) {
 
 describe("SignInForm", () => {
   beforeEach(() => {
-    pushMock.mockClear();
-    refreshMock.mockClear();
+    // SignInForm does a full navigation (window.location.href = ...) rather
+    // than router.push, so it can't be verified via a next/navigation mock
+    // — jsdom doesn't implement real navigation, so replace location with a
+    // plain mutable object and assert against its href afterward instead.
+    Object.defineProperty(window, "location", {
+      value: { href: "" },
+      writable: true,
+    });
   });
 
   afterEach(() => {
@@ -125,7 +121,7 @@ describe("SignInForm", () => {
     );
   });
 
-  it("redirects to /customers and refreshes on a successful sign-in", async () => {
+  it("navigates to /customers on a successful sign-in", async () => {
     vi.stubGlobal("fetch", mockSignInResponse(true, { user: { id: "1" } }));
 
     const user = userEvent.setup();
@@ -134,8 +130,7 @@ describe("SignInForm", () => {
     await user.type(screen.getByLabelText("Password"), "hunter2");
     await user.click(screen.getByRole("button", { name: "Sign In" }));
 
-    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/customers"));
-    expect(refreshMock).toHaveBeenCalled();
+    await waitFor(() => expect(window.location.href).toBe("/customers"));
   });
 
   it("redirects a Customer Admin to /poles instead of /customers", async () => {
@@ -150,7 +145,7 @@ describe("SignInForm", () => {
     await user.type(screen.getByLabelText("Password"), "hunter2");
     await user.click(screen.getByRole("button", { name: "Sign In" }));
 
-    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/projects"));
+    await waitFor(() => expect(window.location.href).toBe("/projects"));
   });
 
   it("shows the server's error message and does not redirect on invalid credentials", async () => {
@@ -166,7 +161,7 @@ describe("SignInForm", () => {
     await user.click(screen.getByRole("button", { name: "Sign In" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("invalid email or password");
-    expect(pushMock).not.toHaveBeenCalled();
+    expect(window.location.href).toBe("");
   });
 
   it("shows a fallback error message when the request itself fails", async () => {
@@ -204,7 +199,7 @@ describe("SignInForm", () => {
     expect(button).toBeDisabled();
 
     resolveFetch({ ok: true, json: () => Promise.resolve({ user: { id: "1" } }) });
-    await waitFor(() => expect(pushMock).toHaveBeenCalled());
+    await waitFor(() => expect(window.location.href).not.toBe(""));
   });
 
   it("does not call fetch when the form is invalid", async () => {
