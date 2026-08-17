@@ -148,6 +148,22 @@ describe("PolesTable", () => {
     expect(screen.getByText("Installed: —")).toBeInTheDocument();
   });
 
+  it("shows Last Update (tz stripped) before Installed in column 1", () => {
+    render(<PolesTable poles={[poles[0]]} />);
+    expect(screen.getByText("Last Update: 2026-07-26 13:25:41")).toBeInTheDocument();
+
+    const lastUpdate = screen.getByText("Last Update: 2026-07-26 13:25:41");
+    const installed = screen.getByText("Installed: 2022-04-06");
+    expect(
+      lastUpdate.compareDocumentPosition(installed) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("shows a dash for Last Update when a pole has no telemetry", () => {
+    render(<PolesTable poles={[{ ...poles[0], lastUpdate: null }]} />);
+    expect(screen.getByText("Last Update: —")).toBeInTheDocument();
+  });
+
   it("does not render Last update anywhere on the row", () => {
     render(<PolesTable poles={poles} />);
     expect(screen.queryByText(/Last update/)).not.toBeInTheDocument();

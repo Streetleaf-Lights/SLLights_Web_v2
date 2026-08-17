@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { Toolbar } from "@/components/Toolbar";
 import { Pagination } from "@/components/Pagination";
 import { StatGroup } from "@/components/StatGroup";
-import { formatPercent, connectionStatus } from "@/lib/text";
+import { formatPercent, connectionStatus, formatTimestamp } from "@/lib/text";
 import { withQueryParam } from "@/lib/url";
 import type { PoleSummary } from "@/lib/types";
 
@@ -107,6 +107,9 @@ export function PolesTable({ poles }: { poles: PoleSummary[] }) {
                           {pole.poleNumber}
                         </Link>
                         <div className="mt-1 text-[11.5px] text-[var(--ink-faint)]">
+                          Last Update: {formatTimestamp(pole.lastUpdate)}
+                        </div>
+                        <div className="mt-0.5 text-[11.5px] text-[var(--ink-faint)]">
                           Installed: {pole.installDate ?? "—"}
                         </div>
                       </td>
