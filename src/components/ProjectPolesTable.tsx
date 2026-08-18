@@ -64,7 +64,13 @@ export function ProjectPolesTable({
           <tbody>
             {pagePoles.map((pole) => {
               const connected = connectionStatus(pole.isOnline, pole.lastUpdate);
-              const status = poleStatusLabel(pole.isPoleFault);
+              // A disconnected pole's isPoleFault reading is stale — show
+              // it as unknown (a dash) rather than a fault status that may
+              // no longer reflect reality.
+              const status =
+                connected.text === "Disconnected"
+                  ? poleStatusLabel(null)
+                  : poleStatusLabel(pole.isPoleFault);
               return (
                 <tr
                   key={pole.id}

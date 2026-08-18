@@ -15,7 +15,6 @@ import type { PeriodType, PoleVitalPeriod } from "@/lib/types";
 
 const PERIOD_OPTIONS: { type: PeriodType; label: string; limit: number }[] = [
   { type: "Hour", label: "Hourly", limit: 48 },
-  { type: "Day", label: "Daily", limit: 30 },
 ];
 
 // Recharts' default <Legend> otherwise sorts entries alphabetically by
@@ -210,23 +209,25 @@ export function PoleVitalsChart({ poleId }: { poleId: string }) {
 
   return (
     <div>
-      <div className="mb-3 flex items-center justify-end gap-1.5">
-        {PERIOD_OPTIONS.map((option) => (
-          <button
-            key={option.type}
-            type="button"
-            onClick={() => setPeriodType(option.type)}
-            aria-pressed={periodType === option.type}
-            className={`rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors ${
-              periodType === option.type
-                ? "bg-[var(--accent)] text-white"
-                : "border border-[var(--border)] text-[var(--ink-muted)] hover:bg-[var(--surface-sunken)]"
-            }`}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
+      {PERIOD_OPTIONS.length > 1 && (
+        <div className="mb-3 flex items-center justify-end gap-1.5">
+          {PERIOD_OPTIONS.map((option) => (
+            <button
+              key={option.type}
+              type="button"
+              onClick={() => setPeriodType(option.type)}
+              aria-pressed={periodType === option.type}
+              className={`rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors ${
+                periodType === option.type
+                  ? "bg-[var(--accent)] text-white"
+                  : "border border-[var(--border)] text-[var(--ink-muted)] hover:bg-[var(--surface-sunken)]"
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {loading ? (
         <ChartMessage tone="muted">Loading…</ChartMessage>

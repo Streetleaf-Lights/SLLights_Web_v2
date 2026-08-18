@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import {
   formatPeriodLabel,
   formatTickLabel,
@@ -88,36 +87,14 @@ describe("PoleVitalsChart", () => {
     );
   });
 
-  it("re-fetches with periodType=Day and limit=30 when Daily is clicked", async () => {
-    const fetchMock = mockVitalsResponse(true, { vitals: sampleVitals });
-    vi.stubGlobal("fetch", fetchMock);
-
-    const user = userEvent.setup();
-    render(<PoleVitalsChart poleId="recAOlPiepBddUcCv" />);
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-
-    await user.click(screen.getByRole("button", { name: "Daily" }));
-
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
-    expect(fetchMock).toHaveBeenLastCalledWith(
-      "/api/getpolevitalsbyperiod?poleId=recAOlPiepBddUcCv&periodType=Day&limit=30",
-    );
-  });
-
-  it("marks the active period button with aria-pressed", async () => {
+  it("does not render a period toggle (Daily removed, Hourly is the only option)", async () => {
     vi.stubGlobal("fetch", mockVitalsResponse(true, { vitals: sampleVitals }));
 
-    const user = userEvent.setup();
     render(<PoleVitalsChart poleId="recAOlPiepBddUcCv" />);
     await screen.findByText("Battery %");
 
-    expect(screen.getByRole("button", { name: "Hourly" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Daily" })).toHaveAttribute("aria-pressed", "false");
-
-    await user.click(screen.getByRole("button", { name: "Daily" }));
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Daily" })).toHaveAttribute("aria-pressed", "true"),
-    );
+    expect(screen.queryByRole("button", { name: "Hourly" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Daily" })).not.toBeInTheDocument();
   });
 
   it("renders the chart legend once data loads", async () => {
@@ -288,18 +265,17 @@ describe("PoleVitalsChart", () => {
     ).toBeInTheDocument();
   });
 
-  it("clears a previous error when switching periods successfully", async () => {
+  it("clears a previous error once a new fetch (triggered by a poleId change) succeeds", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce({ ok: false, json: () => Promise.resolve({ error: "pole not found" }) })
       .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ vitals: sampleVitals }) });
     vi.stubGlobal("fetch", fetchMock);
 
-    const user = userEvent.setup();
-    render(<PoleVitalsChart poleId="recAOlPiepBddUcCv" />);
+    const { rerender } = render(<PoleVitalsChart poleId="recAOlPiepBddUcCv" />);
     await screen.findByText("pole not found");
 
-    await user.click(screen.getByRole("button", { name: "Daily" }));
+    rerender(<PoleVitalsChart poleId="recDifferentPole" />);
 
     await screen.findByText("Battery %");
     expect(screen.queryByText("pole not found")).not.toBeInTheDocument();

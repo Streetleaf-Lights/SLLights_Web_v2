@@ -88,6 +88,46 @@ describe("ProjectPolesTable", () => {
     expect(cell.className).toContain("text-[var(--status-flagged)]");
   });
 
+  it("shows Overall Status as a dash (not Fault) for a Disconnected pole, even though isPoleFault is true", () => {
+    const disconnectedButFlagged = {
+      ...poles[3],
+      lastUpdate: "2026-07-26 13:25:41+00:00",
+      isPoleFault: true,
+    };
+    render(<ProjectPolesTable poles={[disconnectedButFlagged]} {...defaultProps} />);
+
+    expect(screen.getByText("Disconnected")).toBeInTheDocument();
+    const row = screen.getByText("Disconnected").closest("tr") as HTMLElement;
+    const overallStatusCell = row.querySelectorAll("td")[2];
+    expect(overallStatusCell).toHaveTextContent("—");
+    expect(overallStatusCell.className).not.toContain("status-flagged");
+    expect(overallStatusCell.className).not.toContain("status-active");
+  });
+
+  it("shows Overall Status as a dash (not OK) for a Disconnected pole, even though isPoleFault is false", () => {
+    const disconnectedButOk = {
+      ...poles[3],
+      lastUpdate: "2026-07-26 13:25:41+00:00",
+      isPoleFault: false,
+    };
+    render(<ProjectPolesTable poles={[disconnectedButOk]} {...defaultProps} />);
+
+    expect(screen.getByText("Disconnected")).toBeInTheDocument();
+    const row = screen.getByText("Disconnected").closest("tr") as HTMLElement;
+    const overallStatusCell = row.querySelectorAll("td")[2];
+    expect(overallStatusCell).toHaveTextContent("—");
+    expect(overallStatusCell.className).not.toContain("status-active");
+  });
+
+  it("still shows the real Overall Status (OK/Fault) for a pole that is Online (not Disconnected)", () => {
+    const onlineWithFault = { ...poles[0], isPoleFault: true };
+    render(<ProjectPolesTable poles={[onlineWithFault]} {...defaultProps} />);
+
+    expect(screen.getByText("Online")).toBeInTheDocument();
+    const fault = screen.getByText("Fault");
+    expect(fault.className).toContain("text-[var(--status-flagged)]");
+  });
+
   it("shows Unknown (neutral) when isOnline and lastUpdate are both null", () => {
     const poleWithNoTelemetry = { ...poles[3], lastUpdate: null };
     render(<ProjectPolesTable poles={[poleWithNoTelemetry]} {...defaultProps} />);
