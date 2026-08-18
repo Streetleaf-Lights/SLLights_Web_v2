@@ -13,9 +13,14 @@ import {
 } from "recharts";
 import type { PeriodType, PoleVitalPeriod } from "@/lib/types";
 
-const PERIOD_OPTIONS: { type: PeriodType; label: string; limit: number }[] = [
-  { type: "Hour", label: "Hourly", limit: 48 },
-];
+const DAY_OPTIONS = [1, 2, 7, 14, 30];
+const DEFAULT_DAYS = 2;
+
+// The chart is always Hourly now (periodType=Hour) — the dropdown below
+// only controls how many days of hourly points to fetch, via `limit`
+// (days * 24, e.g. 7 days -> limit=168) — there's no separate cap, so the
+// larger options (7/14/30 days) get their full uncapped count of vitals,
+// not truncated down to whatever the 1/2-day options request.
 
 // Recharts' default <Legend> otherwise sorts entries alphabetically by
 // dataKey ("battery" < "light" < "panel") regardless of <Line> JSX order —
@@ -133,16 +138,14 @@ function ChartMessage({ tone, children }: { tone: "muted" | "error"; children: R
 }
 
 export function PoleVitalsChart({ poleId }: { poleId: string }) {
-  const [periodType, setPeriodType] = useState<PeriodType>("Hour");
+  const [days, setDays] = useState(DEFAULT_DAYS);
   const [vitals, setVitals] = useState<PoleVitalPeriod[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const option = PERIOD_OPTIONS.find((o) => o.type === periodType);
-    if (!option) return;
-
     let cancelled = false;
+    const limit = days * 24;
 
     Promise.resolve()
       .then(() => {
@@ -150,7 +153,7 @@ export function PoleVitalsChart({ poleId }: { poleId: string }) {
         setLoading(true);
         setError(null);
         return fetch(
-          `/api/getpolevitalsbyperiod?poleId=${encodeURIComponent(poleId)}&periodType=${periodType}&limit=${option.limit}`,
+          `/api/getpolevitalsbyperiod?poleId=${encodeURIComponent(poleId)}&periodType=Hour&limit=${limit}`,
         );
       })
       .then(async (res) => {
@@ -178,7 +181,7 @@ export function PoleVitalsChart({ poleId }: { poleId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [poleId, periodType]);
+  }, [poleId, days]);
 
   // Sort chronologically regardless of the order the API returns them in,
   // so the chart always reads left-to-right oldest-to-newest. A missing
@@ -209,25 +212,23 @@ export function PoleVitalsChart({ poleId }: { poleId: string }) {
 
   return (
     <div>
-      {PERIOD_OPTIONS.length > 1 && (
-        <div className="mb-3 flex items-center justify-end gap-1.5">
-          {PERIOD_OPTIONS.map((option) => (
-            <button
-              key={option.type}
-              type="button"
-              onClick={() => setPeriodType(option.type)}
-              aria-pressed={periodType === option.type}
-              className={`rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors ${
-                periodType === option.type
-                  ? "bg-[var(--accent)] text-white"
-                  : "border border-[var(--border)] text-[var(--ink-muted)] hover:bg-[var(--surface-sunken)]"
-              }`}
-            >
-              {option.label}
-            </button>
+      <div className="mb-3 flex items-center justify-end gap-1.5">
+        <label htmlFor="vitals-days" className="text-[12px] text-[var(--ink-muted)]">
+          Show
+        </label>
+        <select
+          id="vitals-days"
+          value={days}
+          onChange={(e) => setDays(Number(e.target.value))}
+          className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-[12px] text-[var(--ink)]"
+        >
+          {DAY_OPTIONS.map((d) => (
+            <option key={d} value={d}>
+              {d} {d === 1 ? "day" : "days"}
+            </option>
           ))}
-        </div>
-      )}
+        </select>
+      </div>
 
       {loading ? (
         <ChartMessage tone="muted">Loading…</ChartMessage>
@@ -242,14 +243,14 @@ export function PoleVitalsChart({ poleId }: { poleId: string }) {
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis
                 dataKey="index"
-                tickFormatter={(value) => formatTickLabel(chartData, value, periodType)}
+                tickFormatter={(value) => formatTickLabel(chartData, value, "Hour")}
                 tick={{ fontSize: 11 }}
                 stroke="var(--ink-faint)"
               />
               <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} stroke="var(--ink-faint)" width={36} />
               <Tooltip
                 labelFormatter={(_value, payload) =>
-                  formatTooltipLabel(payload?.[0]?.payload?.periodStart, periodType)
+                  formatTooltipLabel(payload?.[0]?.payload?.periodStart, "Hour")
                 }
                 contentStyle={{ fontSize: 12, borderRadius: 8, borderColor: "var(--border)" }}
               />

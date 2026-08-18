@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import {
   formatPeriodLabel,
   formatTickLabel,
@@ -75,7 +76,7 @@ describe("PoleVitalsChart", () => {
     expect(await screen.findByText("Loading…")).toBeInTheDocument();
   });
 
-  it("fetches Hourly data with limit=48 by default", async () => {
+  it("fetches Hourly data with limit=48 (2 days) by default", async () => {
     const fetchMock = mockVitalsResponse(true, { vitals: sampleVitals });
     vi.stubGlobal("fetch", fetchMock);
 
@@ -87,7 +88,7 @@ describe("PoleVitalsChart", () => {
     );
   });
 
-  it("does not render a period toggle (Daily removed, Hourly is the only option)", async () => {
+  it("shows a 'Show' dropdown defaulting to 2 days, not the old Hourly/Daily buttons", async () => {
     vi.stubGlobal("fetch", mockVitalsResponse(true, { vitals: sampleVitals }));
 
     render(<PoleVitalsChart poleId="recAOlPiepBddUcCv" />);
@@ -95,6 +96,61 @@ describe("PoleVitalsChart", () => {
 
     expect(screen.queryByRole("button", { name: "Hourly" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Daily" })).not.toBeInTheDocument();
+
+    const dropdown = screen.getByLabelText("Show") as HTMLSelectElement;
+    expect(dropdown.value).toBe("2");
+  });
+
+  it("re-fetches with periodType=Hour and the new limit (days * 24) when a different day count is selected", async () => {
+    const fetchMock = mockVitalsResponse(true, { vitals: sampleVitals });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const user = userEvent.setup();
+    render(<PoleVitalsChart poleId="recAOlPiepBddUcCv" />);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+    await user.selectOptions(screen.getByLabelText("Show"), "7");
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/getpolevitalsbyperiod?poleId=recAOlPiepBddUcCv&periodType=Hour&limit=168",
+    );
+  });
+
+  it.each([
+    [7, 168],
+    [14, 336],
+    [30, 720],
+  ])(
+    "requests the full uncapped limit for %i days (limit=%i), not truncated to 48 like the 1/2-day options",
+    async (days, expectedLimit) => {
+      const fetchMock = mockVitalsResponse(true, { vitals: sampleVitals });
+      vi.stubGlobal("fetch", fetchMock);
+
+      const user = userEvent.setup();
+      render(<PoleVitalsChart poleId="recAOlPiepBddUcCv" />);
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+      await user.selectOptions(screen.getByLabelText("Show"), String(days));
+
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+      expect(fetchMock).toHaveBeenLastCalledWith(
+        `/api/getpolevitalsbyperiod?poleId=recAOlPiepBddUcCv&periodType=Hour&limit=${expectedLimit}`,
+      );
+    },
+  );
+
+  it("offers 1, 2, 7, 14, and 30 day options (no 3 days)", async () => {
+    vi.stubGlobal("fetch", mockVitalsResponse(true, { vitals: sampleVitals }));
+
+    render(<PoleVitalsChart poleId="recAOlPiepBddUcCv" />);
+    await screen.findByText("Battery %");
+
+    const dropdown = screen.getByLabelText("Show");
+    const optionLabels = Array.from(dropdown.querySelectorAll("option")).map(
+      (opt) => opt.textContent,
+    );
+    expect(optionLabels).toEqual(["1 day", "2 days", "7 days", "14 days", "30 days"]);
   });
 
   it("renders the chart legend once data loads", async () => {
