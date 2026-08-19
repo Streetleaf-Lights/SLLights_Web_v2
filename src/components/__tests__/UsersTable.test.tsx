@@ -131,6 +131,20 @@ describe("UsersTable", () => {
     expect(screen.getAllByRole("button", { name: "Delete" })).toHaveLength(3);
   });
 
+  it("hides the Delete button only on the row matching currentUserId, showing it for everyone else", () => {
+    render(<UsersTable users={users} currentUserId="user1" />);
+
+    const ownRow = screen.getByText("Jane Doe").closest("tr") as HTMLElement;
+    expect(within(ownRow).queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+    // The other two rows are unaffected.
+    expect(screen.getAllByRole("button", { name: "Delete" })).toHaveLength(2);
+  });
+
+  it("shows Delete on every row when currentUserId doesn't match any of them", () => {
+    render(<UsersTable users={users} currentUserId="someone-else" />);
+    expect(screen.getAllByRole("button", { name: "Delete" })).toHaveLength(3);
+  });
+
   it("renders a Re-invite button only for a Pending user, not Active/Inactive ones", () => {
     render(<UsersTable users={users} />);
     expect(screen.getAllByRole("button", { name: "Re-invite" })).toHaveLength(1);
@@ -218,8 +232,8 @@ describe("UsersTable", () => {
     expect(refreshMock).toHaveBeenCalled();
   });
 
-  it("does not render a Re-invite button when canDelete is false (Customer Admin viewing users)", () => {
-    render(<UsersTable users={users} canDelete={false} />);
+  it("does not render a Re-invite button when canManageUsers is false (a plain User viewing users)", () => {
+    render(<UsersTable users={users} canManageUsers={false} />);
     expect(screen.queryByRole("button", { name: "Re-invite" })).not.toBeInTheDocument();
   });
 
@@ -228,8 +242,8 @@ describe("UsersTable", () => {
     expect(screen.getByRole("columnheader", { name: "Actions" })).toBeInTheDocument();
   });
 
-  it("hides the Actions column and Delete buttons when canDelete is false", () => {
-    render(<UsersTable users={users} canDelete={false} />);
+  it("hides the Actions column and Delete buttons when canManageUsers is false", () => {
+    render(<UsersTable users={users} canManageUsers={false} />);
     expect(screen.queryByRole("columnheader", { name: "Actions" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
   });

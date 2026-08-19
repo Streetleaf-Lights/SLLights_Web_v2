@@ -320,9 +320,74 @@ describe("InviteUserModal", () => {
     expect(screen.queryByText("Selected:")).not.toBeInTheDocument();
   });
 
-  it("keeps the Role field disabled (grayed out)", async () => {
+  it("makes the Role field an interactive dropdown (not disabled)", async () => {
     await openModal();
-    expect(screen.getByLabelText("Role")).toBeDisabled();
+    expect(screen.getByLabelText("Role")).not.toBeDisabled();
+    expect(screen.getByLabelText("Role").tagName).toBe("SELECT");
+  });
+
+  it("offers Streetleaf Admin and User when no customer is selected", async () => {
+    await openModal();
+    const dropdown = screen.getByLabelText("Role") as HTMLSelectElement;
+    const optionLabels = Array.from(dropdown.querySelectorAll("option")).map(
+      (opt) => opt.textContent,
+    );
+    expect(optionLabels).toEqual(["Streetleaf Admin", "User"]);
+  });
+
+  it("offers Customer Admin and User once a customer is selected", async () => {
+    const user = await openModal();
+    await focusCustomerSearch(user);
+    await user.click(screen.getByRole("button", { name: "Coastal Power & Light" }));
+
+    const dropdown = screen.getByLabelText("Role") as HTMLSelectElement;
+    const optionLabels = Array.from(dropdown.querySelectorAll("option")).map(
+      (opt) => opt.textContent,
+    );
+    expect(optionLabels).toEqual(["Customer Admin", "User"]);
+  });
+
+  it("lets the person pick User when no customer is selected, and includes it in the submitted role", async () => {
+    const fetchMock = mockInviteResponse(true, successBody);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const user = await openModal();
+    await user.selectOptions(screen.getByLabelText("Role"), "User");
+    await user.type(screen.getByLabelText("Email"), "jane@example.com");
+    await user.type(screen.getByLabelText("Name"), "Jane Doe");
+    await user.click(screen.getByRole("button", { name: "Submit" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse(init.body)).toMatchObject({ role: "User" });
+  });
+
+  it("lets the person pick User even when a customer is selected, and includes it (plus the customerId) in the submitted role", async () => {
+    const fetchMock = mockInviteResponse(true, successBody);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const user = await openModal();
+    await focusCustomerSearch(user);
+    await user.click(screen.getByRole("button", { name: "Coastal Power & Light" }));
+    await user.selectOptions(screen.getByLabelText("Role"), "User");
+    await user.type(screen.getByLabelText("Email"), "jane@example.com");
+    await user.type(screen.getByLabelText("Name"), "Jane Doe");
+    await user.click(screen.getByRole("button", { name: "Submit" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse(init.body)).toMatchObject({ role: "User", customerId: "cust-2" });
+  });
+
+  it("resets a 'User' choice back to the context default when the customer selection changes", async () => {
+    const user = await openModal();
+    await user.selectOptions(screen.getByLabelText("Role"), "User");
+    expect((screen.getByLabelText("Role") as HTMLSelectElement).value).toBe("User");
+
+    await focusCustomerSearch(user);
+    await user.click(screen.getByRole("button", { name: "Coastal Power & Light" }));
+
+    expect((screen.getByLabelText("Role") as HTMLSelectElement).value).toBe("Customer Admin");
   });
 
   it("shows no email/name errors before attempting to submit", async () => {
@@ -551,5 +616,92 @@ describe("InviteUserModal", () => {
     expect(backdrop).toBeTruthy();
     await user.click(backdrop!);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+});
+
+describe("InviteUserModal with a lockedCustomer (Customer Admin inviting into their own customer)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    pushMock.mockClear();
+    refreshMock.mockClear();
+  });
+
+  const lockedCustomer: Customer = {
+    id: "cust-2",
+    name: "Coastal Power & Light",
+    projects: [],
+    address: null,
+    city: null,
+    state: null,
+    zip: null,
+    phone: null,
+    createdAt: "2026-01-01",
+  };
+
+  async function openLockedModal() {
+    const user = userEvent.setup();
+    render(<InviteUserModal customers={[]} lockedCustomer={lockedCustomer} />);
+    await user.click(screen.getByRole("button", { name: "Invite user" }));
+    return user;
+  }
+
+  it("shows the locked customer's name as a plain read-only label, with no Customer Search field", async () => {
+    await openLockedModal();
+
+    expect(screen.getByText("Coastal Power & Light")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Customer Search")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Change" })).not.toBeInTheDocument();
+  });
+
+  it("defaults the Role dropdown to Customer Admin (not Streetleaf Admin) when locked", async () => {
+    await openLockedModal();
+
+    const dropdown = screen.getByLabelText("Role") as HTMLSelectElement;
+    expect(dropdown.value).toBe("Customer Admin");
+    const optionLabels = Array.from(dropdown.querySelectorAll("option")).map(
+      (opt) => opt.textContent,
+    );
+    expect(optionLabels).toEqual(["Customer Admin", "User"]);
+  });
+
+  it("submits with the locked customer's id, even though there was never a search step", async () => {
+    const fetchMock = mockInviteResponse(true, successBody);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const user = await openLockedModal();
+    await user.type(screen.getByLabelText("Email"), "jane@example.com");
+    await user.type(screen.getByLabelText("Name"), "Jane Doe");
+    await user.click(screen.getByRole("button", { name: "Submit" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse(init.body)).toMatchObject({
+      role: "Customer Admin",
+      customerId: "cust-2",
+    });
+  });
+
+  it("still allows picking User instead, keeping the locked customerId", async () => {
+    const fetchMock = mockInviteResponse(true, successBody);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const user = await openLockedModal();
+    await user.selectOptions(screen.getByLabelText("Role"), "User");
+    await user.type(screen.getByLabelText("Email"), "jane@example.com");
+    await user.type(screen.getByLabelText("Name"), "Jane Doe");
+    await user.click(screen.getByRole("button", { name: "Submit" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse(init.body)).toMatchObject({ role: "User", customerId: "cust-2" });
+  });
+
+  it("resets back to the locked customer/Customer Admin default (not Streetleaf Admin) after Cancel and reopening", async () => {
+    const user = await openLockedModal();
+    await user.selectOptions(screen.getByLabelText("Role"), "User");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    await user.click(screen.getByRole("button", { name: "Invite user" }));
+    expect((screen.getByLabelText("Role") as HTMLSelectElement).value).toBe("Customer Admin");
   });
 });

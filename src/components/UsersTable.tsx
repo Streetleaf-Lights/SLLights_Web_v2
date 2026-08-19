@@ -16,7 +16,15 @@ function statusBadgeKind(status: string | null | undefined): "active" | "pending
   return "inactive";
 }
 
-export function UsersTable({ users, canDelete = true }: { users: User[]; canDelete?: boolean }) {
+export function UsersTable({
+  users,
+  canManageUsers = true,
+  currentUserId,
+}: {
+  users: User[];
+  canManageUsers?: boolean;
+  currentUserId?: string | null;
+}) {
   const router = useRouter();
   const [page, setPage] = useState(1);
   const [pendingDelete, setPendingDelete] = useState<User | null>(null);
@@ -130,7 +138,7 @@ export function UsersTable({ users, canDelete = true }: { users: User[]; canDele
               <th className="py-2.5 pr-4 font-medium">Role</th>
               <th className="py-2.5 pr-4 font-medium">Status</th>
               <th className="py-2.5 pr-4 font-medium">Customer</th>
-              {canDelete && <th className="py-2.5 pr-8 text-right font-medium">Actions</th>}
+              {canManageUsers && <th className="py-2.5 pr-8 text-right font-medium">Actions</th>}
             </tr>
           </thead>
           <tbody>
@@ -157,7 +165,7 @@ export function UsersTable({ users, canDelete = true }: { users: User[]; canDele
                 <td className="py-3 pr-4 text-[var(--ink)]">
                   {user.customerId === null ? "Streetleaf" : user.customerName}
                 </td>
-                {canDelete && (
+                {canManageUsers && (
                   <td className="py-3 pr-8 text-right">
                     <div className="flex items-center justify-end gap-2">
                       {statusBadgeKind(user.status) === "pending" && (
@@ -170,13 +178,15 @@ export function UsersTable({ users, canDelete = true }: { users: User[]; canDele
                           {reinvitingUserId === user.id ? "Sending…" : "Re-invite"}
                         </button>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => setPendingDelete(user)}
-                        className="rounded-md border border-[var(--border)] px-2.5 py-1 text-[12px] font-medium text-[var(--status-flagged)] hover:bg-[var(--status-flagged-bg)]"
-                      >
-                        Delete
-                      </button>
+                      {user.id !== currentUserId && (
+                        <button
+                          type="button"
+                          onClick={() => setPendingDelete(user)}
+                          className="rounded-md border border-[var(--border)] px-2.5 py-1 text-[12px] font-medium text-[var(--status-flagged)] hover:bg-[var(--status-flagged-bg)]"
+                        >
+                          Delete
+                        </button>
+                      )}
                     </div>
                     {reinviteResult?.userId === user.id && (
                       <p

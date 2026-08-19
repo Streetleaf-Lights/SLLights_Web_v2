@@ -6,17 +6,33 @@ import type { Customer } from "@/lib/types";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export function InviteUserModal({ customers }: { customers: Customer[] }) {
+export function InviteUserModal({
+  customers,
+  lockedCustomer,
+}: {
+  customers: Customer[];
+  /**
+   * When set, this invite is scoped to a single customer that can't be
+   * changed (a Customer Admin inviting into their own customer) — the
+   * Customer Search UI is hidden entirely in favor of a plain read-only
+   * label, and selectedCustomer/role start (and reset back to) this
+   * customer / "Customer Admin" instead of the Streetleaf Admin default.
+   */
+  lockedCustomer?: Customer;
+}) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [customerQuery, setCustomerQuery] = useState("");
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
+    lockedCustomer ?? null,
+  );
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [attempted, setAttempted] = useState(false);
   const [emailTouched, setEmailTouched] = useState(false);
   const [nameTouched, setNameTouched] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
+  const [role, setRole] = useState(lockedCustomer ? "Customer Admin" : "Streetleaf Admin");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const customerSearchRef = useRef<HTMLInputElement>(null);
@@ -27,6 +43,16 @@ export function InviteUserModal({ customers }: { customers: Customer[] }) {
       emailRef.current?.focus();
     }
   }, [isOpen]);
+
+  // A Streetleaf Admin doesn't belong to any customer — that's the default
+  // when no customer is picked. Selecting an actual customer means this
+  // invite is for someone at that customer, i.e. a Customer Admin by
+  // default. Either way, "User" is always offered as the other option.
+  // Whenever the customer context changes (see the handlers below), role
+  // is reset back to that context's own default, rather than silently
+  // keeping a choice (e.g. "User", or the other context's admin role)
+  // made under the previous context.
+  const defaultRole = selectedCustomer ? "Customer Admin" : "Streetleaf Admin";
 
   const filteredCustomers = useMemo(() => {
     const q = customerQuery.trim().toLowerCase();
@@ -44,16 +70,12 @@ export function InviteUserModal({ customers }: { customers: Customer[] }) {
         : null;
   const nameError = (attempted || nameTouched) && !name.trim() ? "Name is required." : null;
 
-  // A Streetleaf Admin doesn't belong to any customer — that's the default,
-  // blank-search state. Selecting an actual customer means this invite is
-  // for someone at that customer, i.e. a Customer Admin.
-  const role = selectedCustomer ? "Customer Admin" : "Streetleaf Admin";
-
   function reset() {
     setCustomerQuery("");
-    setSelectedCustomer(null);
+    setSelectedCustomer(lockedCustomer ?? null);
     setEmail("");
     setName("");
+    setRole(lockedCustomer ? "Customer Admin" : "Streetleaf Admin");
     setAttempted(false);
     setEmailTouched(false);
     setNameTouched(false);
@@ -116,11 +138,13 @@ export function InviteUserModal({ customers }: { customers: Customer[] }) {
 
   function handleChangeCustomer() {
     setSelectedCustomer(null);
+    setRole("Streetleaf Admin");
     customerSearchRef.current?.focus();
   }
 
   function handleSelectCustomer(customer: Customer) {
     setSelectedCustomer(customer);
+    setRole("Customer Admin");
     setSearchFocused(false);
   }
 
@@ -150,75 +174,84 @@ export function InviteUserModal({ customers }: { customers: Customer[] }) {
               Invite user
             </h2>
 
-            <div className="mt-4">
-              {selectedCustomer && (
-                <div className="mb-1.5 flex items-center justify-between">
-                  <span className="text-[13px] text-[var(--ink-muted)]">
-                    Selected:{" "}
-                    <span className="font-medium text-[var(--accent)]">
-                      {selectedCustomer.name}
+            {lockedCustomer ? (
+              <div className="mt-4">
+                <span className="text-[12px] font-medium text-[var(--ink-muted)]">Customer</span>
+                <p className="mt-1.5 text-[13px] text-[var(--ink)]">{lockedCustomer.name}</p>
+              </div>
+            ) : (
+              <div className="mt-4">
+                {selectedCustomer && (
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <span className="text-[13px] text-[var(--ink-muted)]">
+                      Selected:{" "}
+                      <span className="font-medium text-[var(--accent)]">
+                        {selectedCustomer.name}
+                      </span>
                     </span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleChangeCustomer}
-                    className="text-[12px] font-medium text-[var(--accent-ink)] hover:underline"
-                  >
-                    Change
-                  </button>
-                </div>
-              )}
-              <label
-                htmlFor="invite-customer-search"
-                className="text-[12px] font-medium text-[var(--ink-muted)]"
-              >
-                Customer Search
-              </label>
-              <input
-                id="invite-customer-search"
-                ref={customerSearchRef}
-                type="text"
-                value={customerQuery}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setCustomerQuery(value);
-                  // Clearing the box back to empty while a customer is
-                  // selected is treated the same as clicking "Change" —
-                  // it un-picks the customer, so the role reverts to
-                  // Streetleaf Admin rather than silently staying on
-                  // Customer Admin for a customer no longer visible/typed.
-                  if (value === "" && selectedCustomer) {
-                    setSelectedCustomer(null);
-                  }
-                }}
-                onFocus={(e) => {
-                  e.target.select();
-                  setSearchFocused(true);
-                }}
-                placeholder="Search customers…"
-                className="mt-1.5 w-full rounded-md border border-[var(--border)] px-3 py-2 text-[13px] text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft)]"
-              />
-              {searchFocused && (
-                <div className="mt-1.5 max-h-32 overflow-y-auto rounded-md border border-[var(--border)]">
-                  {filteredCustomers.length === 0 ? (
-                    <p className="px-3 py-2 text-[12.5px] text-[var(--ink-faint)]">
-                      No matching customers.
-                    </p>
-                  ) : (
-                    filteredCustomers.map((c) => (
-                      <button
-                        key={c.id}
-                        type="button"
-                        onClick={() => handleSelectCustomer(c)}
-                        className="block w-full border-b border-[var(--border)] px-3 py-2 text-left text-[13px] text-[var(--ink)] last:border-b-0 hover:bg-[var(--surface-sunken)]"
-                      >
-                        {c.name}
-                      </button>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
+                    <button
+                      type="button"
+                      onClick={handleChangeCustomer}
+                      className="text-[12px] font-medium text-[var(--accent-ink)] hover:underline"
+                    >
+                      Change
+                    </button>
+                  </div>
+                )}
+                <label
+                  htmlFor="invite-customer-search"
+                  className="text-[12px] font-medium text-[var(--ink-muted)]"
+                >
+                  Customer Search
+                </label>
+                <input
+                  id="invite-customer-search"
+                  ref={customerSearchRef}
+                  type="text"
+                  value={customerQuery}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setCustomerQuery(value);
+                    // Clearing the box back to empty while a customer is
+                    // selected is treated the same as clicking "Change" —
+                    // it un-picks the customer, so the role reverts to
+                    // Streetleaf Admin rather than silently staying on
+                    // Customer Admin (or a "User" choice made under that
+                    // context) for a customer no longer visible/typed.
+                    if (value === "" && selectedCustomer) {
+                      setSelectedCustomer(null);
+                      setRole("Streetleaf Admin");
+                    }
+                  }}
+                  onFocus={(e) => {
+                    e.target.select();
+                    setSearchFocused(true);
+                  }}
+                  placeholder="Search customers…"
+                  className="mt-1.5 w-full rounded-md border border-[var(--border)] px-3 py-2 text-[13px] text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft)]"
+                />
+                {searchFocused && (
+                  <div className="mt-1.5 max-h-32 overflow-y-auto rounded-md border border-[var(--border)]">
+                    {filteredCustomers.length === 0 ? (
+                      <p className="px-3 py-2 text-[12.5px] text-[var(--ink-faint)]">
+                        No matching customers.
+                      </p>
+                    ) : (
+                      filteredCustomers.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => handleSelectCustomer(c)}
+                          className="block w-full border-b border-[var(--border)] px-3 py-2 text-left text-[13px] text-[var(--ink)] last:border-b-0 hover:bg-[var(--surface-sunken)]"
+                        >
+                          {c.name}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="mt-4">
               <label
@@ -278,13 +311,15 @@ export function InviteUserModal({ customers }: { customers: Customer[] }) {
               >
                 Role
               </label>
-              <input
+              <select
                 id="invite-role"
-                type="text"
                 value={role}
-                disabled
-                className="mt-1.5 w-full cursor-not-allowed rounded-md border border-[var(--border)] bg-[var(--surface-sunken)] px-3 py-2 text-[13px] text-[var(--ink-muted)]"
-              />
+                onChange={(e) => setRole(e.target.value)}
+                className="mt-1.5 w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-[13px] text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft)]"
+              >
+                <option value={defaultRole}>{defaultRole}</option>
+                <option value="User">User</option>
+              </select>
             </div>
 
             {formError && (
