@@ -30,6 +30,18 @@ function mockReinviteResponse(ok: boolean, body: unknown = { success: true }, st
   });
 }
 
+function mockChangeRoleResponse(
+  ok: boolean,
+  body: unknown = { userId: "user-01", role: "Customer Admin", customerId: "cust-1" },
+  status = ok ? 200 : 400,
+) {
+  return vi.fn().mockResolvedValue({
+    ok,
+    status,
+    json: () => Promise.resolve(body),
+  });
+}
+
 describe("UsersTable", () => {
   afterEach(() => {
     pushMock.mockClear();
@@ -73,6 +85,28 @@ describe("UsersTable", () => {
     expect(screen.getByText("jane@example.com")).toBeInTheDocument();
     expect(screen.getByText("Customer Admin")).toBeInTheDocument();
     expect(screen.getByText("Acme Corp")).toBeInTheDocument();
+  });
+
+  it("hides the Customer column entirely when customerScoped is true", () => {
+    render(<UsersTable users={users} customerScoped />);
+    expect(screen.queryByRole("columnheader", { name: "Customer" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Acme Corp")).not.toBeInTheDocument();
+  });
+
+  it("shows the Customer column by default (customerScoped defaults to false)", () => {
+    render(<UsersTable users={users} />);
+    expect(screen.getByRole("columnheader", { name: "Customer" })).toBeInTheDocument();
+  });
+
+  it("shows 'Admin' instead of 'Customer Admin' in the Role column when customerScoped is true", () => {
+    render(<UsersTable users={users} customerScoped />);
+    expect(screen.getByText("Admin")).toBeInTheDocument();
+    expect(screen.queryByText("Customer Admin")).not.toBeInTheDocument();
+  });
+
+  it("leaves other role values (e.g. Viewer) unchanged when customerScoped is true", () => {
+    render(<UsersTable users={users} customerScoped />);
+    expect(screen.getByText("Viewer")).toBeInTheDocument();
   });
 
   it("does not crash and falls back to Inactive when status is undefined (not just a string)", () => {
@@ -235,6 +269,165 @@ describe("UsersTable", () => {
   it("does not render a Re-invite button when canManageUsers is false (a plain User viewing users)", () => {
     render(<UsersTable users={users} canManageUsers={false} />);
     expect(screen.queryByRole("button", { name: "Re-invite" })).not.toBeInTheDocument();
+  });
+
+  it("renders a Change Role button for every row except the current user's own", () => {
+    render(<UsersTable users={users} currentUserId="user1" />);
+    // 3 users total, minus the current user's own row.
+    expect(screen.getAllByRole("button", { name: "Change Role" })).toHaveLength(2);
+
+    const ownRow = screen.getByText("Jane Doe").closest("tr") as HTMLElement;
+    expect(within(ownRow).queryByRole("button", { name: "Change Role" })).not.toBeInTheDocument();
+  });
+
+  it("shows Change Role for every row when currentUserId doesn't match any of them", () => {
+    render(<UsersTable users={users} currentUserId="someone-else" />);
+    expect(screen.getAllByRole("button", { name: "Change Role" })).toHaveLength(3);
+  });
+
+  it("sends the target user's id to /api/changerole and shows the new role on success", async () => {
+    const fetchMock = mockChangeRoleResponse(true, {
+      userId: "user-04",
+      role: "Admin",
+      customerId: "cust-004",
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const user = userEvent.setup();
+    render(<UsersTable users={[users[1]]} />);
+    await user.click(screen.getByRole("button", { name: "Change Role" }));
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/changerole",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ userId: "user-04" }),
+      }),
+    );
+    expect(await screen.findByText("Role changed to Admin.")).toBeInTheDocument();
+  });
+
+  it("shows 'Role changed to Admin.' (not 'Customer Admin') when customerScoped, matching the Role column's own abbreviation", async () => {
+    // The API always returns the full role name — the abbreviation is a
+    // display-only concern, applied the same way here as in the Role column.
+    vi.stubGlobal(
+      "fetch",
+      mockChangeRoleResponse(true, {
+        userId: "user-04",
+        role: "Customer Admin",
+        customerId: "cust-004",
+      }),
+    );
+
+    const user = userEvent.setup();
+    render(<UsersTable users={[users[1]]} customerScoped />);
+    await user.click(screen.getByRole("button", { name: "Change Role" }));
+
+    expect(await screen.findByText("Role changed to Admin.")).toBeInTheDocument();
+    expect(screen.queryByText("Role changed to Customer Admin.")).not.toBeInTheDocument();
+  });
+
+  it("still shows the full 'Role changed to Customer Admin.' when not customerScoped", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockChangeRoleResponse(true, {
+        userId: "user-04",
+        role: "Customer Admin",
+        customerId: "cust-004",
+      }),
+    );
+
+    const user = userEvent.setup();
+    render(<UsersTable users={[users[1]]} />);
+    await user.click(screen.getByRole("button", { name: "Change Role" }));
+
+    expect(await screen.findByText("Role changed to Customer Admin.")).toBeInTheDocument();
+  });
+
+  it("refreshes the page's server data after a successful role change, so the Role column updates", async () => {
+    vi.stubGlobal("fetch", mockChangeRoleResponse(true));
+
+    const user = userEvent.setup();
+    render(<UsersTable users={[users[1]]} />);
+    await user.click(screen.getByRole("button", { name: "Change Role" }));
+
+    await waitFor(() => expect(refreshMock).toHaveBeenCalled());
+  });
+
+  it("shows a disabled 'Changing…' label while the change-role request is in flight", async () => {
+    let resolveFetch: (value: unknown) => void = () => {};
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockReturnValue(
+        new Promise((resolve) => {
+          resolveFetch = resolve;
+        }),
+      ),
+    );
+
+    const user = userEvent.setup();
+    render(<UsersTable users={[users[1]]} />);
+    await user.click(screen.getByRole("button", { name: "Change Role" }));
+
+    const button = await screen.findByRole("button", { name: "Changing…" });
+    expect(button).toBeDisabled();
+
+    resolveFetch({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ userId: "user-04", role: "User", customerId: "cust-004" }),
+    });
+    await screen.findByText("Role changed to User.");
+  });
+
+  it("shows the server's error message when the change-role request fails (e.g. a non-admin caller)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockChangeRoleResponse(
+        false,
+        { error: "this action requires one of: Streetleaf Admin, Customer Admin" },
+        400,
+      ),
+    );
+
+    const user = userEvent.setup();
+    render(<UsersTable users={[users[1]]} />);
+    await user.click(screen.getByRole("button", { name: "Change Role" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "this action requires one of: Streetleaf Admin, Customer Admin",
+    );
+  });
+
+  it("shows a fallback error message when the change-role request itself throws", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network down")));
+
+    const user = userEvent.setup();
+    render(<UsersTable users={[users[1]]} />);
+    await user.click(screen.getByRole("button", { name: "Change Role" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Something went wrong. Please try again.",
+    );
+  });
+
+  it("redirects to /signin on a 401 from the change-role request", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockChangeRoleResponse(false, { error: "session expired" }, 401),
+    );
+
+    const user = userEvent.setup();
+    render(<UsersTable users={[users[1]]} />);
+    await user.click(screen.getByRole("button", { name: "Change Role" }));
+
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/signin"));
+    expect(refreshMock).toHaveBeenCalled();
+  });
+
+  it("does not render a Change Role button when canManageUsers is false", () => {
+    render(<UsersTable users={users} canManageUsers={false} />);
+    expect(screen.queryByRole("button", { name: "Change Role" })).not.toBeInTheDocument();
   });
 
   it("shows the Actions column header by default", () => {

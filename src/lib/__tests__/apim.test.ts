@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ApimError,
   apimFetch,
+  changeRole,
   getCustomer,
   getCustomers,
   getPole,
@@ -1022,6 +1023,91 @@ describe("resendInvite", () => {
 
     await expect(resendInvite("user1", "jwt-token")).rejects.toMatchObject({
       message: "Resend invite failed.",
+      status: 500,
+    });
+  });
+});
+
+describe("changeRole", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("sends userId as a JSON body with the token as a Bearer Authorization header", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ userId: "user1", role: "Customer Admin", customerId: "cust-1" }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await changeRole("user1", "jwt-token");
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toMatch(/\/changeRole$/);
+    expect(init.method).toBe("POST");
+    expect(init.headers.Authorization).toBe("Bearer jwt-token");
+    expect(JSON.parse(init.body)).toEqual({ userId: "user1" });
+  });
+
+  it("does not request caching (this is a mutating call)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ userId: "user1", role: "User", customerId: null }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await changeRole("user1", "jwt-token");
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.cache).toBe("no-store");
+  });
+
+  it("resolves with the updated userId/role/customerId on success", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          userId: "7401b2ef-89cd-40c3-bb93-1b6c18f313b2",
+          role: "Customer Admin",
+          customerId: "recRXOKVBlGRpplTm",
+        }),
+      }),
+    );
+
+    await expect(changeRole("7401b2ef-89cd-40c3-bb93-1b6c18f313b2", "jwt-token")).resolves.toEqual({
+      userId: "7401b2ef-89cd-40c3-bb93-1b6c18f313b2",
+      role: "Customer Admin",
+      customerId: "recRXOKVBlGRpplTm",
+    });
+  });
+
+  it("throws an ApimError carrying the server's error message on failure (e.g. a non-admin caller)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: async () => ({
+          error: "this action requires one of: Streetleaf Admin, Customer Admin",
+        }),
+      }),
+    );
+
+    await expect(changeRole("user1", "jwt-token")).rejects.toMatchObject({
+      message: "this action requires one of: Streetleaf Admin, Customer Admin",
+      status: 400,
+    });
+  });
+
+  it("falls back to a generic message when the error body isn't the expected shape", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => null }),
+    );
+
+    await expect(changeRole("user1", "jwt-token")).rejects.toMatchObject({
+      message: "Change role failed.",
       status: 500,
     });
   });

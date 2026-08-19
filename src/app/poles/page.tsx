@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { getPoles } from "@/lib/apim";
-import { getSessionUser } from "@/lib/session";
+import { getSessionUser, isCustomerScoped } from "@/lib/session";
 import { PageHeader } from "@/components/PageHeader";
 import { PolesTable } from "@/components/PolesTable";
 
@@ -8,10 +8,10 @@ export const dynamic = "force-dynamic";
 
 export default async function PolesPage() {
   const sessionUser = await getSessionUser();
-  const isCustomerAdmin = sessionUser?.role === "Customer Admin";
+  const customerScoped = isCustomerScoped(sessionUser?.role, sessionUser?.customerId);
 
   const poles = await getPoles(
-    isCustomerAdmin && sessionUser?.customerId
+    customerScoped && sessionUser?.customerId
       ? { customerId: sessionUser.customerId }
       : undefined,
   );
@@ -21,7 +21,7 @@ export default async function PolesPage() {
       <PageHeader
         title="Poles"
         description={
-          isCustomerAdmin
+          customerScoped
             ? "Every pole for your customer."
             : "Every pole across all customers and projects."
         }

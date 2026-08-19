@@ -128,7 +128,7 @@ export function RegisterForm() {
       // reuse a stale pre-login Router Cache entry for the destination
       // route, leaving the person stuck looking at this page despite being
       // genuinely signed in.
-      window.location.href = homeRouteForRole(body?.user?.role);
+      window.location.href = homeRouteForRole(body?.user?.role, body?.user?.customerId);
     } catch {
       setFormError("Something went wrong. Please try again.");
       setSubmitting(false);

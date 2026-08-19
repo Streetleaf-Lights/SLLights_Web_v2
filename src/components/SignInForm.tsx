@@ -80,7 +80,7 @@ export function SignInForm() {
       // genuinely signed in — a fresh tab (no stale cache) navigates fine.
       // A full navigation always hits the server fresh, sidestepping that
       // cache entirely.
-      window.location.href = homeRouteForRole(body?.user?.role);
+      window.location.href = homeRouteForRole(body?.user?.role, body?.user?.customerId);
     } catch {
       setFormError("Something went wrong. Please try again.");
       setSubmitting(false);

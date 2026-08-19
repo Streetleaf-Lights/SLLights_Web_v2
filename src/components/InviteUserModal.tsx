@@ -181,23 +181,6 @@ export function InviteUserModal({
               </div>
             ) : (
               <div className="mt-4">
-                {selectedCustomer && (
-                  <div className="mb-1.5 flex items-center justify-between">
-                    <span className="text-[13px] text-[var(--ink-muted)]">
-                      Selected:{" "}
-                      <span className="font-medium text-[var(--accent)]">
-                        {selectedCustomer.name}
-                      </span>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={handleChangeCustomer}
-                      className="text-[12px] font-medium text-[var(--accent-ink)] hover:underline"
-                    >
-                      Change
-                    </button>
-                  </div>
-                )}
                 <label
                   htmlFor="invite-customer-search"
                   className="text-[12px] font-medium text-[var(--ink-muted)]"
@@ -248,6 +231,23 @@ export function InviteUserModal({
                         </button>
                       ))
                     )}
+                  </div>
+                )}
+                {selectedCustomer && (
+                  <div className="mt-1.5 flex items-center justify-between">
+                    <span className="text-[13px] text-[var(--ink-muted)]">
+                      Selected:{" "}
+                      <span className="font-medium text-[var(--accent)]">
+                        {selectedCustomer.name}
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleChangeCustomer}
+                      className="text-[12px] font-medium text-[var(--accent-ink)] hover:underline"
+                    >
+                      Change
+                    </button>
                   </div>
                 )}
               </div>

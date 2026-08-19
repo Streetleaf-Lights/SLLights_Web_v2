@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { decodeSessionToken, homeRouteForRole } from "@/lib/auth-role";
+import { decodeSessionToken, homeRouteForRole, isCustomerScoped } from "@/lib/auth-role";
 
 // Routes reachable without a session.
 const PUBLIC_PATHS = ["/signin", "/register", "/forgot-password", "/reset-password"];
@@ -31,23 +31,30 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(signInUrl);
   }
 
-  if (session.role === "Customer Admin") {
-    // The Customers list spans every customer; a Customer Admin only has
-    // one. Route them to their actual home page instead.
+  if (isCustomerScoped(session.role, session.customerId)) {
+    // The Customers list spans every customer; anyone scoped to just one
+    // (Customer Admin, or a Customer User) only has one. Route them to
+    // their actual home page instead.
     if (pathname === "/" || pathname === "/customers" || pathname === "/customers/") {
-      return NextResponse.redirect(new URL(homeRouteForRole(session.role), request.url));
+      return NextResponse.redirect(
+        new URL(homeRouteForRole(session.role, session.customerId), request.url),
+      );
     }
 
     // /customers/{id}/... (project and pole detail pages included) is only
     // allowed for their own customer id.
     const customerRouteMatch = pathname.match(/^\/customers\/([^/]+)/);
     if (customerRouteMatch && customerRouteMatch[1] !== session.customerId) {
-      return NextResponse.redirect(new URL(homeRouteForRole(session.role), request.url));
+      return NextResponse.redirect(
+        new URL(homeRouteForRole(session.role, session.customerId), request.url),
+      );
     }
   } else if (pathname === "/projects" || pathname.startsWith("/projects/")) {
-    // /projects is the Customer Admin's own customer overview — it only
-    // exists for them, everyone else gets sent to their own home page.
-    return NextResponse.redirect(new URL(homeRouteForRole(session.role), request.url));
+    // /projects is a customer-scoped person's own customer overview — it
+    // only exists for them, everyone else gets sent to their own home page.
+    return NextResponse.redirect(
+      new URL(homeRouteForRole(session.role, session.customerId), request.url),
+    );
   }
 
   return NextResponse.next();

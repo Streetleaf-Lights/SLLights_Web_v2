@@ -121,6 +121,106 @@ describe("UsersPage", () => {
     expect(screen.queryByText("Sam Lee")).not.toBeInTheDocument();
   });
 
+  it("hides the Customer column and shows 'Admin' (not 'Customer Admin') for a Customer Admin", async () => {
+    getSessionUserMock.mockResolvedValue({
+      id: "u1",
+      role: "Customer Admin",
+      customerId: "rec5uaHZMOGZGyVcY",
+    });
+    getUsersMock.mockResolvedValue(users);
+
+    const jsx = await UsersPage();
+    render(jsx);
+
+    expect(screen.queryByRole("columnheader", { name: "Customer" })).not.toBeInTheDocument();
+    // Both Jane Doe and Pat Kim (same customer) are Customer Admins here.
+    expect(screen.getAllByText("Admin")).toHaveLength(2);
+    expect(screen.queryByText("Customer Admin")).not.toBeInTheDocument();
+  });
+
+  it("hides the Customer column and shows 'Admin' for a 'Customer User' too", async () => {
+    getSessionUserMock.mockResolvedValue({
+      id: "u6",
+      role: "User",
+      customerId: "rec5uaHZMOGZGyVcY",
+    });
+    getUsersMock.mockResolvedValue(users);
+
+    const jsx = await UsersPage();
+    render(jsx);
+
+    expect(screen.queryByRole("columnheader", { name: "Customer" })).not.toBeInTheDocument();
+    expect(screen.getAllByText("Admin")).toHaveLength(2);
+  });
+
+  it("still shows the Customer column and full 'Customer Admin' label for a Streetleaf Admin (not customer-scoped)", async () => {
+    getSessionUserMock.mockResolvedValue({
+      id: "u1",
+      role: "Streetleaf Admin",
+      customerId: null,
+    });
+    getUsersMock.mockResolvedValue(users);
+    getCustomersMock.mockResolvedValue([]);
+
+    const jsx = await UsersPage();
+    render(jsx);
+
+    expect(screen.getByRole("columnheader", { name: "Customer" })).toBeInTheDocument();
+    // Jane Doe and Pat Kim, plus Sam Lee at a different customer.
+    expect(screen.getAllByText("Customer Admin")).toHaveLength(3);
+  });
+
+  it("shows every user for a 'Streetleaf User' (role User, no customerId) — same full visibility as a Streetleaf Admin", async () => {
+    getSessionUserMock.mockResolvedValue({
+      id: "u5",
+      role: "User",
+      customerId: null,
+    });
+    getUsersMock.mockResolvedValue(users);
+    getCustomersMock.mockResolvedValue([]);
+
+    const jsx = await UsersPage();
+    render(jsx);
+
+    expect(screen.getByText("Jane Doe")).toBeInTheDocument();
+    expect(screen.getByText("Alex Rivera")).toBeInTheDocument();
+    expect(screen.getByText("Sam Lee")).toBeInTheDocument();
+    expect(screen.getByText("Pat Kim")).toBeInTheDocument();
+  });
+
+  it("scopes the user list to their own customer for a 'Customer User' (role User, with a customerId) — same scoping as a Customer Admin", async () => {
+    getSessionUserMock.mockResolvedValue({
+      id: "u6",
+      role: "User",
+      customerId: "rec5uaHZMOGZGyVcY",
+    });
+    getUsersMock.mockResolvedValue(users);
+
+    const jsx = await UsersPage();
+    render(jsx);
+
+    expect(screen.getByText("Jane Doe")).toBeInTheDocument();
+    expect(screen.getByText("Pat Kim")).toBeInTheDocument();
+    expect(screen.queryByText("Alex Rivera")).not.toBeInTheDocument();
+    expect(screen.queryByText("Sam Lee")).not.toBeInTheDocument();
+  });
+
+  it("still gives a 'Customer User' no management capability at all, despite seeing their customer's full list", async () => {
+    getSessionUserMock.mockResolvedValue({
+      id: "u6",
+      role: "User",
+      customerId: "rec5uaHZMOGZGyVcY",
+    });
+    getUsersMock.mockResolvedValue(users);
+
+    const jsx = await UsersPage();
+    render(jsx);
+
+    expect(screen.queryByRole("columnheader", { name: "Actions" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Invite user" })).not.toBeInTheDocument();
+  });
+
   it("shows the Invite User button for a Customer Admin, locked to their own customer", async () => {
     getSessionUserMock.mockResolvedValue({
       id: "u1",

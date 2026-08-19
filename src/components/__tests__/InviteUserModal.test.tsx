@@ -168,7 +168,7 @@ describe("InviteUserModal", () => {
     expect(screen.getByRole("button", { name: "Highline Telecom Cooperative" })).toBeInTheDocument();
   });
 
-  it("shows the selected customer's name with a 'Selected' label above the Customer Search label, with no box around it", async () => {
+  it("shows the selected customer's name with a 'Selected' label below the Customer Search label, with no box around it", async () => {
     const user = await openModal();
     await focusCustomerSearch(user);
     await user.click(screen.getByRole("button", { name: "Bayview Municipal Lighting" }));
@@ -176,9 +176,9 @@ describe("InviteUserModal", () => {
     expect(screen.getByText("Selected:")).toBeInTheDocument();
     const selectedName = screen.getByText("Bayview Municipal Lighting", { selector: "span" });
     const searchLabel = screen.getByText("Customer Search");
-    // The selected-customer row appears before the "Customer Search" label in the DOM (above it).
+    // The "Customer Search" label appears before the selected-customer row in the DOM (above it).
     expect(
-      selectedName.compareDocumentPosition(searchLabel) & Node.DOCUMENT_POSITION_FOLLOWING,
+      searchLabel.compareDocumentPosition(selectedName) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     // No box: the containing row shouldn't carry border/background styling.
     const row = screen.getByText("Selected:").parentElement;

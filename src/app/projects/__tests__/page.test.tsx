@@ -94,6 +94,23 @@ describe("ProjectsPage", () => {
     expect(getPoleVitalsForCustomerMock).toHaveBeenCalledWith("rec5uaHZMOGZGyVcY");
   });
 
+  it("works the same for a 'Customer User' (role User, with a customerId) — this page was never role-gated, just customerId-driven", async () => {
+    getSessionUserMock.mockResolvedValue({
+      id: "u2",
+      role: "User",
+      customerId: "rec5uaHZMOGZGyVcY",
+    });
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
+
+    const jsx = await ProjectsPage();
+    render(jsx);
+
+    expect(getCustomerMock).toHaveBeenCalledWith("rec5uaHZMOGZGyVcY");
+    expect(screen.getByText("Coastal Power & Light")).toBeInTheDocument();
+  });
+
   it("renders the same customer overview content as the customer detail page", async () => {
     getSessionUserMock.mockResolvedValue({
       id: "u1",

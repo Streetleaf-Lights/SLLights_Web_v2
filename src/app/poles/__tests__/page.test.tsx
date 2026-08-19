@@ -11,9 +11,13 @@ vi.mock("@/lib/apim", () => ({
   getPoles: getPolesMock,
 }));
 
-vi.mock("@/lib/session", () => ({
-  getSessionUser: getSessionUserMock,
-}));
+vi.mock("@/lib/session", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/session")>();
+  return {
+    ...actual,
+    getSessionUser: getSessionUserMock,
+  };
+});
 
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
@@ -87,5 +91,45 @@ describe("PolesPage", () => {
     expect(
       screen.getByText("Every pole across all customers and projects."),
     ).toBeInTheDocument();
+  });
+
+  it("scopes poles to a 'Customer User's own customer, same as a Customer Admin", async () => {
+    getSessionUserMock.mockResolvedValue({
+      id: "u2",
+      role: "User",
+      customerId: "rec5uaHZMOGZGyVcY",
+    });
+    getPolesMock.mockResolvedValue(poles);
+
+    await PolesPage();
+
+    expect(getPolesMock).toHaveBeenCalledWith({ customerId: "rec5uaHZMOGZGyVcY" });
+  });
+
+  it("shows a customer-scoped description for a 'Customer User'", async () => {
+    getSessionUserMock.mockResolvedValue({
+      id: "u2",
+      role: "User",
+      customerId: "rec5uaHZMOGZGyVcY",
+    });
+    getPolesMock.mockResolvedValue(poles);
+
+    const jsx = await PolesPage();
+    render(jsx);
+
+    expect(screen.getByText("Every pole for your customer.")).toBeInTheDocument();
+  });
+
+  it("fetches all poles (no filter) for a 'Streetleaf User' (role User, no customerId) — same as a Streetleaf Admin", async () => {
+    getSessionUserMock.mockResolvedValue({
+      id: "u3",
+      role: "User",
+      customerId: null,
+    });
+    getPolesMock.mockResolvedValue(poles);
+
+    await PolesPage();
+
+    expect(getPolesMock).toHaveBeenCalledWith(undefined);
   });
 });

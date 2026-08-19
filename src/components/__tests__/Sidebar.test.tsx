@@ -67,6 +67,29 @@ describe("Sidebar", () => {
     expect(screen.queryByRole("link", { name: /Projects/ })).not.toBeInTheDocument();
   });
 
+  it("hides Customers and shows Projects for a 'Customer User' (role User, with a customerId) — same as Customer Admin", () => {
+    usePathnameMock.mockReturnValue("/poles");
+    render(<Sidebar role="User" customerId="cust-1" />);
+    expect(screen.queryByRole("link", { name: /Customers/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Projects/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Poles/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Users/ })).toBeInTheDocument();
+  });
+
+  it("shows Customers and hides Projects for a 'Streetleaf User' (role User, no customerId) — same as Streetleaf Admin", () => {
+    usePathnameMock.mockReturnValue("/customers");
+    render(<Sidebar role="User" customerId={null} />);
+    expect(screen.getByRole("link", { name: /Customers/ })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Projects/ })).not.toBeInTheDocument();
+  });
+
+  it("treats a plain User with no customerId prop passed at all the same as a Streetleaf User (customerId defaults to null)", () => {
+    usePathnameMock.mockReturnValue("/customers");
+    render(<Sidebar role="User" />);
+    expect(screen.getByRole("link", { name: /Customers/ })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Projects/ })).not.toBeInTheDocument();
+  });
+
   it("places Projects above Poles for a Customer Admin", () => {
     usePathnameMock.mockReturnValue("/projects");
     render(<Sidebar role="Customer Admin" />);

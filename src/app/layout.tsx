@@ -46,7 +46,11 @@ export default async function RootLayout({
       className={`${cabin.variable} ${robotoSlab.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
       <body className="flex h-full min-h-screen bg-[var(--bg)] text-[var(--ink)]">
-        <AppShell isSignedIn={Boolean(sessionUser)} role={sessionUser?.role ?? null}>
+        <AppShell
+          isSignedIn={Boolean(sessionUser)}
+          role={sessionUser?.role ?? null}
+          customerId={sessionUser?.customerId ?? null}
+        >
           {children}
         </AppShell>
       </body>

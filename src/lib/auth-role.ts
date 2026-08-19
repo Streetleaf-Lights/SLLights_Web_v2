@@ -40,9 +40,29 @@ export function decodeSessionToken(token: string): SessionUser | null {
   }
 }
 
+/**
+ * True for anyone scoped to exactly one customer's data: a Customer
+ * Admin, or a "Customer User" (a plain "User" role that does belong to a
+ * customer). False for anyone with full cross-customer visibility: a
+ * Streetleaf Admin, or a "Streetleaf User" (a plain "User" with no
+ * customer). Drives sidebar link visibility, the Customers/Projects route
+ * enforcement in proxy.ts, home-route redirects, and the Poles/Projects
+ * pages' own data scoping — kept here as the single source of truth so
+ * those can't drift out of sync with each other.
+ */
+export function isCustomerScoped(
+  role: string | null | undefined,
+  customerId: string | null | undefined,
+): boolean {
+  return role === "Customer Admin" || (role === "User" && customerId != null);
+}
+
 /** Where a person should land right after signing in/registering, or when redirected off a page they can't access. */
-export function homeRouteForRole(role: string | null | undefined): string {
-  return role === "Customer Admin" ? "/projects" : "/customers";
+export function homeRouteForRole(
+  role: string | null | undefined,
+  customerId?: string | null,
+): string {
+  return isCustomerScoped(role, customerId) ? "/projects" : "/customers";
 }
 
 /**

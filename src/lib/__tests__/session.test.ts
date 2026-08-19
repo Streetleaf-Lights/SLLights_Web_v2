@@ -6,7 +6,7 @@ vi.mock("next/headers", () => ({
   cookies: cookiesMock,
 }));
 
-import { decodeSessionToken, getSessionUser, homeRouteForRole } from "@/lib/session";
+import { decodeSessionToken, getSessionUser, homeRouteForRole, isCustomerScoped } from "@/lib/session";
 import { getSecondsUntilExpiry } from "@/lib/auth-role";
 
 function encodePayload(payload: Record<string, unknown>): string {
@@ -114,6 +114,42 @@ describe("homeRouteForRole", () => {
     expect(homeRouteForRole(undefined)).toBe("/customers");
     expect(homeRouteForRole(null)).toBe("/customers");
     expect(homeRouteForRole("Some Other Role")).toBe("/customers");
+  });
+
+  it("sends a 'Customer User' (role User, with a customerId) to /projects — same as Customer Admin", () => {
+    expect(homeRouteForRole("User", "cust-1")).toBe("/projects");
+  });
+
+  it("sends a 'Streetleaf User' (role User, no customerId) to /customers — same as Streetleaf Admin", () => {
+    expect(homeRouteForRole("User", null)).toBe("/customers");
+    expect(homeRouteForRole("User")).toBe("/customers");
+  });
+});
+
+describe("isCustomerScoped", () => {
+  it("is true for a Customer Admin, regardless of customerId", () => {
+    expect(isCustomerScoped("Customer Admin", "cust-1")).toBe(true);
+    expect(isCustomerScoped("Customer Admin", null)).toBe(true);
+  });
+
+  it("is false for a Streetleaf Admin, regardless of customerId", () => {
+    expect(isCustomerScoped("Streetleaf Admin", "cust-1")).toBe(false);
+    expect(isCustomerScoped("Streetleaf Admin", null)).toBe(false);
+  });
+
+  it("is true for a plain User with a customerId (a 'Customer User')", () => {
+    expect(isCustomerScoped("User", "cust-1")).toBe(true);
+  });
+
+  it("is false for a plain User with no customerId (a 'Streetleaf User')", () => {
+    expect(isCustomerScoped("User", null)).toBe(false);
+    expect(isCustomerScoped("User", undefined)).toBe(false);
+  });
+
+  it("is false for any other/unknown role", () => {
+    expect(isCustomerScoped("Viewer", "cust-1")).toBe(false);
+    expect(isCustomerScoped(null, "cust-1")).toBe(false);
+    expect(isCustomerScoped(undefined, undefined)).toBe(false);
   });
 });
 

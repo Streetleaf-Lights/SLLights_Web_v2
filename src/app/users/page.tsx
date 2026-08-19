@@ -11,11 +11,21 @@ export default async function UsersPage() {
   const sessionUser = await getSessionUser();
   const isCustomerAdmin = sessionUser?.role === "Customer Admin";
   const isStreetleafAdmin = sessionUser?.role === "Streetleaf Admin";
-  // A plain "User" (or any other/unrecognized role) has no management
-  // capability here at all — no Delete, no Re-invite, no Actions column.
-  // Streetleaf Admin and Customer Admin both get it, but never for their
-  // own row (see currentUserId below) — deleting/re-inviting yourself
-  // isn't a real scenario this UI needs to support.
+  const isPlainUser = sessionUser?.role === "User";
+
+  // Viewing scope: who this person can see in the list at all. A Customer
+  // Admin and a "Customer User" (a plain User who does belong to a
+  // customer) both only see their own customer's people — a "Streetleaf
+  // User" (a plain User with no customer) sees everyone, same as a
+  // Streetleaf Admin.
+  const isCustomerScoped = isCustomerAdmin || (isPlainUser && sessionUser?.customerId != null);
+
+  // Management capability: whether Delete/Invite/Re-invite show at all —
+  // separate from viewing scope above. A plain User (Streetleaf or
+  // Customer) never gets this, regardless of how much of the list they
+  // can see. Streetleaf Admin and Customer Admin both get it, but never
+  // for their own row (see currentUserId below) — deleting/re-inviting
+  // yourself isn't a real scenario this UI needs to support.
   const canManageUsers = isStreetleafAdmin || isCustomerAdmin;
 
   // A Customer Admin only manages their own customer's users, and can't
@@ -31,7 +41,7 @@ export default async function UsersPage() {
       : Promise.resolve(undefined),
   ]);
 
-  const users = isCustomerAdmin
+  const users = isCustomerScoped
     ? allUsers.filter((u) => u.customerId === sessionUser?.customerId)
     : allUsers;
 
@@ -47,7 +57,12 @@ export default async function UsersPage() {
         }
       />
       <Toolbar searchPlaceholder="Search users…" resultCount={`${users.length} users`} />
-      <UsersTable users={users} canManageUsers={canManageUsers} currentUserId={sessionUser?.id} />
+      <UsersTable
+        users={users}
+        canManageUsers={canManageUsers}
+        currentUserId={sessionUser?.id}
+        customerScoped={isCustomerScoped}
+      />
     </>
   );
 }

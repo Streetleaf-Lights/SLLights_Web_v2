@@ -20,10 +20,19 @@ export function UsersTable({
   users,
   canManageUsers = true,
   currentUserId,
+  customerScoped = false,
 }: {
   users: User[];
   canManageUsers?: boolean;
   currentUserId?: string | null;
+  /**
+   * True when the viewer (Customer Admin or "Customer User") only ever
+   * sees their own customer's people — the Customer column is then
+   * redundant (every row is the same customer) and gets hidden, and
+   * "Customer Admin" is shortened to "Admin" since "Customer" is implied
+   * by the whole view already being scoped to one.
+   */
+  customerScoped?: boolean;
 }) {
   const router = useRouter();
   const [page, setPage] = useState(1);
@@ -36,11 +45,66 @@ export function UsersTable({
     text: string;
     isError: boolean;
   } | null>(null);
+  const [changingRoleUserId, setChangingRoleUserId] = useState<string | null>(null);
+  const [changeRoleResult, setChangeRoleResult] = useState<{
+    userId: string;
+    text: string;
+    isError: boolean;
+  } | null>(null);
 
   function closeConfirm() {
     setPendingDelete(null);
     setDeleting(false);
     setDeleteError(null);
+  }
+
+  async function handleChangeRole(user: User) {
+    setChangingRoleUserId(user.id);
+    setChangeRoleResult(null);
+    try {
+      const res = await fetch("/api/changerole", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id }),
+      });
+      const body = await res.json().catch(() => null);
+
+      if (res.status === 401) {
+        // Same reasoning as handleConfirmDelete — an inline error here
+        // would be a dead end, since retrying would just fail the same way.
+        router.push("/signin");
+        router.refresh();
+        return;
+      }
+
+      if (!res.ok) {
+        setChangeRoleResult({
+          userId: user.id,
+          text: body?.error ?? "Change role failed. Please try again.",
+          isError: true,
+        });
+        return;
+      }
+
+      const displayRole =
+        customerScoped && body?.role === "Customer Admin" ? "Admin" : (body?.role ?? "—");
+      setChangeRoleResult({
+        userId: user.id,
+        text: `Role changed to ${displayRole}.`,
+        isError: false,
+      });
+      // Users page is server-rendered (force-dynamic) — refresh re-fetches
+      // getUsers() so the new role shows in the Role column right away.
+      router.refresh();
+    } catch {
+      setChangeRoleResult({
+        userId: user.id,
+        text: "Something went wrong. Please try again.",
+        isError: true,
+      });
+    } finally {
+      setChangingRoleUserId(null);
+    }
   }
 
   async function handleReinvite(user: User) {
@@ -137,7 +201,7 @@ export function UsersTable({
               <th className="py-2.5 pr-4 font-medium">Email</th>
               <th className="py-2.5 pr-4 font-medium">Role</th>
               <th className="py-2.5 pr-4 font-medium">Status</th>
-              <th className="py-2.5 pr-4 font-medium">Customer</th>
+              {!customerScoped && <th className="py-2.5 pr-4 font-medium">Customer</th>}
               {canManageUsers && <th className="py-2.5 pr-8 text-right font-medium">Actions</th>}
             </tr>
           </thead>
@@ -158,13 +222,17 @@ export function UsersTable({
                 <td className="py-3 pr-4 font-mono-data text-[12px] text-[var(--ink-muted)]">
                   {user.email}
                 </td>
-                <td className="py-3 pr-4 text-[var(--ink)]">{user.role}</td>
+                <td className="py-3 pr-4 text-[var(--ink)]">
+                  {customerScoped && user.role === "Customer Admin" ? "Admin" : user.role}
+                </td>
                 <td className="py-3 pr-4">
                   <StatusBadge status={statusBadgeKind(user.status)} />
                 </td>
-                <td className="py-3 pr-4 text-[var(--ink)]">
-                  {user.customerId === null ? "Streetleaf" : user.customerName}
-                </td>
+                {!customerScoped && (
+                  <td className="py-3 pr-4 text-[var(--ink)]">
+                    {user.customerId === null ? "Streetleaf" : user.customerName}
+                  </td>
+                )}
                 {canManageUsers && (
                   <td className="py-3 pr-8 text-right">
                     <div className="flex items-center justify-end gap-2">
@@ -176,6 +244,16 @@ export function UsersTable({
                           className="rounded-md border border-[var(--border)] px-2.5 py-1 text-[12px] font-medium text-[var(--accent-ink)] hover:bg-[var(--accent-soft)] disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {reinvitingUserId === user.id ? "Sending…" : "Re-invite"}
+                        </button>
+                      )}
+                      {user.id !== currentUserId && (
+                        <button
+                          type="button"
+                          onClick={() => handleChangeRole(user)}
+                          disabled={changingRoleUserId === user.id}
+                          className="rounded-md border border-[var(--border)] px-2.5 py-1 text-[12px] font-medium text-[var(--accent-ink)] hover:bg-[var(--accent-soft)] disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {changingRoleUserId === user.id ? "Changing…" : "Change Role"}
                         </button>
                       )}
                       {user.id !== currentUserId && (
@@ -198,6 +276,18 @@ export function UsersTable({
                         }`}
                       >
                         {reinviteResult.text}
+                      </p>
+                    )}
+                    {changeRoleResult?.userId === user.id && (
+                      <p
+                        role={changeRoleResult.isError ? "alert" : "status"}
+                        className={`mt-1 text-[11px] ${
+                          changeRoleResult.isError
+                            ? "text-[var(--status-flagged)]"
+                            : "text-[var(--status-active)]"
+                        }`}
+                      >
+                        {changeRoleResult.text}
                       </p>
                     )}
                   </td>

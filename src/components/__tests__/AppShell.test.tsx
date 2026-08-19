@@ -111,4 +111,15 @@ describe("AppShell", () => {
     expect(screen.queryByRole("link", { name: /Customers/ })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Poles/ })).toBeInTheDocument();
   });
+
+  it("passes customerId through to the Sidebar, hiding Customers and showing Projects for a Customer User", () => {
+    usePathnameMock.mockReturnValue("/poles");
+    render(
+      <AppShell role="User" customerId="cust-1">
+        <div>page content</div>
+      </AppShell>,
+    );
+    expect(screen.queryByRole("link", { name: /Customers/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Projects/ })).toBeInTheDocument();
+  });
 });

@@ -9,10 +9,12 @@ export function AppShell({
   children,
   isSignedIn = false,
   role = null,
+  customerId = null,
 }: {
   children: React.ReactNode;
   isSignedIn?: boolean;
   role?: string | null;
+  customerId?: string | null;
 }) {
   const pathname = usePathname();
   const hideSidebar = NO_SIDEBAR_ROUTES.some(
@@ -27,7 +29,7 @@ export function AppShell({
 
   return (
     <>
-      <Sidebar isSignedIn={isSignedIn} role={role} />
+      <Sidebar isSignedIn={isSignedIn} role={role} customerId={customerId} />
       <main className="flex min-h-screen flex-1 flex-col overflow-x-hidden">{children}</main>
     </>
   );

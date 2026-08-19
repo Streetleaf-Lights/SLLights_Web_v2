@@ -425,6 +425,47 @@ export async function resendInvite(userId: string, token: string): Promise<void>
   }
 }
 
+export interface ChangeRoleResult {
+  userId: string;
+  role: string;
+  customerId: string | null;
+}
+
+/**
+ * POST /changeRole — toggles a user between "User" and admin (Customer
+ * Admin or Streetleaf Admin, depending on whether they have a customerId)
+ * server-side; there's no way to specify which role to change *to*, only
+ * whose role to change. Requires the caller to be a Streetleaf Admin or
+ * Customer Admin themselves — APIM 400s with "this action requires one
+ * of: Streetleaf Admin, Customer Admin" otherwise, which surfaces as-is
+ * via the ApimError message below.
+ */
+export async function changeRole(userId: string, token: string): Promise<ChangeRoleResult> {
+  if (!APIM_BASE_URL) {
+    throw new ApimError("NEXT_PUBLIC_APIM_BASE_URL is not configured. Set it in .env.local.");
+  }
+
+  const res = await fetch(`${APIM_BASE_URL}/changeRole`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Ocp-Apim-Subscription-Key": APIM_SUBSCRIPTION_KEY,
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ userId }),
+    cache: "no-store",
+  });
+
+  const body = await res.json().catch(() => null);
+
+  if (!res.ok) {
+    const message = body && typeof body.error === "string" ? body.error : "Change role failed.";
+    throw new ApimError(message, res.status);
+  }
+
+  return body as ChangeRoleResult;
+}
+
 /**
  * POST /deleteUser?userId=... — userId goes in the query string, not the
  * body (unlike inviteUser). Like inviteUser, requires the caller's own JWT

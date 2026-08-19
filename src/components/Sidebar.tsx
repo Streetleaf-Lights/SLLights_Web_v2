@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { NavLinkSpinner } from "@/components/NavLinkSpinner";
+import { isCustomerScoped } from "@/lib/auth-role";
 
 const NAV_ITEMS = [
   { href: "/customers", label: "Customers" },
@@ -13,35 +14,38 @@ const NAV_ITEMS = [
   { href: "/users", label: "Users" },
 ] as const;
 
-// Customers spans every customer, so a Customer Admin (who only has one)
-// doesn't need it. Projects is the inverse: it's that same Customer
-// Admin's own customer overview, so a Streetleaf Admin (who has no single
-// customer of their own) doesn't need it either.
-const HIDDEN_FOR_ROLE: Record<string, string> = {
-  "/customers": "Customer Admin",
-};
-
-function isVisible(href: string, role: string | null): boolean {
-  if (href === "/projects") return role === "Customer Admin";
-  return HIDDEN_FOR_ROLE[href] !== role;
+// Customers spans every customer, so anyone scoped to just one customer
+// (a Customer Admin, or a "Customer User" — a plain User who does belong
+// to a customer) doesn't need it. Projects is the inverse: it's that
+// same customer's own overview, so anyone NOT scoped to a single customer
+// (a Streetleaf Admin, or a "Streetleaf User" with no customer) doesn't
+// need it either.
+function isVisible(href: string, role: string | null, customerId: string | null): boolean {
+  const scoped = isCustomerScoped(role, customerId);
+  if (href === "/projects") return scoped;
+  if (href === "/customers") return !scoped;
+  return true;
 }
 
 export default function Sidebar({
   isSignedIn = false,
   role = null,
+  customerId = null,
 }: {
   isSignedIn?: boolean;
   role?: string | null;
+  customerId?: string | null;
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const [signingOut, setSigningOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // A Customer Admin only manages their own customer's poles and users —
-  // the Customers section spans every customer, so it's hidden for them,
-  // while Projects (their own customer overview) is shown only for them.
-  const navItems = NAV_ITEMS.filter((item) => isVisible(item.href, role));
+  // A Customer Admin (or Customer User) only manages/sees their own
+  // customer's poles and users — the Customers section spans every
+  // customer, so it's hidden for them, while Projects (their own
+  // customer overview) is shown only for them.
+  const navItems = NAV_ITEMS.filter((item) => isVisible(item.href, role, customerId));
 
   async function handleSignOut() {
     setError(null);
