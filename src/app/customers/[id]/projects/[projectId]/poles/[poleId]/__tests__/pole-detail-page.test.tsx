@@ -113,7 +113,6 @@ const vitals: CustomerPoleVitals = {
           batteryElecCurrent2: 100,
           solarBoardVoltage: 18.565,
           solarBoardElecCurrent: 4.443,
-          batteryChargingMin: 13.5,
           avgBatteryPercentage: 90.43,
           avgPanelPercentage: 10.79,
           avgLightPercentage: 11.3,
@@ -395,7 +394,6 @@ describe("PoleDetailPage", () => {
     expect(screen.getByText("Recent Electric Current 2").nextElementSibling).toHaveTextContent("100");
     expect(screen.getByText("Recent Battery Voltage 1").nextElementSibling).toHaveTextContent("13.509V");
     expect(screen.getByText("Recent Battery Voltage 2").nextElementSibling).toHaveTextContent("13.785V");
-    expect(screen.getByText("Minimum Charging Voltage").nextElementSibling).toHaveTextContent("13.5V");
   });
 
   it("uses 'Last Known' labels (header, section, and box metrics) for a silent pole — lastUpdate more than 48h ago — while showing the exact same underlying values", async () => {
@@ -463,11 +461,8 @@ describe("PoleDetailPage", () => {
     expect(screen.getByText("Last Known Battery Voltage 2").nextElementSibling).toHaveTextContent(
       "13.785V",
     );
-    // Minimum Charging Voltage isn't "Latest"-prefixed, so it's untouched.
-    expect(screen.getByText("Minimum Charging Voltage").nextElementSibling).toHaveTextContent(
-      "13.5V",
-    );
     expect(screen.queryByText("Last Known Charging Voltage")).not.toBeInTheDocument();
+    expect(screen.queryByText("Minimum Charging Voltage")).not.toBeInTheDocument();
     expect(screen.queryByText("Recent Light Power 1")).not.toBeInTheDocument();
 
     // Vitals History heading
@@ -676,7 +671,6 @@ describe("PoleDetailPage", () => {
               batteryElecCurrent2: null,
               solarBoardVoltage: null,
               solarBoardElecCurrent: null,
-              batteryChargingMin: null,
               avgBatteryPercentage: null,
               avgPanelPercentage: null,
               avgLightPercentage: null,
@@ -727,7 +721,6 @@ describe("PoleDetailPage", () => {
               batteryElecCurrent2: null,
               solarBoardVoltage: null,
               solarBoardElecCurrent: null,
-              batteryChargingMin: null,
               avgBatteryPercentage: null,
               avgPanelPercentage: null,
               avgLightPercentage: null,

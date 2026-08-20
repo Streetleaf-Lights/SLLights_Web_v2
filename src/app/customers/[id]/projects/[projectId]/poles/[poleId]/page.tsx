@@ -235,10 +235,6 @@ export default async function PoleDetailPage({
                 label: recentLabel(isSilent, "Battery Voltage 2"),
                 value: formatVoltage(pole.batteryVoltage2),
               },
-              {
-                label: "Minimum Charging Voltage",
-                value: formatVoltage(pole.batteryChargingMin),
-              },
             ]}
           />
           <StatusBox

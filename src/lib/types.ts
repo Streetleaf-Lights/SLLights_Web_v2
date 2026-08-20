@@ -60,7 +60,6 @@ export interface PoleVital {
   batteryElecCurrent2: number | null;
   solarBoardVoltage: number | null;
   solarBoardElecCurrent: number | null;
-  batteryChargingMin: number | null;
   isLedFault: boolean | null;
   isBatteryFault: boolean | null;
   isPanelFault: boolean | null;
