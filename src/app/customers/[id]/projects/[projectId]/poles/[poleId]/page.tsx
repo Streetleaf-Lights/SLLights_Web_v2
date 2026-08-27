@@ -123,20 +123,24 @@ export default async function PoleDetailPage({
   }
 
   const connected = connectionStatus(pole.isOnline, pole.lastUpdate);
-  const overallStatus = faultStatus(pole.isPoleFault, "OK", "Fault");
   const isSilent = isSilentPole(pole.lastUpdate);
   // A pole with Unknown connectivity (never reported at all — no isOnline,
-  // no lastUpdate) has no reliable telemetry basis for its fault flags
-  // either, even though those booleans might still hold some fault value —
-  // show a dash on all 4 cards rather than a status that may be
-  // stale/inconsistent with reality.
+  // no lastUpdate) has no reliable telemetry basis for its fault flags or
+  // 48h averages either, even though those fields might still hold some
+  // real (stale) value — show a dash everywhere on this page rather than a
+  // status that may be inconsistent with reality: the header's Overall
+  // Status, all 4 cards, and the 48h Average % metrics.
   const isUnknownConnected = connected.text === "Unknown";
+  const overallStatus = faultStatus(isUnknownConnected ? null : pole.isPoleFault, "OK", "Fault");
   function cardFaultStatus(
     isFault: boolean | null | undefined,
     okLabel: string,
     faultLabel: string,
   ) {
     return faultStatus(isUnknownConnected ? null : isFault, okLabel, faultLabel);
+  }
+  function avgPercentText(value: number | null | undefined): string {
+    return isUnknownConnected ? "—" : formatPercent(value);
   }
   const viewerIsCustomerScoped = isCustomerScoped(sessionUser?.role, sessionUser?.customerId);
 
@@ -212,7 +216,7 @@ export default async function PoleDetailPage({
                 : [
                     {
                       label: "48h Average Light %",
-                      value: formatPercent(pole.avgLightPercentage),
+                      value: avgPercentText(pole.avgLightPercentage),
                     },
                     {
                       label: "Light Power 1",
@@ -238,7 +242,7 @@ export default async function PoleDetailPage({
                 : [
                     {
                       label: "48h Average Panel %",
-                      value: formatPercent(pole.avgPanelPercentage),
+                      value: avgPercentText(pole.avgPanelPercentage),
                     },
                     {
                       label: "Panel Voltage",
@@ -267,7 +271,7 @@ export default async function PoleDetailPage({
                     { label: "Operating Status", value: pole.batteryStatusLabel ?? "—" },
                     {
                       label: "48h Average Battery %",
-                      value: formatPercent(pole.avgBatteryPercentage),
+                      value: avgPercentText(pole.avgBatteryPercentage),
                     },
                     {
                       label: "Battery Percentage",

@@ -778,7 +778,7 @@ describe("PoleDetailPage", () => {
     expect(screen.getByText("Battery Percentage").nextElementSibling).toHaveTextContent("—");
   });
 
-  it("shows a dash on all 4 cards (Light/Panel/Battery/Issue) when 48h Connected is Unknown, even though every fault flag has a real (non-null) value", async () => {
+  it("shows a dash on the header's Overall Status, all 4 cards (Light/Panel/Battery/Issue), and the 48h Average % metrics when 48h Connected is Unknown, even though every fault flag and percentage has a real (non-null) value", async () => {
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
     getPoleVitalsForCustomerMock.mockResolvedValue({
@@ -791,9 +791,12 @@ describe("PoleDetailPage", () => {
               ...vitals.projects[0].poles[0],
               isOnline: null,
               lastUpdate: null,
-              // Real, non-null fault data — the point of this test is that
-              // it's still overridden to a dash, since Unknown connectivity
-              // means this data has no reliable telemetry basis.
+              // Real, non-null fault/percentage data — the point of this
+              // test is that it's still overridden to a dash, since
+              // Unknown connectivity means this data has no reliable
+              // telemetry basis. avgLightPercentage/avgPanelPercentage/
+              // avgBatteryPercentage are already real values on the base
+              // fixture (11.3/10.8/90.4), left as-is here.
               isLedFault: true,
               isPanelFault: false,
               isBatteryFault: true,
@@ -811,12 +814,28 @@ describe("PoleDetailPage", () => {
     render(jsx);
 
     expect(screen.getByText("Unknown")).toBeInTheDocument();
+
+    // Header's Overall Status — dashed, not "Fault" (isPoleFault is true).
+    expect(screen.getByText("48h Overall Status:").parentElement).toHaveTextContent(
+      "48h Overall Status: —",
+    );
+
     for (const title of ["Light", "Panel", "Battery", "Issue"]) {
       const badge = screen.getByText(title).nextElementSibling;
       expect(badge).toHaveTextContent("—");
       expect(badge?.className).not.toContain("status-active");
       expect(badge?.className).not.toContain("status-flagged");
     }
+
+    expect(screen.getByText("48h Average Light %").nextElementSibling).toHaveTextContent("—");
+    expect(screen.getByText("48h Average Panel %").nextElementSibling).toHaveTextContent("—");
+    expect(screen.getByText("48h Average Battery %").nextElementSibling).toHaveTextContent("—");
+    // Confirms this isn't a coincidental dash — the real percentages/fault
+    // text would otherwise show up as these exact strings.
+    expect(screen.queryByText("Fault")).not.toBeInTheDocument();
+    expect(screen.queryByText("11.3%")).not.toBeInTheDocument();
+    expect(screen.queryByText("10.8%")).not.toBeInTheDocument();
+    expect(screen.queryByText("90.4%")).not.toBeInTheDocument();
   });
 
   it("groups Last Update + Install Date in one column, Lat + Long in another, and Connected + Overall Status in a third", async () => {
