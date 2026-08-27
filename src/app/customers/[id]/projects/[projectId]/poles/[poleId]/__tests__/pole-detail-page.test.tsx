@@ -373,7 +373,7 @@ describe("PoleDetailPage", () => {
     expect(screen.getByText("Light")).toBeInTheDocument();
     expect(screen.getByText("Panel")).toBeInTheDocument();
     expect(screen.getByText("Battery")).toBeInTheDocument();
-    expect(screen.getByText("Issue")).toBeInTheDocument();
+    expect(screen.getByText("Issue Entry")).toBeInTheDocument();
 
     // The 3 green box status badges (Light/Panel/Battery), scoped by their
     // badge styling (font-semibold) — the header's own Overall Status span
@@ -384,7 +384,7 @@ describe("PoleDetailPage", () => {
     for (const stat of okBadges) {
       expect(stat.className).toContain("text-[var(--status-active)]");
     }
-    const noIssue = screen.getByText("No Issue");
+    const noIssue = screen.getByText("None");
     expect(noIssue.className).toContain("text-[var(--status-active)]");
     expect(screen.getByText("48h Overall Status:").parentElement).toHaveTextContent(
       "48h Overall Status: OK",
@@ -439,7 +439,7 @@ describe("PoleDetailPage", () => {
     expect(screen.getByText("Light")).toBeInTheDocument();
     expect(screen.getByText("Panel")).toBeInTheDocument();
     expect(screen.getByText("Battery")).toBeInTheDocument();
-    expect(screen.getByText("Issue")).toBeInTheDocument();
+    expect(screen.getByText("Issue Entry")).toBeInTheDocument();
 
     // Box metric labels are plain — no prefix at all, silent or not — the
     // underlying values are unaffected by silence.
@@ -505,7 +505,7 @@ describe("PoleDetailPage", () => {
     expect(screen.queryByText("Recent Operating Status")).not.toBeInTheDocument();
   });
 
-  it("shows Fault (red) for a flagged component, and Open Issue (red) for an open issue", async () => {
+  it("shows Fault (red) for a flagged component, and Yes (red) for the Issue Entry box", async () => {
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
     getPoleVitalsForCustomerMock.mockResolvedValue({
@@ -538,7 +538,7 @@ describe("PoleDetailPage", () => {
     for (const stat of faultStats) {
       expect(stat.className).toContain("text-[var(--status-flagged)]");
     }
-    const openIssue = screen.getByText("Open Issue");
+    const openIssue = screen.getByText("Yes");
     expect(openIssue.className).toContain("text-[var(--status-flagged)]");
   });
 
@@ -581,7 +581,7 @@ describe("PoleDetailPage", () => {
       screen.getByText("Light"),
       screen.getByText("Panel"),
       screen.getByText("Battery"),
-      screen.getByText("Issue"),
+      screen.getByText("Issue Entry"),
     ];
     for (const heading of boxHeadings) {
       const statusEl = heading.nextElementSibling;
@@ -766,7 +766,7 @@ describe("PoleDetailPage", () => {
       screen.getByText("Light"),
       screen.getByText("Panel"),
       screen.getByText("Battery"),
-      screen.getByText("Issue"),
+      screen.getByText("Issue Entry"),
     ]) {
       expect(heading.nextElementSibling).toHaveTextContent("—");
     }
@@ -820,7 +820,7 @@ describe("PoleDetailPage", () => {
       "48h Overall Status: —",
     );
 
-    for (const title of ["Light", "Panel", "Battery", "Issue"]) {
+    for (const title of ["Light", "Panel", "Battery", "Issue Entry"]) {
       const badge = screen.getByText(title).nextElementSibling;
       expect(badge).toHaveTextContent("—");
       expect(badge?.className).not.toContain("status-active");

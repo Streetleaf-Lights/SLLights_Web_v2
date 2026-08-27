@@ -297,8 +297,8 @@ export default async function PoleDetailPage({
             }
           />
           <StatusBox
-            title="Issue"
-            status={cardFaultStatus(pole.isOpenIssueFault, "No Issue", "Open Issue")}
+            title="Issue Entry"
+            status={cardFaultStatus(pole.isOpenIssueFault, "None", "Yes")}
             metrics={[]}
           />
         </div>
