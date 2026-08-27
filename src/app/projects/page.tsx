@@ -22,5 +22,12 @@ export default async function ProjectsPage() {
     getPoleVitalsForCustomer(customer.id),
   ]);
 
-  return <CustomerOverview customer={customer} projects={projects} vitals={vitals} />;
+  return (
+    <CustomerOverview
+      customer={customer}
+      projects={projects}
+      vitals={vitals}
+      hideConnectedLights
+    />
+  );
 }

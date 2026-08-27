@@ -68,6 +68,12 @@ export interface PoleVital {
   avgBatteryPercentage: number | null;
   avgPanelPercentage: number | null;
   avgLightPercentage: number | null;
+  lightStatusLabel: string | null;
+  panelStatusLabel: string | null;
+  panelIdleReason: string | null;
+  batteryStatusLabel: string | null;
+  // Not shown anywhere yet — reserved for the pole detail page.
+  electricCurrentAverage: number | null;
 }
 
 /** Vitals for a single project, as nested inside GET /getPoleVitals?customerId=... */

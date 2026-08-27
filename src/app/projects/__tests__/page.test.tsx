@@ -129,6 +129,25 @@ describe("ProjectsPage", () => {
     expect(screen.getByText("Bayou District Rebuild")).toBeInTheDocument();
   });
 
+  it("hides the Connected lights stat from each project row (unlike the customer detail page)", async () => {
+    getSessionUserMock.mockResolvedValue({
+      id: "u1",
+      role: "Customer Admin",
+      customerId: "rec5uaHZMOGZGyVcY",
+    });
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
+
+    const jsx = await ProjectsPage();
+    render(jsx);
+
+    expect(screen.queryByText("Connected lights")).not.toBeInTheDocument();
+    // The other two stats on that same row are unaffected.
+    expect(screen.getAllByText("Total lights").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Total faults").length).toBeGreaterThan(0);
+  });
+
   it("does not render a breadcrumb (it's a primary nav destination, not a drill-down page)", async () => {
     getSessionUserMock.mockResolvedValue({
       id: "u1",

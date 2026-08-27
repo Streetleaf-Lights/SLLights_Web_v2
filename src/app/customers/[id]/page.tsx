@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Breadcrumbs, leadingCrumb } from "@/components/Breadcrumbs";
 import { CustomerOverview } from "@/components/CustomerOverview";
 import { withQueryParam } from "@/lib/url";
-import { getSessionUser } from "@/lib/session";
+import { getSessionUser, isCustomerScoped } from "@/lib/session";
 
 export default async function CustomerDetailPage({
   params,
@@ -48,6 +48,7 @@ export default async function CustomerDetailPage({
         vitals={vitals}
         custQ={cust_q}
         poleQ={pole_q}
+        hideConnectedLights={isCustomerScoped(sessionUser?.role, sessionUser?.customerId)}
       />
     </>
   );

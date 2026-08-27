@@ -31,12 +31,23 @@ export function CustomerOverview({
   vitals,
   custQ,
   poleQ,
+  hideConnectedLights = false,
 }: {
   customer: Customer;
   projects: Project[];
   vitals: CustomerPoleVitals | undefined;
   custQ?: string;
   poleQ?: string;
+  /**
+   * Drops "Connected lights" from each project's stat row, keeping just
+   * Total lights and Total faults. Always set on the top-level Projects
+   * page (only ever visited by a Customer Admin/User, viewing their own
+   * customer); set conditionally on the customer detail page, based on
+   * whether *the viewer* (not necessarily the customer being viewed) is
+   * customer-scoped — a Streetleaf Admin browsing any customer still sees
+   * it, a Customer Admin/User doesn't, even on their own customer's page.
+   */
+  hideConnectedLights?: boolean;
 }) {
   const vitalsByProjectId = new Map(vitals?.projects.map((p) => [p.id, p]));
 
@@ -117,10 +128,14 @@ export function CustomerOverview({
                       size="sm"
                       stats={[
                         { value: projectVitals?.totalLights ?? "—", label: "Total lights" },
-                        {
-                          value: projectVitals?.connectedLights ?? "—",
-                          label: "Connected lights",
-                        },
+                        ...(hideConnectedLights
+                          ? []
+                          : [
+                              {
+                                value: projectVitals?.connectedLights ?? "—",
+                                label: "Connected lights",
+                              },
+                            ]),
                         { value: projectVitals?.totalFaults ?? "—", label: "Total faults" },
                       ]}
                     />

@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Pagination } from "@/components/Pagination";
 import { withSearchContext } from "@/lib/url";
-import { connectionStatus } from "@/lib/text";
+import { connectionStatus, isSilentPole } from "@/lib/text";
 import type { PoleVital } from "@/lib/types";
 
 const PAGE_SIZE = 10;
@@ -23,18 +23,63 @@ function poleStatusLabel(isFault: boolean | null | undefined): {
   };
 }
 
+/**
+ * "Not Reporting" if this pole has never had any update at all (no
+ * lastUpdate on record), or — for a customer-scoped viewer — any time it's
+ * silent at all (the "48H" distinction is a Streetleaf-only detail).
+ * "Not Reporting 48H" otherwise, once it's reported before but hasn't
+ * checked in for 48h+ — either way, its last-known light label would
+ * otherwise be stale/misleading, so it's not shown.
+ */
+function lightColumnText(pole: PoleVital, customerScoped: boolean): string {
+  if (!pole.lastUpdate) return "Not Reporting";
+  if (isSilentPole(pole.lastUpdate)) {
+    return customerScoped ? "Not Reporting" : "Not Reporting 48H";
+  }
+  return pole.lightStatusLabel ?? "—";
+}
+
+/**
+ * Panel/Battery show a dash for a silent pole — same treatment as a null
+ * label — since a stale panelStatusLabel/batteryStatusLabel from before it
+ * stopped reporting isn't meaningfully different from having no reading at
+ * all. Appends the idle reason in parentheses only when actually Idle,
+ * and only for a pole that's still reporting.
+ */
+function panelColumnText(pole: PoleVital): string {
+  if (isSilentPole(pole.lastUpdate)) return "—";
+  const label = pole.panelStatusLabel ?? "—";
+  if (label === "Idle" && pole.panelIdleReason) {
+    return `${label} (${pole.panelIdleReason})`;
+  }
+  return label;
+}
+
+function batteryColumnText(pole: PoleVital): string {
+  if (isSilentPole(pole.lastUpdate)) return "—";
+  return pole.batteryStatusLabel ?? "—";
+}
+
 export function ProjectPolesTable({
   poles,
   customerId,
   projectId,
   custQ,
   poleQ,
+  customerScoped = false,
 }: {
   poles: PoleVital[];
   customerId: string;
   projectId: string;
   custQ?: string;
   poleQ?: string;
+  /**
+   * True when the viewer (Customer Admin or "Customer User") is scoped to
+   * a single customer — drops "48h Connected" entirely (they're already
+   * looking at just their own poles, so it reads as noise) and shortens
+   * "48h Overall Status" to "Overall Status".
+   */
+  customerScoped?: boolean;
 }) {
   const [page, setPage] = useState(1);
 
@@ -57,8 +102,15 @@ export function ProjectPolesTable({
           <thead>
             <tr className="border-b border-[var(--border)] bg-[var(--surface-sunken)] text-[11.5px] uppercase tracking-wide text-[var(--ink-muted)]">
               <th className="py-2.5 pl-4 pr-4 font-medium">Pole Number</th>
-              <th className="py-2.5 pr-4 font-medium">48h Connected</th>
-              <th className="py-2.5 pr-8 font-medium">48h Overall Status</th>
+              {!customerScoped && (
+                <th className="py-2.5 pr-4 font-medium">48h Connected</th>
+              )}
+              <th className="py-2.5 pr-4 font-medium">
+                {customerScoped ? "Overall Status" : "48h Overall Status"}
+              </th>
+              <th className="py-2.5 pr-4 font-medium">Light</th>
+              <th className="py-2.5 pr-4 font-medium">Panel</th>
+              <th className="py-2.5 pr-8 font-medium">Battery</th>
             </tr>
           </thead>
           <tbody>
@@ -88,10 +140,15 @@ export function ProjectPolesTable({
                       {pole.poleNumber}
                     </Link>
                   </td>
-                  <td className={`py-3 pr-4 font-medium ${connected.className}`}>
-                    {connected.text}
-                  </td>
-                  <td className={`py-3 pr-8 font-medium ${status.className}`}>{status.text}</td>
+                  {!customerScoped && (
+                    <td className={`py-3 pr-4 font-medium ${connected.className}`}>
+                      {connected.text}
+                    </td>
+                  )}
+                  <td className={`py-3 pr-4 font-medium ${status.className}`}>{status.text}</td>
+                  <td className="py-3 pr-4">{lightColumnText(pole, customerScoped)}</td>
+                  <td className="py-3 pr-4">{panelColumnText(pole)}</td>
+                  <td className="py-3 pr-8">{batteryColumnText(pole)}</td>
                 </tr>
               );
             })}

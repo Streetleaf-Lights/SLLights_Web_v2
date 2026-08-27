@@ -6,12 +6,17 @@ import type { PoleVital } from "@/lib/types";
 
 const defaultProps = { customerId: "cust-1", projectId: "proj-1" };
 
+/** A timestamp within the last 48h — isSilentPole compares against the real current time. */
+function recentTimestamp(hoursAgo = 1): string {
+  return new Date(Date.now() - hoursAgo * 60 * 60 * 1000).toISOString();
+}
+
 describe("ProjectPolesTable", () => {
   const poles: PoleVital[] = [
-    { id: "p1", poleNumber: "51079-1000", locationId: "loc-1", isOnline: true, lightStatus: "Working", installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, lampPower1: null, lampPower2: null, batteryElecCurrent1: null, batteryElecCurrent2: null, solarBoardVoltage: null, solarBoardElecCurrent: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null, isLedFault: null, isBatteryFault: null, isPanelFault: null, isOpenIssueFault: null, isPoleFault: null },
-    { id: "p2", poleNumber: "51079-1001", locationId: "loc-2", isOnline: true, lightStatus: "DayLight", installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, lampPower1: null, lampPower2: null, batteryElecCurrent1: null, batteryElecCurrent2: null, solarBoardVoltage: null, solarBoardElecCurrent: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null, isLedFault: null, isBatteryFault: null, isPanelFault: null, isOpenIssueFault: null, isPoleFault: null },
-    { id: "p3", poleNumber: "51079-1002", locationId: "loc-3", isOnline: false, lightStatus: "Fault", installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, lampPower1: null, lampPower2: null, batteryElecCurrent1: null, batteryElecCurrent2: null, solarBoardVoltage: null, solarBoardElecCurrent: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null, isLedFault: null, isBatteryFault: null, isPanelFault: null, isOpenIssueFault: null, isPoleFault: null },
-    { id: "p4", poleNumber: "51079-1003", locationId: "loc-4", isOnline: null, lightStatus: null, installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, lampPower1: null, lampPower2: null, batteryElecCurrent1: null, batteryElecCurrent2: null, solarBoardVoltage: null, solarBoardElecCurrent: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null, isLedFault: null, isBatteryFault: null, isPanelFault: null, isOpenIssueFault: null, isPoleFault: null },
+    { id: "p1", poleNumber: "51079-1000", locationId: "loc-1", isOnline: true, lightStatus: "Working", installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, lampPower1: null, lampPower2: null, batteryElecCurrent1: null, batteryElecCurrent2: null, solarBoardVoltage: null, solarBoardElecCurrent: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null, lightStatusLabel: null, panelStatusLabel: null, panelIdleReason: null, batteryStatusLabel: null, electricCurrentAverage: null, isLedFault: null, isBatteryFault: null, isPanelFault: null, isOpenIssueFault: null, isPoleFault: null },
+    { id: "p2", poleNumber: "51079-1001", locationId: "loc-2", isOnline: true, lightStatus: "DayLight", installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, lampPower1: null, lampPower2: null, batteryElecCurrent1: null, batteryElecCurrent2: null, solarBoardVoltage: null, solarBoardElecCurrent: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null, lightStatusLabel: null, panelStatusLabel: null, panelIdleReason: null, batteryStatusLabel: null, electricCurrentAverage: null, isLedFault: null, isBatteryFault: null, isPanelFault: null, isOpenIssueFault: null, isPoleFault: null },
+    { id: "p3", poleNumber: "51079-1002", locationId: "loc-3", isOnline: false, lightStatus: "Fault", installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, lampPower1: null, lampPower2: null, batteryElecCurrent1: null, batteryElecCurrent2: null, solarBoardVoltage: null, solarBoardElecCurrent: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null, lightStatusLabel: null, panelStatusLabel: null, panelIdleReason: null, batteryStatusLabel: null, electricCurrentAverage: null, isLedFault: null, isBatteryFault: null, isPanelFault: null, isOpenIssueFault: null, isPoleFault: null },
+    { id: "p4", poleNumber: "51079-1003", locationId: "loc-4", isOnline: null, lightStatus: null, installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, lampPower1: null, lampPower2: null, batteryElecCurrent1: null, batteryElecCurrent2: null, solarBoardVoltage: null, solarBoardElecCurrent: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null, lightStatusLabel: null, panelStatusLabel: null, panelIdleReason: null, batteryStatusLabel: null, electricCurrentAverage: null, isLedFault: null, isBatteryFault: null, isPanelFault: null, isOpenIssueFault: null, isPoleFault: null },
   ];
 
   it("renders a row per pole with pole number and online status", () => {
@@ -214,6 +219,11 @@ describe("ProjectPolesTable", () => {
       avgBatteryPercentage: null,
       avgPanelPercentage: null,
       avgLightPercentage: null,
+      lightStatusLabel: null,
+      panelStatusLabel: null,
+      panelIdleReason: null,
+      batteryStatusLabel: null,
+      electricCurrentAverage: null,
       isLedFault: null,
       isBatteryFault: null,
       isPanelFault: null,
@@ -232,5 +242,214 @@ describe("ProjectPolesTable", () => {
 
     expect(screen.getByText("pole-11")).toBeInTheDocument();
     expect(screen.queryByText("pole-1")).not.toBeInTheDocument();
+  });
+
+  it("renders Light, Panel, and Battery column headers", () => {
+    render(<ProjectPolesTable poles={poles} {...defaultProps} />);
+    expect(screen.getByRole("columnheader", { name: "Light" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Panel" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Battery" })).toBeInTheDocument();
+  });
+
+  it("hides the 48h Connected column entirely when customerScoped is true", () => {
+    render(<ProjectPolesTable poles={poles} {...defaultProps} customerScoped />);
+    expect(screen.queryByRole("columnheader", { name: "48h Connected" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Online")).not.toBeInTheDocument();
+    expect(screen.queryByText("Offline")).not.toBeInTheDocument();
+  });
+
+  it("shows the 48h Connected column by default (customerScoped defaults to false)", () => {
+    render(<ProjectPolesTable poles={poles} {...defaultProps} />);
+    expect(screen.getByRole("columnheader", { name: "48h Connected" })).toBeInTheDocument();
+  });
+
+  it("labels the status column 'Overall Status' (no '48h' prefix) when customerScoped is true", () => {
+    render(<ProjectPolesTable poles={poles} {...defaultProps} customerScoped />);
+    expect(screen.getByRole("columnheader", { name: "Overall Status" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("columnheader", { name: "48h Overall Status" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("labels the status column '48h Overall Status' by default", () => {
+    render(<ProjectPolesTable poles={poles} {...defaultProps} />);
+    expect(screen.getByRole("columnheader", { name: "48h Overall Status" })).toBeInTheDocument();
+  });
+
+  it("still shows Light/Panel/Battery columns when customerScoped is true", () => {
+    render(<ProjectPolesTable poles={poles} {...defaultProps} customerScoped />);
+    expect(screen.getByRole("columnheader", { name: "Light" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Panel" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Battery" })).toBeInTheDocument();
+  });
+
+  it("shows 'Not Reporting' (no '48H') in the Light column when the pole has never had any update at all (lastUpdate null)", () => {
+    const neverReported = { ...poles[0], lastUpdate: null, lightStatusLabel: "ON" };
+    render(<ProjectPolesTable poles={[neverReported]} {...defaultProps} />);
+    expect(screen.getByText("Not Reporting")).toBeInTheDocument();
+    expect(screen.queryByText("Not Reporting 48H")).not.toBeInTheDocument();
+    expect(screen.queryByText("ON")).not.toBeInTheDocument();
+  });
+
+  it("shows 'Not Reporting 48H' in the Light column for a pole whose lastUpdate is more than 48h old", () => {
+    const staleP = { ...poles[0], lastUpdate: recentTimestamp(72), lightStatusLabel: "OFF" };
+    render(<ProjectPolesTable poles={[staleP]} {...defaultProps} />);
+    expect(screen.getByText("Not Reporting 48H")).toBeInTheDocument();
+  });
+
+  it("distinguishes never-reported ('Not Reporting') from reported-but-stale ('Not Reporting 48H') side by side", () => {
+    const neverReported = { ...poles[0], id: "p-never", lastUpdate: null };
+    const staleP = { ...poles[1], id: "p-stale", lastUpdate: recentTimestamp(72) };
+    render(<ProjectPolesTable poles={[neverReported, staleP]} {...defaultProps} />);
+
+    expect(screen.getByText("Not Reporting")).toBeInTheDocument();
+    expect(screen.getByText("Not Reporting 48H")).toBeInTheDocument();
+  });
+
+  it("collapses 'Not Reporting 48H' to plain 'Not Reporting' when customerScoped is true, for a reported-but-stale pole", () => {
+    const staleP = { ...poles[0], lastUpdate: recentTimestamp(72) };
+    render(<ProjectPolesTable poles={[staleP]} {...defaultProps} customerScoped />);
+
+    expect(screen.getByText("Not Reporting")).toBeInTheDocument();
+    expect(screen.queryByText("Not Reporting 48H")).not.toBeInTheDocument();
+  });
+
+  it("still shows plain 'Not Reporting' when customerScoped is true and the pole has never reported at all", () => {
+    const neverReported = { ...poles[0], lastUpdate: null };
+    render(<ProjectPolesTable poles={[neverReported]} {...defaultProps} customerScoped />);
+
+    expect(screen.getByText("Not Reporting")).toBeInTheDocument();
+  });
+
+  it("shows the real lightStatusLabel in the Light column for a pole reporting within 48h", () => {
+    const activePole = { ...poles[0], lastUpdate: recentTimestamp(1), lightStatusLabel: "OFF" };
+    render(<ProjectPolesTable poles={[activePole]} {...defaultProps} />);
+    expect(screen.getByText("OFF")).toBeInTheDocument();
+    expect(screen.queryByText("Not Reporting")).not.toBeInTheDocument();
+  });
+
+  it("shows a dash in the Light column when lightStatusLabel is null but the pole is not silent", () => {
+    const activePole = { ...poles[0], lastUpdate: recentTimestamp(1), lightStatusLabel: null };
+    render(<ProjectPolesTable poles={[activePole]} {...defaultProps} />);
+    const row = screen.getByText("51079-1000").closest("tr") as HTMLElement;
+    const cells = row.querySelectorAll("td");
+    // Pole Number, 48h Connected, 48h Overall Status, Light, Panel, Battery.
+    expect(cells[3]).toHaveTextContent("—");
+  });
+
+  it("appends the idle reason in parentheses in the Panel column when panelStatusLabel is Idle (pole reporting within 48h)", () => {
+    const idlePole = {
+      ...poles[0],
+      lastUpdate: recentTimestamp(1),
+      panelStatusLabel: "Idle",
+      panelIdleReason: "Battery Full",
+    };
+    render(<ProjectPolesTable poles={[idlePole]} {...defaultProps} />);
+    expect(screen.getByText("Idle (Battery Full)")).toBeInTheDocument();
+  });
+
+  it("does not append a parenthetical in the Panel column when panelStatusLabel is Idle but there's no reason given", () => {
+    const idlePole = {
+      ...poles[0],
+      lastUpdate: recentTimestamp(1),
+      panelStatusLabel: "Idle",
+      panelIdleReason: null,
+    };
+    render(<ProjectPolesTable poles={[idlePole]} {...defaultProps} />);
+    expect(screen.getByText("Idle")).toBeInTheDocument();
+    expect(screen.queryByText(/Idle \(/)).not.toBeInTheDocument();
+  });
+
+  it("does not append the idle reason in the Panel column for a non-Idle panelStatusLabel, even if panelIdleReason happens to be set", () => {
+    const chargingPole = {
+      ...poles[0],
+      lastUpdate: recentTimestamp(1),
+      panelStatusLabel: "Charging",
+      panelIdleReason: "Battery Full",
+    };
+    render(<ProjectPolesTable poles={[chargingPole]} {...defaultProps} />);
+    expect(screen.getByText("Charging")).toBeInTheDocument();
+    expect(screen.queryByText(/Charging \(/)).not.toBeInTheDocument();
+  });
+
+  it("shows a dash in the Panel column when panelStatusLabel is null but the pole is not silent", () => {
+    const noPanelData = {
+      ...poles[0],
+      lastUpdate: recentTimestamp(1),
+      panelStatusLabel: null,
+      panelIdleReason: null,
+    };
+    render(<ProjectPolesTable poles={[noPanelData]} {...defaultProps} />);
+    const row = screen.getByText("51079-1000").closest("tr") as HTMLElement;
+    const cells = row.querySelectorAll("td");
+    // Pole Number, 48h Connected, 48h Overall Status, Light, Panel, Battery.
+    expect(cells[4]).toHaveTextContent("—");
+  });
+
+  it("shows the real batteryStatusLabel in the Battery column for a pole reporting within 48h", () => {
+    const fullBattery = { ...poles[0], lastUpdate: recentTimestamp(1), batteryStatusLabel: "Full" };
+    render(<ProjectPolesTable poles={[fullBattery]} {...defaultProps} />);
+    expect(screen.getByText("Full")).toBeInTheDocument();
+  });
+
+  it("shows a dash in the Battery column when batteryStatusLabel is null but the pole is not silent", () => {
+    const noBatteryData = {
+      ...poles[0],
+      lastUpdate: recentTimestamp(1),
+      batteryStatusLabel: null,
+    };
+    render(<ProjectPolesTable poles={[noBatteryData]} {...defaultProps} />);
+    const row = screen.getByText("51079-1000").closest("tr") as HTMLElement;
+    const cells = row.querySelectorAll("td");
+    expect(cells[5]).toHaveTextContent("—");
+  });
+
+  it("shows a dash in the Panel column for a silent pole, even though panelStatusLabel has a real value", () => {
+    const silentPoleWithPanelData = {
+      ...poles[0],
+      lastUpdate: null,
+      panelStatusLabel: "Idle",
+      panelIdleReason: "Battery Full",
+    };
+    render(<ProjectPolesTable poles={[silentPoleWithPanelData]} {...defaultProps} />);
+    const row = screen.getByText("51079-1000").closest("tr") as HTMLElement;
+    const cells = row.querySelectorAll("td");
+    expect(cells[4]).toHaveTextContent("—");
+    expect(screen.queryByText(/Idle/)).not.toBeInTheDocument();
+  });
+
+  it("shows a dash in the Battery column for a silent pole, even though batteryStatusLabel has a real value", () => {
+    const silentPoleWithBatteryData = {
+      ...poles[0],
+      lastUpdate: recentTimestamp(72),
+      batteryStatusLabel: "Full",
+    };
+    render(<ProjectPolesTable poles={[silentPoleWithBatteryData]} {...defaultProps} />);
+    expect(screen.getByText("Not Reporting 48H")).toBeInTheDocument();
+    const row = screen.getByText("51079-1000").closest("tr") as HTMLElement;
+    const cells = row.querySelectorAll("td");
+    expect(cells[5]).toHaveTextContent("—");
+    expect(screen.queryByText("Full")).not.toBeInTheDocument();
+  });
+
+  it("shows the real Panel/Battery values right up to 48h, and switches to dashes just past it, matching the Light column's own boundary", () => {
+    const justUnder48h = {
+      ...poles[0],
+      lastUpdate: recentTimestamp(47),
+      lightStatusLabel: "OFF",
+      panelStatusLabel: "Charging",
+      batteryStatusLabel: "Full",
+    };
+    const { rerender } = render(<ProjectPolesTable poles={[justUnder48h]} {...defaultProps} />);
+    expect(screen.getByText("OFF")).toBeInTheDocument();
+    expect(screen.getByText("Charging")).toBeInTheDocument();
+    expect(screen.getByText("Full")).toBeInTheDocument();
+
+    const justOver48h = { ...justUnder48h, lastUpdate: recentTimestamp(49) };
+    rerender(<ProjectPolesTable poles={[justOver48h]} {...defaultProps} />);
+    expect(screen.getByText("Not Reporting 48H")).toBeInTheDocument();
+    expect(screen.queryByText("OFF")).not.toBeInTheDocument();
+    expect(screen.queryByText("Charging")).not.toBeInTheDocument();
+    expect(screen.queryByText("Full")).not.toBeInTheDocument();
   });
 });

@@ -16,9 +16,13 @@ vi.mock("@/lib/apim", () => ({
   getPoleVitalsForCustomer: getPoleVitalsForCustomerMock,
 }));
 
-vi.mock("@/lib/session", () => ({
-  getSessionUser: getSessionUserMock,
-}));
+vi.mock("@/lib/session", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/session")>();
+  return {
+    ...actual,
+    getSessionUser: getSessionUserMock,
+  };
+});
 
 // Most tests here don't care about role; default to a Streetleaf Admin so
 // the leading breadcrumb renders normally unless a test overrides this.
@@ -83,9 +87,9 @@ const vitals: CustomerPoleVitals = {
       totalFaults: 1,
       percentWorking: 92.5,
       poles: [
-        { id: "pv1", poleNumber: "51079-1000", locationId: "loc-1", isOnline: true, lightStatus: "Working", installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, lampPower1: null, lampPower2: null, batteryElecCurrent1: null, batteryElecCurrent2: null, solarBoardVoltage: null, solarBoardElecCurrent: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null, isLedFault: null, isBatteryFault: null, isPanelFault: null, isOpenIssueFault: null, isPoleFault: null },
-        { id: "pv2", poleNumber: "51079-1001", locationId: "loc-2", isOnline: true, lightStatus: "Daylight", installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, lampPower1: null, lampPower2: null, batteryElecCurrent1: null, batteryElecCurrent2: null, solarBoardVoltage: null, solarBoardElecCurrent: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null, isLedFault: null, isBatteryFault: null, isPanelFault: null, isOpenIssueFault: null, isPoleFault: null },
-        { id: "pv3", poleNumber: "51079-1002", locationId: "loc-3", isOnline: false, lightStatus: "Fault", installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, lampPower1: null, lampPower2: null, batteryElecCurrent1: null, batteryElecCurrent2: null, solarBoardVoltage: null, solarBoardElecCurrent: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null, isLedFault: null, isBatteryFault: null, isPanelFault: null, isOpenIssueFault: null, isPoleFault: null },
+        { id: "pv1", poleNumber: "51079-1000", locationId: "loc-1", isOnline: true, lightStatus: "Working", installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, lampPower1: null, lampPower2: null, batteryElecCurrent1: null, batteryElecCurrent2: null, solarBoardVoltage: null, solarBoardElecCurrent: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null, lightStatusLabel: null, panelStatusLabel: null, panelIdleReason: null, batteryStatusLabel: null, electricCurrentAverage: null, isLedFault: null, isBatteryFault: null, isPanelFault: null, isOpenIssueFault: null, isPoleFault: null },
+        { id: "pv2", poleNumber: "51079-1001", locationId: "loc-2", isOnline: true, lightStatus: "Daylight", installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, lampPower1: null, lampPower2: null, batteryElecCurrent1: null, batteryElecCurrent2: null, solarBoardVoltage: null, solarBoardElecCurrent: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null, lightStatusLabel: null, panelStatusLabel: null, panelIdleReason: null, batteryStatusLabel: null, electricCurrentAverage: null, isLedFault: null, isBatteryFault: null, isPanelFault: null, isOpenIssueFault: null, isPoleFault: null },
+        { id: "pv3", poleNumber: "51079-1002", locationId: "loc-3", isOnline: false, lightStatus: "Fault", installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, lampPower1: null, lampPower2: null, batteryElecCurrent1: null, batteryElecCurrent2: null, solarBoardVoltage: null, solarBoardElecCurrent: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null, lightStatusLabel: null, panelStatusLabel: null, panelIdleReason: null, batteryStatusLabel: null, electricCurrentAverage: null, isLedFault: null, isBatteryFault: null, isPanelFault: null, isOpenIssueFault: null, isPoleFault: null },
       ],
     },
     {
@@ -364,6 +368,64 @@ describe("CustomerDetailPage", () => {
     expect(within(row1).getByLabelText("— Total lights")).toBeInTheDocument();
     expect(within(row1).getByLabelText("— Connected lights")).toBeInTheDocument();
     expect(within(row1).getByLabelText("— Total faults")).toBeInTheDocument();
+  });
+
+  it("hides Connected lights when the viewer is a Customer Admin, even viewing their own customer", async () => {
+    getSessionUserMock.mockResolvedValue({
+      id: "u1",
+      role: "Customer Admin",
+      customerId: "r2",
+    });
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
+    const jsx = await CustomerDetailPage({
+      params: Promise.resolve({ id: "r2" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(screen.queryByLabelText(/Connected lights/)).not.toBeInTheDocument();
+    const row1 = screen.getByRole("link", { name: /Bayou District Rebuild/ });
+    expect(within(row1).getByLabelText("54 Total lights")).toBeInTheDocument();
+    expect(within(row1).getByLabelText("1 Total faults")).toBeInTheDocument();
+  });
+
+  it("hides Connected lights when the viewer is a 'Customer User' (role User, with a customerId)", async () => {
+    getSessionUserMock.mockResolvedValue({
+      id: "u2",
+      role: "User",
+      customerId: "r2",
+    });
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
+    const jsx = await CustomerDetailPage({
+      params: Promise.resolve({ id: "r2" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(screen.queryByLabelText(/Connected lights/)).not.toBeInTheDocument();
+  });
+
+  it("still shows Connected lights for a Streetleaf Admin, even when browsing a Customer Admin's own customer", async () => {
+    getSessionUserMock.mockResolvedValue({
+      id: "u1",
+      role: "Streetleaf Admin",
+      customerId: null,
+    });
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
+    const jsx = await CustomerDetailPage({
+      params: Promise.resolve({ id: "r2" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    const row1 = screen.getByRole("link", { name: /Bayou District Rebuild/ });
+    expect(within(row1).getByLabelText("51 Connected lights")).toBeInTheDocument();
   });
 
   it("does not render a Project ID column", async () => {

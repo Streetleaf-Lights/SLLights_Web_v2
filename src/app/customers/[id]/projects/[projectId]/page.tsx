@@ -6,7 +6,7 @@ import { StatGroup } from "@/components/StatGroup";
 import { ProjectPolesTable } from "@/components/ProjectPolesTable";
 import { LocationMap } from "@/components/LocationMap";
 import { withQueryParam, withSearchContext } from "@/lib/url";
-import { getSessionUser } from "@/lib/session";
+import { getSessionUser, isCustomerScoped } from "@/lib/session";
 
 export default async function ProjectDetailPage({
   params,
@@ -55,6 +55,12 @@ export default async function ProjectDetailPage({
   const totalLights = projectVitals?.totalLights ?? "—";
   const connectedLights = projectVitals?.connectedLights ?? "—";
   const totalFaults = projectVitals?.totalFaults ?? "—";
+  // Drives several "hide the cross-customer-only stuff" decisions below:
+  // whether this viewer (not necessarily who owns this project — a
+  // Streetleaf Admin browsing a Customer Admin's project still counts as
+  // not customer-scoped) sees Connected lights in the summary, and the
+  // 48h-prefixed/Connected columns on the pole list.
+  const viewerIsCustomerScoped = isCustomerScoped(sessionUser?.role, sessionUser?.customerId);
 
   return (
     <>
@@ -79,7 +85,9 @@ export default async function ProjectDetailPage({
         <StatGroup
           stats={[
             { value: totalLights, label: "Total lights" },
-            { value: connectedLights, label: "Connected lights" },
+            ...(viewerIsCustomerScoped
+              ? []
+              : [{ value: connectedLights, label: "Connected lights" }]),
             { value: totalFaults, label: "Total faults" },
           ]}
         />
@@ -107,6 +115,7 @@ export default async function ProjectDetailPage({
           projectId={project.id}
           custQ={cust_q}
           poleQ={pole_q}
+          customerScoped={viewerIsCustomerScoped}
         />
       </div>
     </>

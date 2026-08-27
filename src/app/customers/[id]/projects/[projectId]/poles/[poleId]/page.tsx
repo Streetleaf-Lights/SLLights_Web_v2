@@ -6,7 +6,7 @@ import { PoleMap } from "@/components/PoleMap";
 import { PoleVitalsChart } from "@/components/PoleVitalsChart";
 import { withQueryParam, withSearchContext } from "@/lib/url";
 import { formatPercent, formatTimestamp, connectionStatus, isSilentPole } from "@/lib/text";
-import { getSessionUser } from "@/lib/session";
+import { getSessionUser, isCustomerScoped } from "@/lib/session";
 
 function formatCoordinate(value: number | null | undefined): string {
   return value === null || value === undefined ? "—" : String(value);
@@ -18,16 +18,6 @@ function formatVoltage(value: number | null | undefined): string {
 
 function formatNumber(value: number | null | undefined): string {
   return value === null || value === undefined ? "—" : String(value);
-}
-
-/**
- * "Recent X" for a currently-reporting pole, "Last Known X" for a silent
- * one — these metrics (lamp power, board voltage/current, etc.) are all
- * single point-in-time readings, not 48h averages, so the wording needs
- * its own prefix rather than reusing the "48h Average ..." pattern above.
- */
-function recentLabel(isSilent: boolean, label: string): string {
-  return `${isSilent ? "Last Known" : "Recent"} ${label}`;
 }
 
 /** Green "okLabel" when false, red "faultLabel" when true, neutral dash when null/undefined. */
@@ -43,6 +33,15 @@ function faultStatus(
     text: isFault ? faultLabel : okLabel,
     className: isFault ? "text-[var(--status-flagged)]" : "text-[var(--status-active)]",
   };
+}
+
+/** Appends the idle reason in parentheses only when the panel is actually Idle — it's not meaningful otherwise. */
+function panelStatusText(statusLabel: string | null, idleReason: string | null): string {
+  const label = statusLabel ?? "—";
+  if (label === "Idle" && idleReason) {
+    return `${label} (${idleReason})`;
+  }
+  return label;
 }
 
 function StatusBox({
@@ -126,6 +125,7 @@ export default async function PoleDetailPage({
   const connected = connectionStatus(pole.isOnline, pole.lastUpdate);
   const overallStatus = faultStatus(pole.isPoleFault, "OK", "Fault");
   const isSilent = isSilentPole(pole.lastUpdate);
+  const viewerIsCustomerScoped = isCustomerScoped(sessionUser?.role, sessionUser?.customerId);
 
   return (
     <>
@@ -161,17 +161,22 @@ export default async function PoleDetailPage({
               <span className="text-[var(--ink-faint)]">Long:</span> {formatCoordinate(pole.long)}
             </span>
           </div>
-          <div className="flex flex-col gap-1">
-            <span>
-              <span className="text-[var(--ink-faint)]">48h Connected:</span>{" "}
-              <span className={connected.className}>{connected.text}</span>
+          <div className="ml-auto flex flex-col items-end gap-1">
+            <span className="flex items-center gap-1.5">
+              <span
+                className={`h-1.5 w-1.5 shrink-0 rounded-full ${connected.className.replace("text-", "bg-")}`}
+                aria-hidden="true"
+              />
+              <span className={`text-[13px] font-semibold ${connected.className}`}>
+                {connected.text}
+              </span>
             </span>
-            <span>
-              <span className="text-[var(--ink-faint)]">
-                {isSilent ? "Last Known 48h Overall Status:" : "48h Overall Status:"}
-              </span>{" "}
-              <span className={overallStatus.className}>{overallStatus.text}</span>
-            </span>
+            {!viewerIsCustomerScoped && (
+              <span>
+                <span className="text-[var(--ink-faint)]">48h Overall Status:</span>{" "}
+                <span className={overallStatus.className}>{overallStatus.text}</span>
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -186,11 +191,25 @@ export default async function PoleDetailPage({
             status={faultStatus(pole.isLedFault, "OK", "Fault")}
             metrics={[
               {
-                label: isSilent ? "Last Known 48h Average Light %" : "48h Average Light %",
-                value: formatPercent(pole.avgLightPercentage),
+                label: "Operating Status",
+                value: pole.lightStatusLabel ?? "—",
               },
-              { label: recentLabel(isSilent, "Light Power 1"), value: formatNumber(pole.lampPower1) },
-              { label: recentLabel(isSilent, "Light Power 2"), value: formatNumber(pole.lampPower2) },
+              ...(viewerIsCustomerScoped
+                ? []
+                : [
+                    {
+                      label: "48h Average Light %",
+                      value: formatPercent(pole.avgLightPercentage),
+                    },
+                    {
+                      label: "Light Power 1",
+                      value: formatNumber(pole.lampPower1),
+                    },
+                    {
+                      label: "Light Power 2",
+                      value: formatNumber(pole.lampPower2),
+                    },
+                  ]),
             ]}
           />
           <StatusBox
@@ -198,44 +217,67 @@ export default async function PoleDetailPage({
             status={faultStatus(pole.isPanelFault, "OK", "Fault")}
             metrics={[
               {
-                label: isSilent ? "Last Known 48h Average Panel %" : "48h Average Panel %",
-                value: formatPercent(pole.avgPanelPercentage),
+                label: "Operating Status",
+                value: panelStatusText(pole.panelStatusLabel, pole.panelIdleReason),
               },
-              {
-                label: recentLabel(isSilent, "Panel Voltage"),
-                value: formatVoltage(pole.solarBoardVoltage),
-              },
-              {
-                label: recentLabel(isSilent, "Panel Electric Current"),
-                value: formatNumber(pole.solarBoardElecCurrent),
-              },
+              ...(viewerIsCustomerScoped
+                ? []
+                : [
+                    {
+                      label: "48h Average Panel %",
+                      value: formatPercent(pole.avgPanelPercentage),
+                    },
+                    {
+                      label: "Panel Voltage",
+                      value: formatVoltage(pole.solarBoardVoltage),
+                    },
+                    {
+                      label: "Panel Electric Current",
+                      value: formatNumber(pole.solarBoardElecCurrent),
+                    },
+                  ]),
             ]}
           />
           <StatusBox
             title="Battery"
             status={faultStatus(pole.isBatteryFault, "OK", "Fault")}
-            metrics={[
-              {
-                label: isSilent ? "Last Known 48h Average Battery %" : "48h Average Battery %",
-                value: formatPercent(pole.avgBatteryPercentage),
-              },
-              {
-                label: recentLabel(isSilent, "Electric Current 1"),
-                value: formatNumber(pole.batteryElecCurrent1),
-              },
-              {
-                label: recentLabel(isSilent, "Electric Current 2"),
-                value: formatNumber(pole.batteryElecCurrent2),
-              },
-              {
-                label: recentLabel(isSilent, "Battery Voltage 1"),
-                value: formatVoltage(pole.batteryVoltage1),
-              },
-              {
-                label: recentLabel(isSilent, "Battery Voltage 2"),
-                value: formatVoltage(pole.batteryVoltage2),
-              },
-            ]}
+            metrics={
+              viewerIsCustomerScoped
+                ? [
+                    { label: "Operating Status", value: pole.batteryStatusLabel ?? "—" },
+                    {
+                      label: "Electric Current",
+                      value: formatNumber(pole.electricCurrentAverage),
+                    },
+                  ]
+                : [
+                    { label: "Operating Status", value: pole.batteryStatusLabel ?? "—" },
+                    {
+                      label: "48h Average Battery %",
+                      value: formatPercent(pole.avgBatteryPercentage),
+                    },
+                    {
+                      label: "Average Electric Current",
+                      value: formatNumber(pole.electricCurrentAverage),
+                    },
+                    {
+                      label: "Electric Current 1",
+                      value: formatNumber(pole.batteryElecCurrent1),
+                    },
+                    {
+                      label: "Electric Current 2",
+                      value: formatNumber(pole.batteryElecCurrent2),
+                    },
+                    {
+                      label: "Battery Voltage 1",
+                      value: formatVoltage(pole.batteryVoltage1),
+                    },
+                    {
+                      label: "Battery Voltage 2",
+                      value: formatVoltage(pole.batteryVoltage2),
+                    },
+                  ]
+            }
           />
           <StatusBox
             title="Issue"
