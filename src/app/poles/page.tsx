@@ -27,7 +27,7 @@ export default async function PolesPage() {
         }
       />
       <Suspense>
-        <PolesTable poles={poles} />
+        <PolesTable poles={poles} customerScoped={customerScoped} />
       </Suspense>
     </>
   );

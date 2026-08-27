@@ -25,7 +25,40 @@ vi.mock("next/navigation", () => ({
 
 import PolesPage from "@/app/poles/page";
 
-const poles: PoleSummary[] = [];
+const poles: PoleSummary[] = [
+  {
+    id: "p1",
+    poleNumber: "51079-1000",
+    locationId: "loc-1",
+    installDate: null,
+    lat: null,
+    long: null,
+    lastUpdate: null,
+    lightStatus: null,
+    isOnline: true,
+    avgBatteryPercentage: null,
+    avgPanelPercentage: null,
+    avgLightPercentage: null,
+    lightStatusLabel: null,
+    panelStatusLabel: null,
+    panelIdleReason: null,
+    batteryStatusLabel: null,
+    electricCurrentAverage: null,
+    lampPower1: null,
+    lampPower2: null,
+    batteryElecCurrent1: null,
+    batteryElecCurrent2: null,
+    solarBoardVoltage: null,
+    solarBoardElecCurrent: null,
+    isLedFault: null,
+    isBatteryFault: null,
+    isPanelFault: null,
+    isOpenIssueFault: null,
+    isPoleFault: null,
+    projectId: "proj-1",
+    customerId: "rec5uaHZMOGZGyVcY",
+  },
+];
 
 describe("PolesPage", () => {
   it("fetches all poles (no filter) when no session is present", async () => {
@@ -75,6 +108,39 @@ describe("PolesPage", () => {
     render(jsx);
 
     expect(screen.getByText("Every pole for your customer.")).toBeInTheDocument();
+  });
+
+  it("hides the 48h Connected column and shows 'Overall Status' (no '48h') for a Customer Admin", async () => {
+    getSessionUserMock.mockResolvedValue({
+      id: "u1",
+      role: "Customer Admin",
+      customerId: "rec5uaHZMOGZGyVcY",
+    });
+    getPolesMock.mockResolvedValue(poles);
+
+    const jsx = await PolesPage();
+    render(jsx);
+
+    expect(screen.queryByRole("columnheader", { name: "48h Connected" })).not.toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Overall Status" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("columnheader", { name: "48h Overall Status" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("still shows the 48h Connected column and '48h Overall Status' label for a Streetleaf Admin", async () => {
+    getSessionUserMock.mockResolvedValue({
+      id: "u1",
+      role: "Streetleaf Admin",
+      customerId: null,
+    });
+    getPolesMock.mockResolvedValue(poles);
+
+    const jsx = await PolesPage();
+    render(jsx);
+
+    expect(screen.getByRole("columnheader", { name: "48h Connected" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "48h Overall Status" })).toBeInTheDocument();
   });
 
   it("shows the all-customers description for a Streetleaf Admin", async () => {

@@ -5,18 +5,33 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Toolbar } from "@/components/Toolbar";
 import { Pagination } from "@/components/Pagination";
-import { StatGroup } from "@/components/StatGroup";
-import { formatPercent, connectionStatus, formatTimestamp } from "@/lib/text";
+import {
+  connectionStatus,
+  poleOverallStatus,
+  lightColumnText,
+  panelColumnText,
+  batteryColumnText,
+} from "@/lib/text";
 import { withQueryParam } from "@/lib/url";
 import type { PoleSummary } from "@/lib/types";
 
 const PAGE_SIZE = 10;
 
-function formatCoordinate(value: number | null | undefined): string {
-  return value === null || value === undefined ? "—" : String(value);
-}
-
-export function PolesTable({ poles }: { poles: PoleSummary[] }) {
+export function PolesTable({
+  poles,
+  customerScoped = false,
+}: {
+  poles: PoleSummary[];
+  /**
+   * True when the viewer (Customer Admin or "Customer User") is scoped to
+   * a single customer — drops "48h Connected" entirely (they're already
+   * looking at just their own poles, so it reads as noise), shortens
+   * "48h Overall Status" to "Overall Status", and collapses "Not Reporting
+   * 48H" down to plain "Not Reporting" (the "48H" distinction is a
+   * Streetleaf-only detail). Same behavior as ProjectPolesTable.
+   */
+  customerScoped?: boolean;
+}) {
   const searchParams = useSearchParams();
   const poleQ = searchParams.get("pole_q") ?? "";
   const [page, setPage] = useState(1);
@@ -64,35 +79,35 @@ export function PolesTable({ poles }: { poles: PoleSummary[] }) {
             <table className="w-full min-w-[760px] border-collapse text-left text-[13px]">
               <thead>
                 <tr className="border-b border-[var(--border)] bg-[var(--surface-sunken)] text-[11.5px] uppercase tracking-wide text-[var(--ink-muted)]">
-                  <th className="py-2.5 pl-4 pr-4 font-medium">Pole</th>
-                  <th className="py-2.5 pr-4 font-medium">48h Connected</th>
-                  <th className="py-2.5 pr-8 font-medium">Statuses</th>
+                  <th className="py-2.5 pl-4 pr-4 font-medium">Pole Number</th>
+                  {!customerScoped && (
+                    <th className="py-2.5 pr-4 font-medium">48h Connected</th>
+                  )}
+                  <th className="py-2.5 pr-4 font-medium">
+                    {customerScoped ? "Overall Status" : "48h Overall Status"}
+                  </th>
+                  <th className="py-2.5 pr-4 font-medium">Light</th>
+                  <th className="py-2.5 pr-4 font-medium">Panel</th>
+                  <th className="py-2.5 pr-8 font-medium">Battery</th>
                 </tr>
               </thead>
               <tbody>
                 {pagePoles.map((pole) => {
                   const connected = connectionStatus(pole.isOnline, pole.lastUpdate);
-                  const light =
-                    pole.avgLightPercentage === null ? "—" : formatPercent(pole.avgLightPercentage);
-                  const panel =
-                    pole.avgPanelPercentage === null ? "—" : formatPercent(pole.avgPanelPercentage);
-                  const battery =
-                    pole.avgBatteryPercentage === null
-                      ? "—"
-                      : formatPercent(pole.avgBatteryPercentage);
+                  const status = poleOverallStatus(pole);
                   return (
                     <tr
                       key={pole.id}
                       className="border-b border-[var(--border)] last:border-b-0 hover:bg-[var(--surface-sunken)]"
                     >
-                      <td className="py-3 pl-4 pr-4">
+                      <td className="py-3 pl-4 pr-4 font-mono-data text-[12px] font-medium">
                         <Link
                           href={withQueryParam(
                             `/customers/${pole.customerId}/projects/${pole.projectId}/poles/${pole.id}`,
                             "pole_q",
                             query,
                           )}
-                          className="flex items-center gap-2 font-mono-data text-[12px] font-medium text-[var(--ink)] hover:underline"
+                          className="flex items-center gap-2 text-[var(--ink)] hover:underline"
                         >
                           <span
                             className={`h-1.5 w-1.5 shrink-0 rounded-full ${
@@ -106,29 +121,18 @@ export function PolesTable({ poles }: { poles: PoleSummary[] }) {
                           />
                           {pole.poleNumber}
                         </Link>
-                        <div className="mt-1 text-[11.5px] text-[var(--ink-faint)]">
-                          Last Update: {formatTimestamp(pole.lastUpdate)}
-                        </div>
-                        <div className="mt-0.5 text-[11.5px] text-[var(--ink-faint)]">
-                          Installed: {pole.installDate ?? "—"}
-                        </div>
                       </td>
-                      <td className="py-3 pr-4 text-[12.5px]">
-                        <span className={connected.className}>{connected.text}</span>
-                        <div className="mt-1 font-mono-data text-[11.5px] text-[var(--ink-faint)]">
-                          {formatCoordinate(pole.lat)}, {formatCoordinate(pole.long)}
-                        </div>
+                      {!customerScoped && (
+                        <td className={`py-3 pr-4 font-medium ${connected.className}`}>
+                          {connected.text}
+                        </td>
+                      )}
+                      <td className={`py-3 pr-4 font-medium ${status.className}`}>
+                        {status.text}
                       </td>
-                      <td className="py-3 pr-8">
-                        <StatGroup
-                          size="sm"
-                          stats={[
-                            { value: light, label: "Light" },
-                            { value: panel, label: "Panel" },
-                            { value: battery, label: "Battery" },
-                          ]}
-                        />
-                      </td>
+                      <td className="py-3 pr-4">{lightColumnText(pole, customerScoped)}</td>
+                      <td className="py-3 pr-4">{panelColumnText(pole)}</td>
+                      <td className="py-3 pr-8">{batteryColumnText(pole)}</td>
                     </tr>
                   );
                 })}

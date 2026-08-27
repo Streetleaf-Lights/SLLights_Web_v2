@@ -4,61 +4,16 @@ import { useState } from "react";
 import Link from "next/link";
 import { Pagination } from "@/components/Pagination";
 import { withSearchContext } from "@/lib/url";
-import { connectionStatus, isSilentPole } from "@/lib/text";
+import {
+  connectionStatus,
+  poleOverallStatus,
+  lightColumnText,
+  panelColumnText,
+  batteryColumnText,
+} from "@/lib/text";
 import type { PoleVital } from "@/lib/types";
 
 const PAGE_SIZE = 10;
-
-/** Same OK/Fault mapping and coloring as the pole detail page's Working Status section. */
-function poleStatusLabel(isFault: boolean | null | undefined): {
-  text: string;
-  className: string;
-} {
-  if (isFault === null || isFault === undefined) {
-    return { text: "—", className: "text-[var(--ink-faint)]" };
-  }
-  return {
-    text: isFault ? "Fault" : "OK",
-    className: isFault ? "text-[var(--status-flagged)]" : "text-[var(--status-active)]",
-  };
-}
-
-/**
- * "Not Reporting" if this pole has never had any update at all (no
- * lastUpdate on record), or — for a customer-scoped viewer — any time it's
- * silent at all (the "48H" distinction is a Streetleaf-only detail).
- * "Not Reporting 48H" otherwise, once it's reported before but hasn't
- * checked in for 48h+ — either way, its last-known light label would
- * otherwise be stale/misleading, so it's not shown.
- */
-function lightColumnText(pole: PoleVital, customerScoped: boolean): string {
-  if (!pole.lastUpdate) return "Not Reporting";
-  if (isSilentPole(pole.lastUpdate)) {
-    return customerScoped ? "Not Reporting" : "Not Reporting 48H";
-  }
-  return pole.lightStatusLabel ?? "—";
-}
-
-/**
- * Panel/Battery show a dash for a silent pole — same treatment as a null
- * label — since a stale panelStatusLabel/batteryStatusLabel from before it
- * stopped reporting isn't meaningfully different from having no reading at
- * all. Appends the idle reason in parentheses only when actually Idle,
- * and only for a pole that's still reporting.
- */
-function panelColumnText(pole: PoleVital): string {
-  if (isSilentPole(pole.lastUpdate)) return "—";
-  const label = pole.panelStatusLabel ?? "—";
-  if (label === "Idle" && pole.panelIdleReason) {
-    return `${label} (${pole.panelIdleReason})`;
-  }
-  return label;
-}
-
-function batteryColumnText(pole: PoleVital): string {
-  if (isSilentPole(pole.lastUpdate)) return "—";
-  return pole.batteryStatusLabel ?? "—";
-}
 
 export function ProjectPolesTable({
   poles,
@@ -116,13 +71,7 @@ export function ProjectPolesTable({
           <tbody>
             {pagePoles.map((pole) => {
               const connected = connectionStatus(pole.isOnline, pole.lastUpdate);
-              // A disconnected pole's isPoleFault reading is stale — show
-              // it as unknown (a dash) rather than a fault status that may
-              // no longer reflect reality.
-              const status =
-                connected.text === "Disconnected"
-                  ? poleStatusLabel(null)
-                  : poleStatusLabel(pole.isPoleFault);
+              const status = poleOverallStatus(pole);
               return (
                 <tr
                   key={pole.id}
@@ -135,8 +84,18 @@ export function ProjectPolesTable({
                         custQ,
                         poleQ,
                       )}
-                      className="text-[var(--ink)] hover:underline"
+                      className="flex items-center gap-2 text-[var(--ink)] hover:underline"
                     >
+                      <span
+                        className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                          pole.isOnline === null
+                            ? "bg-[var(--ink-faint)]"
+                            : pole.isOnline
+                              ? "bg-[var(--status-active)]"
+                              : "bg-[var(--status-flagged)]"
+                        }`}
+                        aria-hidden="true"
+                      />
                       {pole.poleNumber}
                     </Link>
                   </td>

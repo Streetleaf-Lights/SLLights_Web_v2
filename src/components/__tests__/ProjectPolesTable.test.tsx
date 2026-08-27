@@ -80,6 +80,22 @@ describe("ProjectPolesTable", () => {
     expect(onlineCell.querySelector("span[aria-hidden]")).toBeFalsy();
   });
 
+  it("shows a colored dot next to the pole number, matching isOnline (same as the top-level Poles list)", () => {
+    render(<ProjectPolesTable poles={[poles[0], poles[2], poles[3]]} {...defaultProps} />);
+    const onlineLink = screen.getByRole("link", { name: "51079-1000" }); // isOnline: true
+    const offlineLink = screen.getByRole("link", { name: "51079-1002" }); // isOnline: false
+    const unknownLink = screen.getByRole("link", { name: "51079-1003" }); // isOnline: null
+    expect(onlineLink.querySelector("span[aria-hidden]")?.className).toContain(
+      "bg-[var(--status-active)]",
+    );
+    expect(offlineLink.querySelector("span[aria-hidden]")?.className).toContain(
+      "bg-[var(--status-flagged)]",
+    );
+    expect(unknownLink.querySelector("span[aria-hidden]")?.className).toContain(
+      "bg-[var(--ink-faint)]",
+    );
+  });
+
   it("shows Offline (red, no dot) for isOnline=false", () => {
     render(<ProjectPolesTable poles={[poles[2]]} {...defaultProps} />);
     const offlineCell = screen.getByText("Offline");
