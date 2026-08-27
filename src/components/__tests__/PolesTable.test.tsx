@@ -332,11 +332,81 @@ describe("PolesTable", () => {
     expect(dot?.className).toContain("bg-[var(--ink-faint)]");
   });
 
-  it("does not render a Customer/Project column", () => {
+  it("does not render a Customer/Project column by default (no customerName/projectName given)", () => {
     render(<PolesTable poles={poles} />);
     expect(screen.queryByText(/Customer:/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Project:/)).not.toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: /Customer/ })).not.toBeInTheDocument();
+  });
+
+  it("shows both Customer and Project columns when both are given (arriving via a faults link)", () => {
+    render(
+      <PolesTable
+        poles={[poles[0]]}
+        customerName="Coastal Power & Light"
+        projectNames={{ [poles[0].projectId]: "Bayou District Rebuild" }}
+      />,
+    );
+    expect(screen.getByRole("columnheader", { name: "Customer" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Project" })).toBeInTheDocument();
+    expect(screen.getByText("Coastal Power & Light")).toBeInTheDocument();
+    expect(screen.getByText("Bayou District Rebuild")).toBeInTheDocument();
+  });
+
+  it("looks up each row's own project name via its projectId, spanning multiple projects (the customer-level aggregate fault link)", () => {
+    render(
+      <PolesTable
+        poles={poles}
+        projectNames={{
+          [poles[0].projectId]: "Bayou District Rebuild",
+          [poles[1].projectId]: "Storm Hardening Phase 2",
+        }}
+      />,
+    );
+    expect(screen.getAllByText("Bayou District Rebuild").length).toBeGreaterThan(0);
+    expect(screen.getByText("Storm Hardening Phase 2")).toBeInTheDocument();
+    // p3/p4 share p1's projectId (per the fixture), so they resolve too —
+    // 3 rows for Bayou, 1 for Storm Hardening.
+    expect(screen.getAllByText("Bayou District Rebuild")).toHaveLength(3);
+  });
+
+  it("shows a dash in the Project column for a row whose projectId has no entry in the map", () => {
+    render(<PolesTable poles={[poles[0]]} projectNames={{ "some-other-project": "Unrelated" }} />);
+    const row = screen.getByText("51079-1000").closest("tr") as HTMLElement;
+    const cells = row.querySelectorAll("td");
+    expect(cells[0]).toHaveTextContent("—"); // Project is the first column here
+  });
+
+  it("shows only the Project column (no Customer) when customerScoped is true, even with a customerName given", () => {
+    render(
+      <PolesTable
+        poles={[poles[0]]}
+        customerScoped
+        customerName="Coastal Power & Light"
+        projectNames={{ [poles[0].projectId]: "Bayou District Rebuild" }}
+      />,
+    );
+    expect(screen.queryByRole("columnheader", { name: "Customer" })).not.toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Project" })).toBeInTheDocument();
+    expect(screen.queryByText("Coastal Power & Light")).not.toBeInTheDocument();
+    expect(screen.getByText("Bayou District Rebuild")).toBeInTheDocument();
+  });
+
+  it("shows only the Project column (no Customer) when customerName is omitted, even without customerScoped", () => {
+    render(
+      <PolesTable
+        poles={[poles[0]]}
+        projectNames={{ [poles[0].projectId]: "Bayou District Rebuild" }}
+      />,
+    );
+    expect(screen.queryByRole("columnheader", { name: "Customer" })).not.toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Project" })).toBeInTheDocument();
+  });
+
+  it("shows neither column when only customerName is given without projectNames", () => {
+    render(<PolesTable poles={poles} customerName="Coastal Power & Light" />);
+    expect(screen.queryByRole("columnheader", { name: "Customer" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Project" })).not.toBeInTheDocument();
   });
 
   it("does not render Last Update or Installed anywhere on the row", () => {

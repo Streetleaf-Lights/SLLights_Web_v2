@@ -333,6 +333,66 @@ describe("ProjectDetailPage", () => {
     expect(screen.getByLabelText("1 Total faults")).toBeInTheDocument();
   });
 
+  it("links the Total faults stat to the faulted-poles view for this project, when it has faults", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
+    const jsx = await ProjectDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    const faultsLink = screen.getByRole("link", { name: "1 Total faults" });
+    expect(faultsLink).toHaveAttribute("href", "/poles?customerId=r2&projectId=p1&faults=1");
+  });
+
+  it("uses a recognizable (red/flagged) color for the Total faults link, distinct from ordinary links", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
+    const jsx = await ProjectDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    const faultsLink = screen.getByRole("link", { name: "1 Total faults" });
+    expect(faultsLink.querySelector("div")?.className).toContain(
+      "text-[var(--status-flagged)]",
+    );
+  });
+
+  it("does not link Total faults when this project has zero faults", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue({
+      ...vitals,
+      projects: [{ ...vitals.projects[0], totalFaults: 0 }, vitals.projects[1]],
+    });
+    const jsx = await ProjectDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(screen.queryByRole("link", { name: "0 Total faults" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("0 Total faults")).toBeInTheDocument();
+  });
+
+  it("does not link Total faults when there's no matching vitals for this project (shows a dash)", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue({ ...vitals, projects: [] });
+    const jsx = await ProjectDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(screen.queryByRole("link", { name: "— Total faults" })).not.toBeInTheDocument();
+  });
+
   it("hides Connected lights in Light Status when the viewer is a Customer Admin", async () => {
     getSessionUserMock.mockResolvedValue({
       id: "u1",

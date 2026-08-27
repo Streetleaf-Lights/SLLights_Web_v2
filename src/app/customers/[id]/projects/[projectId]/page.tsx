@@ -88,7 +88,15 @@ export default async function ProjectDetailPage({
             ...(viewerIsCustomerScoped
               ? []
               : [{ value: connectedLights, label: "Connected lights" }]),
-            { value: totalFaults, label: "Total faults" },
+            {
+              value: totalFaults,
+              label: "Total faults",
+              valueClassName: "text-[var(--status-flagged)]",
+              href:
+                typeof totalFaults === "number" && totalFaults > 0
+                  ? `/poles?customerId=${customer.id}&projectId=${project.id}&faults=1`
+                  : undefined,
+            },
           ]}
         />
       </div>

@@ -81,4 +81,44 @@ describe("StatGroup", () => {
     const grid = screen.getByLabelText("14 Total lights").parentElement;
     expect(grid?.style.gridTemplateColumns).toBe("repeat(3, minmax(0, 1fr))");
   });
+
+  it("renders a stat's value as a link when href is given", () => {
+    render(
+      <StatGroup
+        stats={[
+          { value: 3, label: "Total faults", href: "/poles?projectId=p1&faults=1" },
+        ]}
+      />,
+    );
+    const link = screen.getByRole("link", { name: "3 Total faults" });
+    expect(link).toHaveAttribute("href", "/poles?projectId=p1&faults=1");
+    expect(link).toHaveTextContent("3");
+  });
+
+  it("renders a stat as plain text (not a link) when href is omitted", () => {
+    render(<StatGroup stats={[{ value: 0, label: "Total faults" }]} />);
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    expect(screen.getByText("0")).toBeInTheDocument();
+  });
+
+  it("only makes the stat with an href a link, leaving sibling stats as plain text", () => {
+    render(
+      <StatGroup
+        stats={[
+          { value: 14, label: "Total lights" },
+          { value: 3, label: "Total faults", href: "/poles?faults=1" },
+        ]}
+      />,
+    );
+    expect(screen.queryByRole("link", { name: /Total lights/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "3 Total faults" })).toBeInTheDocument();
+  });
+
+  it("uses the accent color by default for a linked stat's value, unless overridden", () => {
+    render(
+      <StatGroup stats={[{ value: 3, label: "Total faults", href: "/poles?faults=1" }]} />,
+    );
+    const value = screen.getByText("3");
+    expect(value.className).toContain("text-[var(--accent-ink)]");
+  });
 });

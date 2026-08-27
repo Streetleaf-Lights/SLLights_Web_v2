@@ -20,6 +20,8 @@ const PAGE_SIZE = 10;
 export function PolesTable({
   poles,
   customerScoped = false,
+  customerName,
+  projectNames,
 }: {
   poles: PoleSummary[];
   /**
@@ -31,6 +33,25 @@ export function PolesTable({
    * Streetleaf-only detail). Same behavior as ProjectPolesTable.
    */
   customerScoped?: boolean;
+  /**
+   * Set only when arriving via a "Total faults" link (from the customer
+   * detail or project detail page), never via the normal left-nav Poles
+   * link — adds a leftmost "Customer" column showing this value on every
+   * row. Dropped entirely for a customer-scoped viewer, same as the
+   * Customer detail page columns elsewhere — they only ever see their own
+   * customer, so naming it is redundant.
+   */
+  customerName?: string;
+  /**
+   * Same trigger as customerName — keyed by projectId, adds a leftmost
+   * "Project" column showing each row's own project name (looked up via
+   * that row's projectId). A per-project fault link only ever populates
+   * one entry; the customer-level aggregate fault link can span multiple
+   * projects, so this needs to be a per-row lookup rather than one
+   * constant value. Shown for every viewer (including customer-scoped
+   * ones), since a customer can have multiple projects.
+   */
+  projectNames?: Record<string, string>;
 }) {
   const searchParams = useSearchParams();
   const poleQ = searchParams.get("pole_q") ?? "";
@@ -56,6 +77,10 @@ export function PolesTable({
   const currentPage = Math.min(page, totalPages);
   const pagePoles = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
+  // Only present when arriving via a "Total faults" link — never via normal navigation.
+  const showProjectColumn = Boolean(projectNames && Object.keys(projectNames).length > 0);
+  const showCustomerColumn = showProjectColumn && !customerScoped && Boolean(customerName);
+
   function handleQueryChange(next: string) {
     setQuery(next);
     setPage(1);
@@ -79,7 +104,17 @@ export function PolesTable({
             <table className="w-full min-w-[760px] border-collapse text-left text-[13px]">
               <thead>
                 <tr className="border-b border-[var(--border)] bg-[var(--surface-sunken)] text-[11.5px] uppercase tracking-wide text-[var(--ink-muted)]">
-                  <th className="py-2.5 pl-4 pr-4 font-medium">Pole Number</th>
+                  {showCustomerColumn && <th className="py-2.5 pl-4 pr-4 font-medium">Customer</th>}
+                  {showProjectColumn && (
+                    <th
+                      className={`py-2.5 pr-4 font-medium ${showCustomerColumn ? "" : "pl-4"}`}
+                    >
+                      Project
+                    </th>
+                  )}
+                  <th className={`py-2.5 pr-4 font-medium ${showProjectColumn ? "" : "pl-4"}`}>
+                    Pole Number
+                  </th>
                   {!customerScoped && (
                     <th className="py-2.5 pr-4 font-medium">48h Connected</th>
                   )}
@@ -100,7 +135,17 @@ export function PolesTable({
                       key={pole.id}
                       className="border-b border-[var(--border)] last:border-b-0 hover:bg-[var(--surface-sunken)]"
                     >
-                      <td className="py-3 pl-4 pr-4 font-mono-data text-[12px] font-medium">
+                      {showCustomerColumn && (
+                        <td className="py-3 pl-4 pr-4">{customerName}</td>
+                      )}
+                      {showProjectColumn && (
+                        <td className={`py-3 pr-4 ${showCustomerColumn ? "" : "pl-4"}`}>
+                          {projectNames?.[pole.projectId] ?? "—"}
+                        </td>
+                      )}
+                      <td
+                        className={`py-3 pr-4 font-mono-data text-[12px] font-medium ${showProjectColumn ? "" : "pl-4"}`}
+                      >
                         <Link
                           href={withQueryParam(
                             `/customers/${pole.customerId}/projects/${pole.projectId}/poles/${pole.id}`,

@@ -89,7 +89,15 @@ export function CustomerOverview({
           stats={[
             { value: totalLights, label: "Total lights" },
             { value: lightsWorking, label: "Lights working" },
-            { value: totalFaults, label: "Total faults" },
+            {
+              value: totalFaults,
+              label: "Total faults",
+              valueClassName: "text-[var(--status-flagged)]",
+              href:
+                typeof totalFaults === "number" && totalFaults > 0
+                  ? `/poles?customerId=${customer.id}&faults=1`
+                  : undefined,
+            },
           ]}
         />
       </div>
@@ -106,23 +114,26 @@ export function CustomerOverview({
           <div className="flex flex-col gap-1.5">
             {projects.map((project) => {
               const projectVitals = vitalsByProjectId.get(project.id);
+              const totalFaults = projectVitals?.totalFaults ?? "—";
               return (
-                <Link
+                <div
                   key={project.id}
-                  href={withSearchContext(
-                    `/customers/${customer.id}/projects/${project.id}`,
-                    custQ,
-                    poleQ,
-                  )}
                   className="flex items-center justify-between gap-3 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 hover:bg-[var(--surface-sunken)]"
                 >
-                  <span className="flex min-w-0 items-center gap-2 text-[13px] font-medium text-[var(--ink)] hover:underline">
+                  <Link
+                    href={withSearchContext(
+                      `/customers/${customer.id}/projects/${project.id}`,
+                      custQ,
+                      poleQ,
+                    )}
+                    className="flex min-w-0 items-center gap-2 text-[13px] font-medium text-[var(--ink)] hover:underline"
+                  >
                     <span
                       className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent)]"
                       aria-hidden="true"
                     />
                     <span className="truncate">{project.name}</span>
-                  </span>
+                  </Link>
                   <span className="shrink-0">
                     <StatGroup
                       size="sm"
@@ -136,11 +147,19 @@ export function CustomerOverview({
                                 label: "Connected lights",
                               },
                             ]),
-                        { value: projectVitals?.totalFaults ?? "—", label: "Total faults" },
+                        {
+                          value: totalFaults,
+                          label: "Total faults",
+                          valueClassName: "text-[var(--status-flagged)]",
+                          href:
+                            typeof totalFaults === "number" && totalFaults > 0
+                              ? `/poles?customerId=${customer.id}&projectId=${project.id}&faults=1`
+                              : undefined,
+                        },
                       ]}
                     />
                   </span>
-                </Link>
+                </div>
               );
             })}
           </div>

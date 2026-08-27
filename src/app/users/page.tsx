@@ -49,7 +49,6 @@ export default async function UsersPage() {
     <>
       <PageHeader
         title="Users"
-        description="People with access to this tool and what they can do."
         actions={
           canManageUsers && (
             <InviteUserModal customers={customers} lockedCustomer={ownCustomer} />

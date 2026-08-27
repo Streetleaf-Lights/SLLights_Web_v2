@@ -334,7 +334,9 @@ describe("CustomerDetailPage", () => {
     });
     render(jsx);
 
-    const row1 = screen.getByRole("link", { name: /Bayou District Rebuild/ });
+    const row1 = screen
+      .getByRole("link", { name: /Bayou District Rebuild/ })
+      .closest("div") as HTMLElement;
     const rowStat = within(row1).getByLabelText("54 Total lights");
     expect(rowStat).toBeInTheDocument();
     // p1's connectedLights is 51
@@ -349,7 +351,9 @@ describe("CustomerDetailPage", () => {
     // Uses the smaller size in row context.
     expect(rowStat.querySelector("div")?.className).toContain("text-[13px]");
 
-    const row2 = screen.getByRole("link", { name: /Storm Hardening Phase 2/ });
+    const row2 = screen
+      .getByRole("link", { name: /Storm Hardening Phase 2/ })
+      .closest("div") as HTMLElement;
     expect(within(row2).getByLabelText("34 Total lights")).toBeInTheDocument();
     expect(within(row2).getByLabelText("34 Connected lights")).toBeInTheDocument();
   });
@@ -364,7 +368,9 @@ describe("CustomerDetailPage", () => {
     });
     render(jsx);
 
-    const row1 = screen.getByRole("link", { name: /Bayou District Rebuild/ });
+    const row1 = screen
+      .getByRole("link", { name: /Bayou District Rebuild/ })
+      .closest("div") as HTMLElement;
     expect(within(row1).getByLabelText("— Total lights")).toBeInTheDocument();
     expect(within(row1).getByLabelText("— Connected lights")).toBeInTheDocument();
     expect(within(row1).getByLabelText("— Total faults")).toBeInTheDocument();
@@ -386,7 +392,9 @@ describe("CustomerDetailPage", () => {
     render(jsx);
 
     expect(screen.queryByLabelText(/Connected lights/)).not.toBeInTheDocument();
-    const row1 = screen.getByRole("link", { name: /Bayou District Rebuild/ });
+    const row1 = screen
+      .getByRole("link", { name: /Bayou District Rebuild/ })
+      .closest("div") as HTMLElement;
     expect(within(row1).getByLabelText("54 Total lights")).toBeInTheDocument();
     expect(within(row1).getByLabelText("1 Total faults")).toBeInTheDocument();
   });
@@ -424,7 +432,9 @@ describe("CustomerDetailPage", () => {
     });
     render(jsx);
 
-    const row1 = screen.getByRole("link", { name: /Bayou District Rebuild/ });
+    const row1 = screen
+      .getByRole("link", { name: /Bayou District Rebuild/ })
+      .closest("div") as HTMLElement;
     expect(within(row1).getByLabelText("51 Connected lights")).toBeInTheDocument();
   });
 
@@ -489,6 +499,124 @@ describe("CustomerDetailPage", () => {
       "href",
       "/customers/r2/projects/p1",
     );
+  });
+
+  it("links a project's Total faults stat to the faulted-poles view for that project, when it has faults", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
+    const jsx = await CustomerDetailPage({
+      params: Promise.resolve({ id: "r2" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    // Bayou District Rebuild (p1) has totalFaults: 1 — scope to its own
+    // row, since Storm Hardening Phase 2 (p2) also has totalFaults: 1.
+    const row1 = screen
+      .getByRole("link", { name: /Bayou District Rebuild/ })
+      .closest("div") as HTMLElement;
+    const faultsLink = within(row1).getByRole("link", { name: "1 Total faults" });
+    expect(faultsLink).toHaveAttribute("href", "/poles?customerId=r2&projectId=p1&faults=1");
+  });
+
+  it("uses a recognizable (red/flagged) color for a project's Total faults link, distinct from ordinary links", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
+    const jsx = await CustomerDetailPage({
+      params: Promise.resolve({ id: "r2" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    const row1 = screen
+      .getByRole("link", { name: /Bayou District Rebuild/ })
+      .closest("div") as HTMLElement;
+    const faultsLink = within(row1).getByRole("link", { name: "1 Total faults" });
+    expect(faultsLink.querySelector("div")?.className).toContain(
+      "text-[var(--status-flagged)]",
+    );
+  });
+
+  it("links the customer-level aggregate Total faults (Summary box) to every project's faulted poles, omitting projectId", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
+    const jsx = await CustomerDetailPage({
+      params: Promise.resolve({ id: "r2" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    // customer.totalFaults is 2 in this fixture's vitals.
+    const faultsLink = screen.getByRole("link", { name: "2 Total faults" });
+    expect(faultsLink).toHaveAttribute("href", "/poles?customerId=r2&faults=1");
+    expect(faultsLink.querySelector("div")?.className).toContain(
+      "text-[var(--status-flagged)]",
+    );
+  });
+
+  it("does not link the customer-level aggregate Total faults when it's zero", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue({ ...vitals, totalFaults: 0 });
+    const jsx = await CustomerDetailPage({
+      params: Promise.resolve({ id: "r2" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(screen.queryByRole("link", { name: "0 Total faults" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("0 Total faults")).toBeInTheDocument();
+  });
+
+  it("does not link Total faults when a project has zero faults", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue({
+      ...vitals,
+      projects: [{ ...vitals.projects[0], totalFaults: 0 }, vitals.projects[1]],
+    });
+    const jsx = await CustomerDetailPage({
+      params: Promise.resolve({ id: "r2" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(screen.queryByRole("link", { name: "0 Total faults" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("0 Total faults")).toBeInTheDocument();
+  });
+
+  it("does not link Total faults when there's no matching vitals row for a project (shows a dash)", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue({ ...vitals, projects: [] });
+    const jsx = await CustomerDetailPage({
+      params: Promise.resolve({ id: "r2" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(screen.queryByRole("link", { name: "— Total faults" })).not.toBeInTheDocument();
+  });
+
+  it("still lets the project name/dot navigate to the project detail page even though Total faults is now its own separate link", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
+    const jsx = await CustomerDetailPage({
+      params: Promise.resolve({ id: "r2" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    const nameLink = screen.getByRole("link", { name: /Bayou District Rebuild/ });
+    const row1 = nameLink.closest("div") as HTMLElement;
+    const faultsLink = within(row1).getByRole("link", { name: "1 Total faults" });
+    expect(nameLink).toHaveAttribute("href", "/customers/r2/projects/p1");
+    // Two distinct links, not one link wrapping both — confirms no nested <a> tags.
+    expect(nameLink).not.toBe(faultsLink);
   });
 
   it("restores the search in the breadcrumb's Customers link, and carries it into forward-going project links", async () => {

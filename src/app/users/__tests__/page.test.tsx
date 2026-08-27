@@ -87,6 +87,22 @@ describe("UsersPage", () => {
     expect(screen.queryByRole("button", { name: "Invite user" })).not.toBeInTheDocument();
   });
 
+  it("shows no description text below the page title", async () => {
+    getSessionUserMock.mockResolvedValue({
+      id: "u1",
+      role: "Streetleaf Admin",
+      customerId: null,
+    });
+    getUsersMock.mockResolvedValue(users);
+    getCustomersMock.mockResolvedValue([]);
+
+    const jsx = await UsersPage();
+    render(jsx);
+
+    expect(screen.getByRole("heading", { name: "Users" })).toBeInTheDocument();
+    expect(screen.queryByText(/People with access/)).not.toBeInTheDocument();
+  });
+
   it("shows all users and the Invite User button for a Streetleaf Admin", async () => {
     getSessionUserMock.mockResolvedValue({
       id: "u1",
