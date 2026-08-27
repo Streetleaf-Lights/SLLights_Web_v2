@@ -140,6 +140,29 @@ describe("ProjectPolesTable", () => {
     expect(overallStatusCell.className).not.toContain("status-active");
   });
 
+  it("shows Overall Status as a dash (not Fault) for an Unknown-connected pole, even though isPoleFault is true — data would be inconsistent", () => {
+    const unknownButFlagged = { ...poles[3], lastUpdate: null, isPoleFault: true };
+    render(<ProjectPolesTable poles={[unknownButFlagged]} {...defaultProps} />);
+
+    expect(screen.getByText("Unknown")).toBeInTheDocument();
+    const row = screen.getByText("Unknown").closest("tr") as HTMLElement;
+    const overallStatusCell = row.querySelectorAll("td")[2];
+    expect(overallStatusCell).toHaveTextContent("—");
+    expect(overallStatusCell.className).not.toContain("status-flagged");
+    expect(overallStatusCell.className).not.toContain("status-active");
+  });
+
+  it("shows Overall Status as a dash (not OK) for an Unknown-connected pole, even though isPoleFault is false", () => {
+    const unknownButOk = { ...poles[3], lastUpdate: null, isPoleFault: false };
+    render(<ProjectPolesTable poles={[unknownButOk]} {...defaultProps} />);
+
+    expect(screen.getByText("Unknown")).toBeInTheDocument();
+    const row = screen.getByText("Unknown").closest("tr") as HTMLElement;
+    const overallStatusCell = row.querySelectorAll("td")[2];
+    expect(overallStatusCell).toHaveTextContent("—");
+    expect(overallStatusCell.className).not.toContain("status-active");
+  });
+
   it("still shows the real Overall Status (OK/Fault) for a pole that is Online (not Disconnected)", () => {
     const onlineWithFault = { ...poles[0], isPoleFault: true };
     render(<ProjectPolesTable poles={[onlineWithFault]} {...defaultProps} />);

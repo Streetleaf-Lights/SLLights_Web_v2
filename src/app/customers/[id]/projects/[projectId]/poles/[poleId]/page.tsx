@@ -125,6 +125,19 @@ export default async function PoleDetailPage({
   const connected = connectionStatus(pole.isOnline, pole.lastUpdate);
   const overallStatus = faultStatus(pole.isPoleFault, "OK", "Fault");
   const isSilent = isSilentPole(pole.lastUpdate);
+  // A pole with Unknown connectivity (never reported at all — no isOnline,
+  // no lastUpdate) has no reliable telemetry basis for its fault flags
+  // either, even though those booleans might still hold some fault value —
+  // show a dash on all 4 cards rather than a status that may be
+  // stale/inconsistent with reality.
+  const isUnknownConnected = connected.text === "Unknown";
+  function cardFaultStatus(
+    isFault: boolean | null | undefined,
+    okLabel: string,
+    faultLabel: string,
+  ) {
+    return faultStatus(isUnknownConnected ? null : isFault, okLabel, faultLabel);
+  }
   const viewerIsCustomerScoped = isCustomerScoped(sessionUser?.role, sessionUser?.customerId);
 
   return (
@@ -188,7 +201,7 @@ export default async function PoleDetailPage({
         <div className="flex flex-col gap-4 sm:flex-row">
           <StatusBox
             title="Light"
-            status={faultStatus(pole.isLedFault, "OK", "Fault")}
+            status={cardFaultStatus(pole.isLedFault, "OK", "Fault")}
             metrics={[
               {
                 label: "Operating Status",
@@ -214,7 +227,7 @@ export default async function PoleDetailPage({
           />
           <StatusBox
             title="Panel"
-            status={faultStatus(pole.isPanelFault, "OK", "Fault")}
+            status={cardFaultStatus(pole.isPanelFault, "OK", "Fault")}
             metrics={[
               {
                 label: "Operating Status",
@@ -240,13 +253,13 @@ export default async function PoleDetailPage({
           />
           <StatusBox
             title="Battery"
-            status={faultStatus(pole.isBatteryFault, "OK", "Fault")}
+            status={cardFaultStatus(pole.isBatteryFault, "OK", "Fault")}
             metrics={
               viewerIsCustomerScoped
                 ? [
                     { label: "Operating Status", value: pole.batteryStatusLabel ?? "—" },
                     {
-                      label: "Electric Current",
+                      label: "Battery Percentage",
                       value: formatNumber(pole.electricCurrentAverage),
                     },
                   ]
@@ -257,7 +270,7 @@ export default async function PoleDetailPage({
                       value: formatPercent(pole.avgBatteryPercentage),
                     },
                     {
-                      label: "Average Electric Current",
+                      label: "Battery Percentage",
                       value: formatNumber(pole.electricCurrentAverage),
                     },
                     {
@@ -281,7 +294,7 @@ export default async function PoleDetailPage({
           />
           <StatusBox
             title="Issue"
-            status={faultStatus(pole.isOpenIssueFault, "No Issue", "Open Issue")}
+            status={cardFaultStatus(pole.isOpenIssueFault, "No Issue", "Open Issue")}
             metrics={[]}
           />
         </div>

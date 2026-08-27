@@ -399,11 +399,11 @@ describe("PoleDetailPage", () => {
     for (const label of operatingStatuses) {
       expect(label.nextElementSibling).toHaveTextContent("OK");
     }
-    expect(screen.getByText("Average Electric Current").nextElementSibling).toHaveTextContent("0");
+    expect(screen.getByText("Battery Percentage").nextElementSibling).toHaveTextContent("0");
     expect(screen.queryByText("Electric Current")).not.toBeInTheDocument();
 
-    // Average Electric Current sits just above Electric Current 1 & 2.
-    const avgElecCurrentRow = screen.getByText("Average Electric Current").closest("div");
+    // Battery Percentage sits just above Electric Current 1 & 2.
+    const avgElecCurrentRow = screen.getByText("Battery Percentage").closest("div");
     const elecCurrent1Row = screen.getByText("Electric Current 1").closest("div");
     expect(avgElecCurrentRow?.nextElementSibling).toBe(elecCurrent1Row);
   });
@@ -448,7 +448,7 @@ describe("PoleDetailPage", () => {
     for (const label of operatingStatuses) {
       expect(label.nextElementSibling).toHaveTextContent("OK");
     }
-    expect(screen.getByText("Average Electric Current").nextElementSibling).toHaveTextContent("0");
+    expect(screen.getByText("Battery Percentage").nextElementSibling).toHaveTextContent("0");
     expect(screen.queryByText("Last Known Operating Status")).not.toBeInTheDocument();
     expect(screen.queryByText("Recent Operating Status")).not.toBeInTheDocument();
 
@@ -775,7 +775,48 @@ describe("PoleDetailPage", () => {
     for (const label of operatingStatuses) {
       expect(label.nextElementSibling).toHaveTextContent("—");
     }
-    expect(screen.getByText("Average Electric Current").nextElementSibling).toHaveTextContent("—");
+    expect(screen.getByText("Battery Percentage").nextElementSibling).toHaveTextContent("—");
+  });
+
+  it("shows a dash on all 4 cards (Light/Panel/Battery/Issue) when 48h Connected is Unknown, even though every fault flag has a real (non-null) value", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue({
+      ...vitals,
+      projects: [
+        {
+          ...vitals.projects[0],
+          poles: [
+            {
+              ...vitals.projects[0].poles[0],
+              isOnline: null,
+              lastUpdate: null,
+              // Real, non-null fault data — the point of this test is that
+              // it's still overridden to a dash, since Unknown connectivity
+              // means this data has no reliable telemetry basis.
+              isLedFault: true,
+              isPanelFault: false,
+              isBatteryFault: true,
+              isOpenIssueFault: false,
+              isPoleFault: true,
+            },
+          ],
+        },
+      ],
+    });
+    const jsx = await PoleDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(screen.getByText("Unknown")).toBeInTheDocument();
+    for (const title of ["Light", "Panel", "Battery", "Issue"]) {
+      const badge = screen.getByText(title).nextElementSibling;
+      expect(badge).toHaveTextContent("—");
+      expect(badge?.className).not.toContain("status-active");
+      expect(badge?.className).not.toContain("status-flagged");
+    }
   });
 
   it("groups Last Update + Install Date in one column, Lat + Long in another, and Connected + Overall Status in a third", async () => {
@@ -864,7 +905,7 @@ describe("PoleDetailPage", () => {
     expect(screen.getByText("48h Overall Status:")).toBeInTheDocument();
   });
 
-  it("shows only a single simplified metric per box (Operating Status, + Electric Current for Battery) for a Customer Admin, dropping the 48h Average/point-in-time metrics", async () => {
+  it("shows only a single simplified metric per box (Operating Status, + Battery Percentage for Battery) for a Customer Admin, dropping the 48h Average/point-in-time metrics", async () => {
     getSessionUserMock.mockResolvedValue({ id: "u1", role: "Customer Admin", customerId: "r2" });
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
@@ -881,7 +922,7 @@ describe("PoleDetailPage", () => {
     for (const label of operatingStatuses) {
       expect(label.nextElementSibling).toHaveTextContent("OK");
     }
-    expect(screen.getByText("Electric Current").nextElementSibling).toHaveTextContent("0");
+    expect(screen.getByText("Battery Percentage").nextElementSibling).toHaveTextContent("0");
     // Customer scope never gets the Recent/Last Known prefix Streetleaf does.
     expect(screen.queryByText("Recent Operating Status")).not.toBeInTheDocument();
     expect(screen.queryByText("Last Known Operating Status")).not.toBeInTheDocument();
@@ -948,7 +989,7 @@ describe("PoleDetailPage", () => {
     for (const label of operatingStatuses) {
       expect(label.nextElementSibling).toHaveTextContent("OK");
     }
-    expect(screen.getByText("Average Electric Current").nextElementSibling).toHaveTextContent("0");
+    expect(screen.getByText("Battery Percentage").nextElementSibling).toHaveTextContent("0");
     expect(screen.queryByText("Electric Current")).not.toBeInTheDocument();
     expect(screen.queryByText("Recent Operating Status")).not.toBeInTheDocument();
     expect(screen.queryByText("Last Known Operating Status")).not.toBeInTheDocument();
@@ -971,7 +1012,7 @@ describe("PoleDetailPage", () => {
     expect(screen.getByText("Battery Voltage 2").nextElementSibling).toHaveTextContent("13.785V");
   });
 
-  it("positions Average Electric Current directly above Electric Current 1 & 2 in the Battery box, for a Streetleaf Admin", async () => {
+  it("positions Battery Percentage directly above Electric Current 1 & 2 in the Battery box, for a Streetleaf Admin", async () => {
     getSessionUserMock.mockResolvedValue({ id: "u1", role: "Streetleaf Admin", customerId: null });
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
@@ -991,7 +1032,7 @@ describe("PoleDetailPage", () => {
     expect(rowLabels).toEqual([
       "Operating Status",
       "48h Average Battery %",
-      "Average Electric Current",
+      "Battery Percentage",
       "Electric Current 1",
       "Electric Current 2",
       "Battery Voltage 1",

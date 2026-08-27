@@ -7,6 +7,7 @@ import {
   initials,
   isLightStatusWorking,
   isSilentPole,
+  poleOverallStatus,
   tieredPercentClass,
 } from "@/lib/text";
 
@@ -247,6 +248,43 @@ describe("connectionStatus", () => {
       text: "Unknown",
       className: "text-[var(--ink-faint)]",
     });
+  });
+});
+
+describe("poleOverallStatus", () => {
+  it("shows the real OK/Fault status when the pole is Online", () => {
+    expect(
+      poleOverallStatus({ isOnline: true, lastUpdate: "2026-07-26 13:25:41+00:00", isPoleFault: true }),
+    ).toEqual({ text: "Fault", className: "text-[var(--status-flagged)]" });
+    expect(
+      poleOverallStatus({ isOnline: true, lastUpdate: "2026-07-26 13:25:41+00:00", isPoleFault: false }),
+    ).toEqual({ text: "OK", className: "text-[var(--status-active)]" });
+  });
+
+  it("forces a dash for a Disconnected pole, even if isPoleFault has a real value", () => {
+    expect(
+      poleOverallStatus({ isOnline: null, lastUpdate: "2026-07-26 13:25:41+00:00", isPoleFault: true }),
+    ).toEqual({ text: "—", className: "text-[var(--ink-faint)]" });
+    expect(
+      poleOverallStatus({ isOnline: null, lastUpdate: "2026-07-26 13:25:41+00:00", isPoleFault: false }),
+    ).toEqual({ text: "—", className: "text-[var(--ink-faint)]" });
+  });
+
+  it("forces a dash for an Unknown pole (both isOnline and lastUpdate null), even if isPoleFault has a real value — the underlying data would be inconsistent", () => {
+    expect(poleOverallStatus({ isOnline: null, lastUpdate: null, isPoleFault: true })).toEqual({
+      text: "—",
+      className: "text-[var(--ink-faint)]",
+    });
+    expect(poleOverallStatus({ isOnline: null, lastUpdate: null, isPoleFault: false })).toEqual({
+      text: "—",
+      className: "text-[var(--ink-faint)]",
+    });
+  });
+
+  it("shows a dash when isPoleFault is null and the pole is Online (nothing to override)", () => {
+    expect(
+      poleOverallStatus({ isOnline: true, lastUpdate: "2026-07-26 13:25:41+00:00", isPoleFault: null }),
+    ).toEqual({ text: "—", className: "text-[var(--ink-faint)]" });
   });
 });
 

@@ -132,11 +132,17 @@ export function poleStatusLabel(isFault: boolean | null | undefined): {
  * reading is stale — show it as unknown (a dash) rather than a fault
  * status that may no longer reflect reality.
  */
+/**
+ * "Overall Status" for a pole-list row: a Disconnected or Unknown pole's
+ * isPoleFault reading has no reliable telemetry basis — show it as unknown
+ * (a dash) rather than a fault status that may be stale or inconsistent
+ * with its actual current state.
+ */
 export function poleOverallStatus(
   pole: Pick<PoleStatusFields, "isOnline" | "lastUpdate" | "isPoleFault">,
 ): { text: string; className: string } {
   const connected = connectionStatus(pole.isOnline, pole.lastUpdate);
-  return connected.text === "Disconnected"
+  return connected.text === "Disconnected" || connected.text === "Unknown"
     ? poleStatusLabel(null)
     : poleStatusLabel(pole.isPoleFault);
 }

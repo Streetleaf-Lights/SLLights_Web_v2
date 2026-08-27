@@ -143,6 +143,16 @@ describe("PolesTable", () => {
     expect(overallStatusCell.className).not.toContain("status-flagged");
   });
 
+  it("shows Overall Status as a dash (not Fault) for an Unknown-connected pole, even though isPoleFault is true — data would be inconsistent", () => {
+    render(<PolesTable poles={[makePole({ isOnline: null, lastUpdate: null, isPoleFault: true })]} />);
+    expect(screen.getByText("Unknown")).toBeInTheDocument();
+    const row = screen.getByText("Unknown").closest("tr") as HTMLElement;
+    const overallStatusCell = row.querySelectorAll("td")[2];
+    expect(overallStatusCell).toHaveTextContent("—");
+    expect(overallStatusCell.className).not.toContain("status-flagged");
+    expect(overallStatusCell.className).not.toContain("status-active");
+  });
+
   it("shows Disconnected (red) for 48h Connected when isOnline is null but lastUpdate is present (has reported before)", () => {
     render(
       <PolesTable poles={[makePole({ isOnline: null, lastUpdate: "2026-07-26 13:25:41+00:00" })]} />,
