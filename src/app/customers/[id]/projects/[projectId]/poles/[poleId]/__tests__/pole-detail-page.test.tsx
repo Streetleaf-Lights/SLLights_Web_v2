@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
-import type { Customer, CustomerPoleVitals, Project } from "@/lib/types";
+import userEvent from "@testing-library/user-event";
+import type { Customer, CustomerPoleVitals, LeadsunProject, Project } from "@/lib/types";
 
 /**
  * A timestamp within the last 48h, formatted like the API's own
@@ -79,6 +80,7 @@ const projects: Project[] = [
     effectiveDate: "2024-11-25",
     installDates: [],
     createdAt: "2024-12-13 12:02:12-05:00",
+    leadsunProject: null,
   },
 ];
 
@@ -870,6 +872,113 @@ describe("PoleDetailPage", () => {
     expect(connectedWrapper?.parentElement).toBe(overallStatusLine?.parentElement);
     expect(connectedWrapper?.parentElement).not.toBe(lastUpdateLine?.parentElement);
     expect(connectedWrapper?.parentElement).not.toBe(latLine?.parentElement);
+  });
+
+  describe("Remote Control (header)", () => {
+    const leadsunProject: LeadsunProject = {
+      ProjectId: "545",
+      ProjectName: "Bayou District Rebuild",
+      UserName: "leadsun-user",
+      groups: [
+        {
+          GroupId: 1263,
+          GroupName: "Group A",
+          GatewayCode: "GT12L94A2310260A",
+          products: [
+            {
+              ProductId: 12548,
+              ProductName: "loc-1",
+              ControllerCode: "UPP40LA323110001",
+              ProvidedProductId: "AEXSAP4323111877",
+            },
+          ],
+        },
+      ],
+    };
+
+    it("does not show a Remote Control link when the project has no leadsunProject at all", async () => {
+      getCustomerMock.mockResolvedValue(customer);
+      getProjectsForCustomerMock.mockResolvedValue(projects);
+      getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
+      const jsx = await PoleDetailPage({
+        params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
+        searchParams: Promise.resolve({}),
+      });
+      render(jsx);
+
+      expect(screen.queryByRole("button", { name: "Remote Control" })).not.toBeInTheDocument();
+    });
+
+    it("does not show a Remote Control link when no product's ProductName matches this pole's locationId", async () => {
+      getCustomerMock.mockResolvedValue(customer);
+      getProjectsForCustomerMock.mockResolvedValue([
+        {
+          ...projects[0],
+          leadsunProject: {
+            ...leadsunProject,
+            groups: [{ ...leadsunProject.groups[0], products: [] }],
+          },
+        },
+      ]);
+      getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
+      const jsx = await PoleDetailPage({
+        params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
+        searchParams: Promise.resolve({}),
+      });
+      render(jsx);
+
+      expect(screen.queryByRole("button", { name: "Remote Control" })).not.toBeInTheDocument();
+    });
+
+    it("shows a Remote Control link when a product's ProductName matches this pole's locationId", async () => {
+      getCustomerMock.mockResolvedValue(customer);
+      getProjectsForCustomerMock.mockResolvedValue([{ ...projects[0], leadsunProject }]);
+      getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
+      const jsx = await PoleDetailPage({
+        params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
+        searchParams: Promise.resolve({}),
+      });
+      render(jsx);
+
+      expect(screen.getByRole("button", { name: "Remote Control" })).toBeInTheDocument();
+    });
+
+    it("opens the stub modal when clicked", async () => {
+      getCustomerMock.mockResolvedValue(customer);
+      getProjectsForCustomerMock.mockResolvedValue([{ ...projects[0], leadsunProject }]);
+      getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
+      const jsx = await PoleDetailPage({
+        params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
+        searchParams: Promise.resolve({}),
+      });
+      render(jsx);
+
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("button", { name: "Remote Control" }));
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+
+    it("places Remote Control to the right of the Connected/Overall Status group — that group is now 2nd from the right", async () => {
+      getCustomerMock.mockResolvedValue(customer);
+      getProjectsForCustomerMock.mockResolvedValue([{ ...projects[0], leadsunProject }]);
+      getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
+      const jsx = await PoleDetailPage({
+        params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
+        searchParams: Promise.resolve({}),
+      });
+      render(jsx);
+
+      const remoteControlButton = screen.getByRole("button", { name: "Remote Control" });
+      const connectedGroup = screen.getByText("Online").closest(
+        ".flex.flex-col.items-end",
+      ) as HTMLElement;
+      const headerRow = connectedGroup.parentElement;
+
+      // Both live in the same header row, with Remote Control's wrapper as
+      // the connected group's very next sibling (i.e. further right).
+      expect(headerRow?.contains(remoteControlButton)).toBe(true);
+      expect(connectedGroup.nextElementSibling?.contains(remoteControlButton)).toBe(true);
+    });
   });
 
   it("hides the '48h Connected' label for a Customer Admin, showing a dot + plain Online/Offline text right-aligned, with no Overall Status at all", async () => {

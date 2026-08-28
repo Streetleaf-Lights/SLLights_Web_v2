@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ProjectPolesTable } from "@/components/ProjectPolesTable";
-import type { PoleVital } from "@/lib/types";
+import type { LeadsunProject, PoleVital } from "@/lib/types";
 
 const defaultProps = { customerId: "cust-1", projectId: "proj-1" };
 
@@ -491,5 +491,98 @@ describe("ProjectPolesTable", () => {
     expect(screen.queryByText("OFF")).not.toBeInTheDocument();
     expect(screen.queryByText("Charging")).not.toBeInTheDocument();
     expect(screen.queryByText("Full")).not.toBeInTheDocument();
+  });
+
+  describe("Actions column (Remote Control)", () => {
+    const leadsunProject: LeadsunProject = {
+      ProjectId: "545",
+      ProjectName: "Manatee County - Buffalo Creek",
+      UserName: "12081-FLManatee",
+      groups: [
+        {
+          GroupId: 1263,
+          GroupName: "Buffalo Creek",
+          GatewayCode: "GT12L94A2310260A",
+          products: [
+            {
+              ProductId: 12548,
+              ProductName: "loc-1",
+              ControllerCode: "UPP40LA323110001",
+              ProvidedProductId: "AEXSAP4323111877",
+            },
+          ],
+        },
+      ],
+    };
+
+    it("does not render an Actions column when no leadsunProject is given", () => {
+      render(<ProjectPolesTable poles={poles} {...defaultProps} />);
+      expect(
+        screen.queryByRole("columnheader", { name: "Actions" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("does not render an Actions column when leadsunProject has no products at all", () => {
+      render(
+        <ProjectPolesTable
+          poles={poles}
+          {...defaultProps}
+          leadsunProject={{ ...leadsunProject, groups: [] }}
+        />,
+      );
+      expect(
+        screen.queryByRole("columnheader", { name: "Actions" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows the Actions column when at least one pole's locationId matches a product", () => {
+      render(
+        <ProjectPolesTable poles={poles} {...defaultProps} leadsunProject={leadsunProject} />,
+      );
+      expect(screen.getByRole("columnheader", { name: "Actions" })).toBeInTheDocument();
+    });
+
+    it("shows a Remote Control link only on the row whose locationId matches, blank on the rest", () => {
+      render(
+        <ProjectPolesTable poles={poles} {...defaultProps} leadsunProject={leadsunProject} />,
+      );
+      const matchingRow = screen.getByText("51079-1000").closest("tr") as HTMLElement;
+      const otherRow = screen.getByText("51079-1001").closest("tr") as HTMLElement;
+      expect(within(matchingRow).getByRole("button", { name: "Remote Control" })).toBeInTheDocument();
+      expect(
+        within(otherRow).queryByRole("button", { name: "Remote Control" }),
+      ).not.toBeInTheDocument();
+      // The cell itself is still present (blank), so columns still line up.
+      expect(otherRow.querySelectorAll("td")).toHaveLength(
+        matchingRow.querySelectorAll("td").length,
+      );
+    });
+
+    it("opens the stub Remote Control modal when clicked", async () => {
+      const user = userEvent.setup();
+      render(
+        <ProjectPolesTable poles={poles} {...defaultProps} leadsunProject={leadsunProject} />,
+      );
+      await user.click(screen.getByRole("button", { name: "Remote Control" }));
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+
+    it("left-aligns the Actions cell, matching the other columns (no text-right)", () => {
+      render(
+        <ProjectPolesTable poles={poles} {...defaultProps} leadsunProject={leadsunProject} />,
+      );
+      const matchingRow = screen.getByText("51079-1000").closest("tr") as HTMLElement;
+      const actionsCell = matchingRow.querySelector("td:last-child");
+      expect(actionsCell?.className).not.toContain("text-right");
+    });
+
+    it("uses the accent color for the Remote Control link", () => {
+      render(
+        <ProjectPolesTable poles={poles} {...defaultProps} leadsunProject={leadsunProject} />,
+      );
+      const link = screen.getByRole("button", { name: "Remote Control" });
+      expect(link.className).toContain("text-[var(--accent)]");
+      expect(link.className).not.toContain("--accent-ink");
+    });
   });
 });

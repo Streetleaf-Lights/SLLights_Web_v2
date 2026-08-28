@@ -5,8 +5,10 @@ import { PageHeader } from "@/components/PageHeader";
 import { Breadcrumbs, leadingCrumb } from "@/components/Breadcrumbs";
 import { PoleMap } from "@/components/PoleMap";
 import { PoleVitalsChart } from "@/components/PoleVitalsChart";
+import { RemoteControlLink } from "@/components/RemoteControlLink";
 import { withQueryParam, withSearchContext } from "@/lib/url";
 import { formatPercent, formatTimestamp, connectionStatus, isSilentPole } from "@/lib/text";
+import { findLeadsunProduct } from "@/lib/leadsun";
 import { getSessionUser, isCustomerScoped } from "@/lib/session";
 
 function formatCoordinate(value: number | null | undefined): string {
@@ -204,6 +206,7 @@ export default async function PoleDetailPage({
     return isUnknownConnected ? "—" : formatPercent(value);
   }
   const viewerIsCustomerScoped = isCustomerScoped(sessionUser?.role, sessionUser?.customerId);
+  const leadsunProduct = findLeadsunProduct(project.leadsunProject, pole.locationId);
 
   return (
     <>
@@ -256,6 +259,11 @@ export default async function PoleDetailPage({
               </span>
             )}
           </div>
+          {leadsunProduct && (
+            <div className="flex items-center">
+              <RemoteControlLink />
+            </div>
+          )}
         </div>
       </div>
 

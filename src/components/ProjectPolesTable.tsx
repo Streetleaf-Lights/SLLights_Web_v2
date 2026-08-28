@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Pagination } from "@/components/Pagination";
+import { RemoteControlLink } from "@/components/RemoteControlLink";
 import { withSearchContext } from "@/lib/url";
 import {
   connectionStatus,
@@ -11,7 +12,8 @@ import {
   panelColumnText,
   batteryColumnText,
 } from "@/lib/text";
-import type { PoleVital } from "@/lib/types";
+import { findLeadsunProduct } from "@/lib/leadsun";
+import type { LeadsunProject, PoleVital } from "@/lib/types";
 
 const PAGE_SIZE = 10;
 
@@ -22,6 +24,7 @@ export function ProjectPolesTable({
   custQ,
   poleQ,
   customerScoped = false,
+  leadsunProject,
 }: {
   poles: PoleVital[];
   customerId: string;
@@ -35,6 +38,13 @@ export function ProjectPolesTable({
    * "48h Overall Status" to "Overall Status".
    */
   customerScoped?: boolean;
+  /**
+   * When a pole's locationId matches a product here, that row gets a
+   * Remote Control link in the rightmost "Actions" column. Absent/no
+   * match means no link for that row, and if this project has no Leadsun
+   * products at all, the column is dropped entirely.
+   */
+  leadsunProject?: LeadsunProject | null;
 }) {
   const [page, setPage] = useState(1);
 
@@ -49,6 +59,9 @@ export function ProjectPolesTable({
   const totalPages = Math.max(1, Math.ceil(poles.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
   const pagePoles = poles.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const showRemoteControlColumn = poles.some(
+    (pole) => findLeadsunProduct(leadsunProject, pole.locationId) !== undefined,
+  );
 
   return (
     <>
@@ -65,13 +78,19 @@ export function ProjectPolesTable({
               </th>
               <th className="py-2.5 pr-4 font-medium">Light</th>
               <th className="py-2.5 pr-4 font-medium">Panel</th>
-              <th className="py-2.5 pr-8 font-medium">Battery</th>
+              <th className={`py-2.5 font-medium ${showRemoteControlColumn ? "pr-4" : "pr-8"}`}>
+                Battery
+              </th>
+              {showRemoteControlColumn && (
+                <th className="py-2.5 pr-8 font-medium">Actions</th>
+              )}
             </tr>
           </thead>
           <tbody>
             {pagePoles.map((pole) => {
               const connected = connectionStatus(pole.isOnline, pole.lastUpdate);
               const status = poleOverallStatus(pole);
+              const leadsunProduct = findLeadsunProduct(leadsunProject, pole.locationId);
               return (
                 <tr
                   key={pole.id}
@@ -107,7 +126,14 @@ export function ProjectPolesTable({
                   <td className={`py-3 pr-4 font-medium ${status.className}`}>{status.text}</td>
                   <td className="py-3 pr-4">{lightColumnText(pole, customerScoped)}</td>
                   <td className="py-3 pr-4">{panelColumnText(pole)}</td>
-                  <td className="py-3 pr-8">{batteryColumnText(pole)}</td>
+                  <td className={`py-3 ${showRemoteControlColumn ? "pr-4" : "pr-8"}`}>
+                    {batteryColumnText(pole)}
+                  </td>
+                  {showRemoteControlColumn && (
+                    <td className="py-3 pr-8">
+                      {leadsunProduct && <RemoteControlLink />}
+                    </td>
+                  )}
                 </tr>
               );
             })}

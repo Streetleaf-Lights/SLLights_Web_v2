@@ -354,6 +354,72 @@ describe("normalizeProject", () => {
     expect(project.effectiveDate).toBe("2024-11-25");
     expect(project.createdAt).toBe("2024-12-13 12:02:12-05:00");
   });
+
+  it("defaults leadsunProject to null when the raw field is absent", () => {
+    const project = normalizeProject(raw);
+    expect(project.leadsunProject).toBeNull();
+  });
+
+  it("parses leadsunProject from its JSON-stringified form, same pattern as poleNumbers/poleIds/installDates", () => {
+    const leadsunProjectJson = JSON.stringify({
+      ProjectId: "545",
+      ProjectName: "Manatee County - Buffalo Creek",
+      UserName: "12081-FLManatee",
+      groups: [
+        {
+          GroupId: 1263,
+          GroupName: "Buffalo Creek",
+          GatewayCode: "GT12L94A2310260A",
+          products: [
+            {
+              ProductId: 12548,
+              ProductName: "12081-1102",
+              ControllerCode: "UPP40LA323110001",
+              ProvidedProductId: "AEXSAP4323111877",
+            },
+          ],
+        },
+      ],
+    });
+    const project = normalizeProject({ ...raw, leadsunProject: leadsunProjectJson });
+    expect(project.leadsunProject?.ProjectId).toBe("545");
+    expect(project.leadsunProject?.ProjectName).toBe("Manatee County - Buffalo Creek");
+    expect(project.leadsunProject?.groups).toHaveLength(1);
+    expect(project.leadsunProject?.groups[0].products[0].ProductName).toBe("12081-1102");
+  });
+
+  it("also accepts leadsunProject as an already-parsed object (not just a JSON string)", () => {
+    const project = normalizeProject({
+      ...raw,
+      leadsunProject: {
+        ProjectId: "545",
+        ProjectName: "Manatee County - Buffalo Creek",
+        UserName: "12081-FLManatee",
+        groups: [],
+      },
+    });
+    expect(project.leadsunProject?.ProjectId).toBe("545");
+    expect(project.leadsunProject?.groups).toEqual([]);
+  });
+
+  it("normalizes a missing/malformed groups field to an empty array rather than crashing downstream code", () => {
+    const project = normalizeProject({
+      ...raw,
+      // @ts-expect-error deliberately malformed for this test
+      leadsunProject: { ProjectId: "545", ProjectName: "X", UserName: "Y" },
+    });
+    expect(project.leadsunProject?.groups).toEqual([]);
+  });
+
+  it("returns null (not a crash) for an unparseable leadsunProject string", () => {
+    const project = normalizeProject({ ...raw, leadsunProject: "{not valid json" });
+    expect(project.leadsunProject).toBeNull();
+  });
+
+  it("returns null for an empty-string leadsunProject", () => {
+    const project = normalizeProject({ ...raw, leadsunProject: "" });
+    expect(project.leadsunProject).toBeNull();
+  });
 });
 
 describe("getProjectsForCustomer", () => {

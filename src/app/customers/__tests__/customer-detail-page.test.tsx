@@ -56,6 +56,7 @@ const projects: Project[] = [
     effectiveDate: "2024-11-25",
     installDates: ["2025-05-23"],
     createdAt: "2024-12-13 12:02:12-05:00",
+    leadsunProject: null,
   },
   {
     id: "p2",
@@ -67,6 +68,7 @@ const projects: Project[] = [
     effectiveDate: "2025-01-15",
     installDates: [],
     createdAt: "2025-01-10 09:00:00-05:00",
+    leadsunProject: null,
   },
 ];
 

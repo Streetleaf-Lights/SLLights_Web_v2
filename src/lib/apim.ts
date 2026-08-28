@@ -20,6 +20,7 @@ import type {
   Customer,
   CustomerPoleVitals,
   CustomerProjectRef,
+  LeadsunProject,
   PeriodType,
   Pole,
   PoleSummary,
@@ -125,6 +126,35 @@ export function parseJsonStringArray(raw: string | null | undefined): string[] {
   }
 }
 
+/**
+ * Same JSON-stringified-field pattern as poleNumbers/poleIds/installDates
+ * above — leadsunProject may arrive as a JSON string rather than an
+ * already-parsed object. Also defensively normalizes `groups` to an empty
+ * array if it's missing/malformed, so callers never need to null-check
+ * that specifically.
+ */
+function parseLeadsunProject(
+  raw: LeadsunProject | string | null | undefined,
+): LeadsunProject | null {
+  if (!raw) return null;
+  let value: unknown = raw;
+  if (typeof raw === "string") {
+    try {
+      value = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Partial<LeadsunProject>;
+  return {
+    ProjectId: candidate.ProjectId ?? "",
+    ProjectName: candidate.ProjectName ?? "",
+    UserName: candidate.UserName ?? "",
+    groups: Array.isArray(candidate.groups) ? candidate.groups : [],
+  };
+}
+
 export function normalizeCustomer(raw: RawCustomer): Customer {
   const names = parseJsonStringArray(raw.projectNames);
   const ids = parseJsonStringArray(raw.projectIds);
@@ -181,6 +211,13 @@ export interface RawProject {
   /** JSON-stringified string[] */
   installDates: string;
   createdAt: string;
+  // Assumed camelCase key, matching this object's other top-level fields —
+  // its own nested content keeps Leadsun's native PascalCase, since that's
+  // a separate external system's shape passed through as-is. Flag/confirm
+  // if the real API uses a different casing for this key specifically.
+  // May arrive as a JSON string, same as poleNumbers/poleIds/installDates
+  // above, rather than an already-parsed object.
+  leadsunProject?: LeadsunProject | string | null;
 }
 
 export function normalizeProject(raw: RawProject): Project {
@@ -194,6 +231,7 @@ export function normalizeProject(raw: RawProject): Project {
     effectiveDate: raw.effectiveDate,
     installDates: parseJsonStringArray(raw.installDates),
     createdAt: raw.createdAt,
+    leadsunProject: parseLeadsunProject(raw.leadsunProject),
   };
 }
 

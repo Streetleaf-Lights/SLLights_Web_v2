@@ -25,6 +25,36 @@ export interface Customer {
 }
 
 /** Full project record from GET /getProjects?customerId=... */
+/** A single controller/light on the Leadsun (device-vendor) side of a project. */
+export interface LeadsunProduct {
+  ProductId: number;
+  ProductName: string;
+  ControllerCode: string;
+  ProvidedProductId: string;
+}
+
+/** A Leadsun gateway grouping of products within a project. */
+export interface LeadsunGroup {
+  GroupId: number;
+  GroupName: string;
+  GatewayCode: string;
+  products: LeadsunProduct[];
+}
+
+/**
+ * The Leadsun (device-vendor) side of a project — separate from our own
+ * Project record, and only present for projects actually configured for
+ * remote control. A product's ProductName lines up with a pole's
+ * locationId (confirmed against sample data), which is how a given pole
+ * is matched to its Leadsun product.
+ */
+export interface LeadsunProject {
+  ProjectId: string;
+  ProjectName: string;
+  UserName: string;
+  groups: LeadsunGroup[];
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -35,6 +65,7 @@ export interface Project {
   effectiveDate: string;
   installDates: string[];
   createdAt: string;
+  leadsunProject: LeadsunProject | null;
 }
 
 /**

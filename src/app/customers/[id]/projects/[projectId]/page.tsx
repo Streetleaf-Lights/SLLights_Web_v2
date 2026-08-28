@@ -5,8 +5,10 @@ import { Breadcrumbs, leadingCrumb } from "@/components/Breadcrumbs";
 import { StatGroup } from "@/components/StatGroup";
 import { ProjectPolesTable } from "@/components/ProjectPolesTable";
 import { LocationMap } from "@/components/LocationMap";
+import { RemoteControlLink } from "@/components/RemoteControlLink";
 import { withQueryParam, withSearchContext } from "@/lib/url";
 import { getSessionUser, isCustomerScoped } from "@/lib/session";
+import { hasLeadsunProducts } from "@/lib/leadsun";
 
 export default async function ProjectDetailPage({
   params,
@@ -71,11 +73,14 @@ export default async function ProjectDetailPage({
         ]}
       />
 
-      <div className="flex flex-col justify-center gap-1 border-b border-t border-[var(--border)] bg-[var(--surface)] px-8 py-5">
-        <p className="text-[12.5px] font-medium text-[var(--accent)]">{customer.name}</p>
-        <h1 className="text-[20px] font-semibold leading-tight tracking-tight text-[var(--ink)]">
-          {project.name}
-        </h1>
+      <div className="flex items-center justify-between gap-6 border-b border-t border-[var(--border)] bg-[var(--surface)] px-8 py-5">
+        <div className="flex flex-col justify-center gap-1">
+          <p className="text-[12.5px] font-medium text-[var(--accent)]">{customer.name}</p>
+          <h1 className="text-[20px] font-semibold leading-tight tracking-tight text-[var(--ink)]">
+            {project.name}
+          </h1>
+        </div>
+        {hasLeadsunProducts(project.leadsunProject) && <RemoteControlLink />}
       </div>
 
       <div className="mx-8 mt-6">
@@ -124,6 +129,7 @@ export default async function ProjectDetailPage({
           custQ={cust_q}
           poleQ={pole_q}
           customerScoped={viewerIsCustomerScoped}
+          leadsunProject={project.leadsunProject}
         />
       </div>
     </>
