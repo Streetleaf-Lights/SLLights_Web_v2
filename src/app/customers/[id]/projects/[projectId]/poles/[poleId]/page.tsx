@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import Link from "next/link";
 import { getCustomer, getPoleVitalsForCustomer, getProjectsForCustomer } from "@/lib/apim";
 import { PageHeader } from "@/components/PageHeader";
@@ -44,6 +45,59 @@ function panelStatusText(statusLabel: string | null, idleReason: string | null):
   return label;
 }
 
+// US mainland timezone abbreviations by UTC offset (hours), split by
+// whether daylight saving is in effect — the same offset means a
+// different zone standard vs. daylight (e.g. -05:00 is Eastern Standard
+// in winter, but Central Daylight in summer), so these can't be merged
+// into one lookup.
+const STANDARD_TIME_ZONES: Record<number, string> = { "-5": "EST", "-6": "CST", "-7": "MST", "-8": "PST" };
+const DAYLIGHT_TIME_ZONES: Record<number, string> = { "-4": "EDT", "-5": "CDT", "-6": "MDT", "-7": "PDT" };
+
+/** UTC timestamp (ms) of the nth Sunday of a given month/year — month is 1-indexed. */
+function nthSundayOfMonth(year: number, month: number, n: number): number {
+  const firstOfMonth = Date.UTC(year, month - 1, 1);
+  const firstDayOfWeek = new Date(firstOfMonth).getUTCDay(); // 0 = Sunday
+  const firstSundayDate = firstDayOfWeek === 0 ? 1 : 1 + (7 - firstDayOfWeek);
+  return Date.UTC(year, month - 1, firstSundayDate + (n - 1) * 7);
+}
+
+/** US daylight saving runs 2nd Sunday of March through 1st Sunday of November (the rule since 2007). */
+function isUsDaylightSaving(year: number, month: number, day: number): boolean {
+  const current = Date.UTC(year, month - 1, day);
+  return current >= nthSundayOfMonth(year, 3, 2) && current < nthSundayOfMonth(year, 11, 1);
+}
+
+/**
+ * "Expected ON @ 19:54 EDT" from a sunsetTime like
+ * "2026-08-28 19:54:31.130526-04:00" — the hour/minute and UTC offset are
+ * read literally from the string's own digits (matching this app's
+ * wall-clock convention elsewhere, e.g. formatTimestamp), and the offset
+ * is resolved to a US zone abbreviation using the wall-clock date to
+ * determine whether daylight saving is in effect. Falls back to a plain
+ * "UTC±H" label for a non-mainland-US offset, and to just the time with no
+ * zone suffix if the string can't be parsed at all.
+ */
+function formatSunsetExpectation(sunsetTime: string | null | undefined): string | null {
+  if (!sunsetTime) return null;
+  const match = sunsetTime.match(
+    /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):\d{2}(?:\.\d+)?([+-]\d{2}):?\d{2}$/,
+  );
+  if (!match) return null;
+  const [, yearStr, monthStr, dayStr, hourStr, minuteStr, offsetHourStr] = match;
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  const day = Number(dayStr);
+  const offsetHours = Number(offsetHourStr);
+  const time = `${hourStr}:${minuteStr}`;
+
+  const isDst = isUsDaylightSaving(year, month, day);
+  const zone =
+    (isDst ? DAYLIGHT_TIME_ZONES : STANDARD_TIME_ZONES)[offsetHours] ??
+    `UTC${offsetHours >= 0 ? "+" : ""}${offsetHours}`;
+
+  return `Expected ON @ ${time} ${zone}`;
+}
+
 function StatusBox({
   title,
   status,
@@ -51,7 +105,7 @@ function StatusBox({
 }: {
   title: string;
   status: { text: string; className: string };
-  metrics: { label: string; value: string }[];
+  metrics: { label: string; value: string; note?: string | null }[];
 }) {
   return (
     <div className="flex-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-5">
@@ -62,10 +116,17 @@ function StatusBox({
       {metrics.length > 0 && (
         <div className="mt-4 flex flex-col gap-2">
           {metrics.map((metric) => (
-            <div key={metric.label} className="flex items-center justify-between gap-3 text-[12.5px]">
-              <span className="text-[var(--ink-faint)]">{metric.label}</span>
-              <span className="font-mono-data text-[var(--ink)]">{metric.value}</span>
-            </div>
+            <Fragment key={metric.label}>
+              <div className="flex items-center justify-between gap-3 text-[12.5px]">
+                <span className="text-[var(--ink-faint)]">{metric.label}</span>
+                <span className="font-mono-data text-[var(--ink)]">{metric.value}</span>
+              </div>
+              {metric.note && (
+                <div className="-mt-1 text-right text-[12px] text-[var(--ink-muted)]">
+                  {metric.note}
+                </div>
+              )}
+            </Fragment>
           ))}
         </div>
       )}
@@ -210,6 +271,8 @@ export default async function PoleDetailPage({
               {
                 label: "Operating Status",
                 value: pole.lightStatusLabel ?? "—",
+                note:
+                  pole.lightStatusLabel === "OFF" ? formatSunsetExpectation(pole.sunsetTime) : null,
               },
               ...(viewerIsCustomerScoped
                 ? []

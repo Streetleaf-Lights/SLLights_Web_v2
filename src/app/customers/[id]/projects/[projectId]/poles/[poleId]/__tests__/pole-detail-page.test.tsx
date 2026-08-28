@@ -120,6 +120,7 @@ const vitals: CustomerPoleVitals = {
           avgBatteryPercentage: 90.43,
           avgPanelPercentage: 10.79,
           avgLightPercentage: 11.3,
+          sunsetTime: null,
           lightStatusLabel: "OK",
           panelStatusLabel: "OK",
           panelIdleReason: "OK",
@@ -682,6 +683,7 @@ describe("PoleDetailPage", () => {
               avgBatteryPercentage: null,
               avgPanelPercentage: null,
               avgLightPercentage: null,
+              sunsetTime: null,
               lightStatusLabel: null,
               panelStatusLabel: null,
               panelIdleReason: null,
@@ -737,6 +739,7 @@ describe("PoleDetailPage", () => {
               avgBatteryPercentage: null,
               avgPanelPercentage: null,
               avgLightPercentage: null,
+              sunsetTime: null,
               lightStatusLabel: null,
               panelStatusLabel: null,
               panelIdleReason: null,
@@ -989,6 +992,220 @@ describe("PoleDetailPage", () => {
     expect(within(panelBox).getByText("Operating Status").nextElementSibling).toHaveTextContent(
       "Idle (Battery Full)",
     );
+  });
+
+  it("shows 'Expected ON @ ...' directly below the Light card's Operating Status row when lightStatusLabel is OFF, with a DST-aware US timezone abbreviation (EDT here, since -04:00 in August)", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue({
+      ...vitals,
+      projects: [
+        {
+          ...vitals.projects[0],
+          poles: [
+            {
+              ...vitals.projects[0].poles[0],
+              lightStatusLabel: "OFF",
+              sunsetTime: "2026-08-28 19:54:31.130526-04:00",
+            },
+          ],
+        },
+      ],
+    });
+    const jsx = await PoleDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    const expectedOn = screen.getByText("Expected ON @ 19:54 EDT");
+    const lightBox = screen.getByText("Light").closest(".flex-1") as HTMLElement;
+    const operatingStatusRow = within(lightBox).getByText("Operating Status").closest("div");
+    // The note sits immediately after the Operating Status row, not at the
+    // bottom of the whole card.
+    expect(operatingStatusRow?.nextElementSibling).toBe(expectedOn);
+  });
+
+  it("positions 'Expected ON @ ...' right below Operating Status, above 48h Average Light % and Light Power 1/2, for a Streetleaf Admin", async () => {
+    getSessionUserMock.mockResolvedValue({ id: "u1", role: "Streetleaf Admin", customerId: null });
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue({
+      ...vitals,
+      projects: [
+        {
+          ...vitals.projects[0],
+          poles: [
+            {
+              ...vitals.projects[0].poles[0],
+              lightStatusLabel: "OFF",
+              sunsetTime: "2026-08-28 19:54:31.130526-04:00",
+            },
+          ],
+        },
+      ],
+    });
+    const jsx = await PoleDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    const lightBox = screen.getByText("Light").closest(".flex-1") as HTMLElement;
+    const metricsContainer = lightBox.querySelector(".mt-4");
+    const rowTexts = Array.from(metricsContainer?.children ?? []).map((row) => row.textContent);
+
+    expect(rowTexts).toEqual([
+      "Operating StatusOFF",
+      "Expected ON @ 19:54 EDT",
+      "48h Average Light %11.3%",
+      "Light Power 145",
+      "Light Power 246",
+    ]);
+  });
+
+
+  it("resolves a winter (-05:00) offset to EST (not EDT), since daylight saving isn't active in January", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue({
+      ...vitals,
+      projects: [
+        {
+          ...vitals.projects[0],
+          poles: [
+            {
+              ...vitals.projects[0].poles[0],
+              lightStatusLabel: "OFF",
+              sunsetTime: "2026-01-15 17:30:00-05:00",
+            },
+          ],
+        },
+      ],
+    });
+    const jsx = await PoleDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(screen.getByText("Expected ON @ 17:30 EST")).toBeInTheDocument();
+  });
+
+  it("resolves a -05:00 offset to CDT (not EST) in August, since Central Daylight also uses -05:00 in summer", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue({
+      ...vitals,
+      projects: [
+        {
+          ...vitals.projects[0],
+          poles: [
+            {
+              ...vitals.projects[0].poles[0],
+              lightStatusLabel: "OFF",
+              sunsetTime: "2026-08-28 20:15:00-05:00",
+            },
+          ],
+        },
+      ],
+    });
+    const jsx = await PoleDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(screen.getByText("Expected ON @ 20:15 CDT")).toBeInTheDocument();
+  });
+
+  it("does not show the sunset expectation when lightStatusLabel is not OFF, even if sunsetTime is present", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue({
+      ...vitals,
+      projects: [
+        {
+          ...vitals.projects[0],
+          poles: [
+            {
+              ...vitals.projects[0].poles[0],
+              lightStatusLabel: "ON",
+              sunsetTime: "2026-08-28 19:54:31.130526-04:00",
+            },
+          ],
+        },
+      ],
+    });
+    const jsx = await PoleDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(screen.queryByText(/Expected ON/)).not.toBeInTheDocument();
+  });
+
+  it("does not show the sunset expectation when sunsetTime is null, even if lightStatusLabel is OFF", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue({
+      ...vitals,
+      projects: [
+        {
+          ...vitals.projects[0],
+          poles: [
+            {
+              ...vitals.projects[0].poles[0],
+              lightStatusLabel: "OFF",
+              sunsetTime: null,
+            },
+          ],
+        },
+      ],
+    });
+    const jsx = await PoleDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(screen.queryByText(/Expected ON/)).not.toBeInTheDocument();
+  });
+
+  it("does not show a sunset expectation on the Panel, Battery, or Issue Entry cards", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue({
+      ...vitals,
+      projects: [
+        {
+          ...vitals.projects[0],
+          poles: [
+            {
+              ...vitals.projects[0].poles[0],
+              lightStatusLabel: "OFF",
+              sunsetTime: "2026-08-28 19:54:31.130526-04:00",
+            },
+          ],
+        },
+      ],
+    });
+    const jsx = await PoleDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    const expectedOn = screen.getByText("Expected ON @ 19:54 EDT");
+    const lightBox = screen.getByText("Light").closest(".flex-1") as HTMLElement;
+    expect(lightBox).toContainElement(expectedOn);
+    const panelBox = screen.getByText("Panel").closest(".flex-1") as HTMLElement;
+    const batteryBox = screen.getByText("Battery").closest(".flex-1") as HTMLElement;
+    const issueBox = screen.getByText("Issue Entry").closest(".flex-1") as HTMLElement;
+    expect(within(panelBox).queryByText(/Expected ON/)).not.toBeInTheDocument();
+    expect(within(batteryBox).queryByText(/Expected ON/)).not.toBeInTheDocument();
+    expect(within(issueBox).queryByText(/Expected ON/)).not.toBeInTheDocument();
   });
 
   it("shows both the new status-label metrics and the restored old detailed metric set for a Streetleaf Admin, none of them prefixed", async () => {

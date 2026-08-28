@@ -68,6 +68,7 @@ export interface PoleVital {
   avgBatteryPercentage: number | null;
   avgPanelPercentage: number | null;
   avgLightPercentage: number | null;
+  sunsetTime: string | null;
   lightStatusLabel: string | null;
   panelStatusLabel: string | null;
   panelIdleReason: string | null;

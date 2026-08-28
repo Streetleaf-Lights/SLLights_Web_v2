@@ -44,6 +44,7 @@ const poles: PoleSummary[] = [
     avgBatteryPercentage: null,
     avgPanelPercentage: null,
     avgLightPercentage: null,
+    sunsetTime: null,
     lightStatusLabel: null,
     panelStatusLabel: null,
     panelIdleReason: null,
