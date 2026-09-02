@@ -35,6 +35,7 @@ const poles: PoleSummary[] = [
     id: "p1",
     poleNumber: "51079-1000",
     locationId: "loc-1",
+    active: true,
     installDate: null,
     lat: null,
     long: null,
@@ -109,6 +110,7 @@ const faultsCustomer = {
   state: null,
   zip: null,
   phone: null,
+  active: true,
   createdAt: "2026-01-01",
 };
 

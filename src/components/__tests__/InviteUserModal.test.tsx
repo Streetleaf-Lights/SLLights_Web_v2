@@ -24,6 +24,7 @@ const customers: Customer[] = [
     state: null,
     zip: null,
     phone: null,
+    active: true,
     createdAt: "2026-01-01",
   },
   {
@@ -35,6 +36,7 @@ const customers: Customer[] = [
     state: null,
     zip: null,
     phone: null,
+    active: true,
     createdAt: "2026-01-01",
   },
   {
@@ -46,6 +48,7 @@ const customers: Customer[] = [
     state: null,
     zip: null,
     phone: null,
+    active: true,
     createdAt: "2026-01-01",
   },
 ];
@@ -635,6 +638,7 @@ describe("InviteUserModal with a lockedCustomer (Customer Admin inviting into th
     state: null,
     zip: null,
     phone: null,
+    active: true,
     createdAt: "2026-01-01",
   };
 

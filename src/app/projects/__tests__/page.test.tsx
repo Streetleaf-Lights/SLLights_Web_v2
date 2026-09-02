@@ -31,6 +31,7 @@ const customer: Customer = {
   state: "LA",
   zip: "70115",
   phone: "504-555-0132",
+  active: true,
   createdAt: "2026-02-11 14:20:05-05:00",
 };
 
@@ -46,6 +47,7 @@ const projects: Project[] = [
     installDates: ["2025-05-23"],
     createdAt: "2024-12-13 12:02:12-05:00",
     leadsunProject: null,
+    active: true,
   },
 ];
 

@@ -112,6 +112,7 @@ export interface RawCustomer {
   state: string | null;
   zip: string | null;
   phone: string | null;
+  active: boolean;
   createdAt: string;
 }
 
@@ -172,12 +173,18 @@ export function normalizeCustomer(raw: RawCustomer): Customer {
     state: raw.state,
     zip: raw.zip,
     phone: raw.phone,
+    active: raw.active,
     createdAt: raw.createdAt,
   };
 }
 
-export async function getCustomers(): Promise<Customer[]> {
-  const raw = await apimFetch<RawCustomer[]>("/getCustomers");
+export interface CustomerFilters {
+  active?: boolean;
+}
+
+export async function getCustomers(filters?: CustomerFilters): Promise<Customer[]> {
+  const query = filters?.active !== undefined ? `?active=${filters.active}` : "";
+  const raw = await apimFetch<RawCustomer[]>(`/getCustomers${query}`);
   return raw.map(normalizeCustomer);
 }
 
@@ -218,6 +225,7 @@ export interface RawProject {
   // May arrive as a JSON string, same as poleNumbers/poleIds/installDates
   // above, rather than an already-parsed object.
   leadsunProject?: LeadsunProject | string | null;
+  active: boolean;
 }
 
 export function normalizeProject(raw: RawProject): Project {
@@ -232,6 +240,7 @@ export function normalizeProject(raw: RawProject): Project {
     installDates: parseJsonStringArray(raw.installDates),
     createdAt: raw.createdAt,
     leadsunProject: parseLeadsunProject(raw.leadsunProject),
+    active: raw.active,
   };
 }
 

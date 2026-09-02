@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { StatBox } from "@/components/StatBox";
 import { StatGroup } from "@/components/StatGroup";
+import { InactiveBadge } from "@/components/InactiveBadge";
 import { withSearchContext } from "@/lib/url";
 import { formatPercent, initials } from "@/lib/text";
 import type { Customer, CustomerPoleVitals, Project } from "@/lib/types";
@@ -65,8 +66,9 @@ export function CustomerOverview({
             {initials(customer.name)}
           </div>
           <div>
-            <h1 className="text-[20px] font-semibold leading-tight tracking-tight text-[var(--ink)]">
+            <h1 className="flex items-center text-[20px] font-semibold leading-tight tracking-tight text-[var(--ink)]">
               {customer.name}
+              {customer.active === false && <InactiveBadge />}
             </h1>
             {addressLine && (
               <p className="mt-0.5 text-[12.5px] text-[var(--ink-muted)]">{addressLine}</p>

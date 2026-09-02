@@ -6,6 +6,7 @@ import { Breadcrumbs, leadingCrumb } from "@/components/Breadcrumbs";
 import { PoleMap } from "@/components/PoleMap";
 import { PoleVitalsChart } from "@/components/PoleVitalsChart";
 import { RemoteControlLink } from "@/components/RemoteControlLink";
+import { InactiveBadge } from "@/components/InactiveBadge";
 import { withQueryParam, withSearchContext } from "@/lib/url";
 import { formatPercent, formatTimestamp, connectionStatus, isSilentPole } from "@/lib/text";
 import { findLeadsunProduct } from "@/lib/leadsun";
@@ -219,9 +220,13 @@ export default async function PoleDetailPage({
       />
 
       <div className="border-b border-t border-[var(--border)] bg-[var(--surface)] px-8 py-5">
-        <p className="text-[12.5px] font-medium text-[var(--accent)]">{project.name}</p>
-        <h1 className="mt-0.5 font-mono-data text-[20px] font-semibold leading-tight tracking-tight text-[var(--ink)]">
+        <p className="flex items-center text-[12.5px] font-medium text-[var(--accent)]">
+          {project.name}
+          {project.active === false && <InactiveBadge />}
+        </p>
+        <h1 className="mt-0.5 flex items-center font-mono-data text-[20px] font-semibold leading-tight tracking-tight text-[var(--ink)]">
           {pole.poleNumber}
+          {pole.active === false && <InactiveBadge />}
         </h1>
         <div className="mt-3 flex items-start gap-8 text-[12.5px] text-[var(--ink-muted)]">
           <div className="flex flex-col gap-1">

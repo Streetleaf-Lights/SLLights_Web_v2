@@ -21,6 +21,7 @@ function makePole(overrides: Partial<PoleSummary> = {}): PoleSummary {
     id: "recFrbkdOnCqdCDjt",
     poleNumber: "12057-2689033877",
     locationId: "TEC-2689033877",
+    active: true,
     installDate: "2022-04-06",
     lat: 27.74143766,
     long: -82.40508593,

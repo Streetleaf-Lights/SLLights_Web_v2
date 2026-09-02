@@ -66,6 +66,7 @@ const customer: Customer = {
   state: "LA",
   zip: null,
   phone: "504-555-0132",
+  active: true,
   createdAt: "2026-02-11 14:20:05-05:00",
 };
 
@@ -81,6 +82,7 @@ const projects: Project[] = [
     installDates: [],
     createdAt: "2024-12-13 12:02:12-05:00",
     leadsunProject: null,
+    active: true,
   },
 ];
 
@@ -105,6 +107,7 @@ const vitals: CustomerPoleVitals = {
           id: "pole1",
           poleNumber: "PAS-4938",
           locationId: "loc-1",
+          active: true,
           isOnline: true,
           lightStatus: "DayLight",
           installDate: "2025-08-28",
@@ -162,6 +165,102 @@ describe("PoleDetailPage", () => {
     render(jsx);
 
     expect(screen.getByRole("heading", { name: "PAS-4938" })).toBeInTheDocument();
+  });
+
+  it("does not show '(Inactive)' anywhere when both the project and pole are active", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
+    const jsx = await PoleDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(screen.queryByText("(Inactive)")).not.toBeInTheDocument();
+  });
+
+  it("shows '(Inactive)' next to the project name only, when the project is inactive but the pole is active", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue([{ ...projects[0], active: false }]);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
+    const jsx = await PoleDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    const badges = screen.getAllByText("(Inactive)");
+    expect(badges).toHaveLength(1);
+    expect(badges[0].className).toContain("text-[var(--status-warning)]");
+    const projectLine = badges[0].closest("p");
+    expect(projectLine).toHaveTextContent("Bayou District Rebuild");
+  });
+
+  it("shows '(Inactive)' next to the pole number only, when the pole is inactive but the project is active", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue({
+      ...vitals,
+      projects: [
+        {
+          ...vitals.projects[0],
+          poles: [{ ...vitals.projects[0].poles[0], active: false }],
+        },
+      ],
+    });
+    const jsx = await PoleDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    const badges = screen.getAllByText("(Inactive)");
+    expect(badges).toHaveLength(1);
+    const poleHeading = screen.getByRole("heading", { name: /PAS-4938/ });
+    expect(poleHeading).toContainElement(badges[0]);
+  });
+
+  it("shows '(Inactive)' next to both the project name and pole number when both are inactive", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue([{ ...projects[0], active: false }]);
+    getPoleVitalsForCustomerMock.mockResolvedValue({
+      ...vitals,
+      projects: [
+        {
+          ...vitals.projects[0],
+          poles: [{ ...vitals.projects[0].poles[0], active: false }],
+        },
+      ],
+    });
+    const jsx = await PoleDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(screen.getAllByText("(Inactive)")).toHaveLength(2);
+  });
+
+  it("does not show '(Inactive)' when project.active or pole.active is undefined (regression: treating missing data as inactive caused false positives on first-ever loads)", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue([{ ...projects[0], active: undefined }]);
+    getPoleVitalsForCustomerMock.mockResolvedValue({
+      ...vitals,
+      projects: [
+        {
+          ...vitals.projects[0],
+          poles: [{ ...vitals.projects[0].poles[0], active: undefined }],
+        },
+      ],
+    });
+    const jsx = await PoleDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(screen.queryByText("(Inactive)")).not.toBeInTheDocument();
   });
 
   it("shows the project name above the pole number", async () => {
@@ -668,6 +767,7 @@ describe("PoleDetailPage", () => {
               id: "pole1",
               poleNumber: "PAS-4938",
               locationId: "loc-1",
+              active: true,
               isOnline: null,
               lightStatus: null,
               installDate: null,
@@ -724,6 +824,7 @@ describe("PoleDetailPage", () => {
               id: "pole1",
               poleNumber: "PAS-4938",
               locationId: "loc-1",
+              active: true,
               isOnline: null,
               lightStatus: null,
               installDate: null,

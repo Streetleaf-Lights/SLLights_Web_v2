@@ -67,6 +67,7 @@ describe("normalizeCustomer", () => {
     state: "LA",
     zip: "70115",
     phone: "504-555-0132",
+    active: true,
     createdAt: "2026-04-08 09:02:37-04:00",
   };
 
@@ -88,6 +89,11 @@ describe("normalizeCustomer", () => {
     expect(customer.zip).toBe("70115");
     expect(customer.phone).toBe("504-555-0132");
     expect(customer.createdAt).toBe("2026-04-08 09:02:37-04:00");
+  });
+
+  it("passes through the active field unchanged", () => {
+    expect(normalizeCustomer({ ...raw, active: true }).active).toBe(true);
+    expect(normalizeCustomer({ ...raw, active: false }).active).toBe(false);
   });
 
   it("returns an empty projects array when projectNames/projectIds are empty", () => {
@@ -112,6 +118,7 @@ describe("normalizeCustomer", () => {
       state: null,
       zip: null,
       phone: null,
+      active: true,
     });
     expect(customer.address).toBeNull();
     expect(customer.city).toBeNull();
@@ -219,6 +226,7 @@ describe("getCustomers", () => {
       state: "FL",
       zip: null,
       phone: null,
+      active: true,
       createdAt: "2026-04-08 09:02:37-04:00",
     },
     {
@@ -231,6 +239,7 @@ describe("getCustomers", () => {
       state: "LA",
       zip: null,
       phone: "504-555-0132",
+      active: true,
       createdAt: "2026-02-11 14:20:05-05:00",
     },
   ];
@@ -245,6 +254,49 @@ describe("getCustomers", () => {
 
     expect(customers).toHaveLength(2);
     expect(customers[1].projects).toEqual([{ id: "p1", name: "Bayou District Rebuild" }]);
+  });
+
+  it("passes through the active field", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => [{ ...rawCustomers[0], active: false }],
+      }),
+    );
+
+    const customers = await getCustomers();
+    expect(customers[0].active).toBe(false);
+  });
+
+  it("calls /getCustomers with no query string when no filter is given", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => rawCustomers });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getCustomers();
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).not.toContain("?");
+  });
+
+  it("calls /getCustomers?active=true when filtered to active customers, e.g. for the Customers list page", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => rawCustomers });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getCustomers({ active: true });
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toContain("/getCustomers?active=true");
+  });
+
+  it("calls /getCustomers?active=false when explicitly filtered to inactive customers", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => rawCustomers });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getCustomers({ active: false });
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toContain("/getCustomers?active=false");
   });
 });
 
@@ -263,6 +315,7 @@ describe("getCustomer", () => {
     state: "LA",
     zip: null,
     phone: "504-555-0132",
+    active: true,
     createdAt: "2026-02-11 14:20:05-05:00",
   };
 
@@ -326,6 +379,7 @@ describe("normalizeProject", () => {
     effectiveDate: "2024-11-25",
     installDates: JSON.stringify(["2025-05-23"]),
     createdAt: "2024-12-13 12:02:12-05:00",
+    active: true,
   };
 
   it("parses poleNumbers/poleIds/installDates from their JSON-stringified form", () => {
@@ -420,6 +474,11 @@ describe("normalizeProject", () => {
     const project = normalizeProject({ ...raw, leadsunProject: "" });
     expect(project.leadsunProject).toBeNull();
   });
+
+  it("passes through the active field", () => {
+    expect(normalizeProject({ ...raw, active: true }).active).toBe(true);
+    expect(normalizeProject({ ...raw, active: false }).active).toBe(false);
+  });
 });
 
 describe("getProjectsForCustomer", () => {
@@ -438,6 +497,7 @@ describe("getProjectsForCustomer", () => {
       effectiveDate: "2024-11-25",
       installDates: JSON.stringify(["2025-05-23"]),
       createdAt: "2024-12-13 12:02:12-05:00",
+      active: true,
     },
   ];
 
@@ -569,6 +629,7 @@ describe("getPoles", () => {
     id: "recmb0TRqqEmAnT9T",
     poleNumber: "TEC-2691",
     locationId: "11439",
+    active: true,
     installDate: "2025-04-22",
     lat: 0.0,
     long: 0.0,
@@ -711,6 +772,7 @@ describe("getPole", () => {
     id: "recFrbkdOnCqdCDjt",
     poleNumber: "12057-2689033877",
     locationId: "TEC-2689033877",
+    active: true,
     installDate: "2022-04-06",
     lat: 27.74143766,
     long: -82.40508593,
@@ -762,6 +824,7 @@ describe("getPoleVitalsByPeriod", () => {
     id: "recAOlPiepBddUcCv",
     poleNumber: "01095-1000",
     locationId: "01095-1000",
+    active: true,
     installDate: "2025-09-28",
     lat: 28.30129789476302,
     long: -82.27204515451723,

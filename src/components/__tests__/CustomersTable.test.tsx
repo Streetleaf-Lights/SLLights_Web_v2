@@ -19,6 +19,7 @@ function makeCustomer(overrides: Partial<Customer> & { id: string; name: string 
     state: null,
     zip: null,
     phone: null,
+    active: true,
     createdAt: "2026-01-01 00:00:00-05:00",
     ...overrides,
   };
@@ -60,6 +61,7 @@ describe("CustomersTable", () => {
       city: "New Orleans",
       state: "LA",
       phone: "504-555-0132",
+      active: true,
       projects: [
         { id: "p1", name: "Bayou District Rebuild" },
         { id: "p2", name: "Storm Hardening Phase 2" },

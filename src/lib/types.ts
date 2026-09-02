@@ -21,6 +21,7 @@ export interface Customer {
   state: string | null;
   zip: string | null;
   phone: string | null;
+  active: boolean;
   createdAt: string;
 }
 
@@ -66,6 +67,7 @@ export interface Project {
   installDates: string[];
   createdAt: string;
   leadsunProject: LeadsunProject | null;
+  active: boolean;
 }
 
 /**
@@ -77,6 +79,7 @@ export interface PoleVital {
   id: string;
   poleNumber: string;
   locationId: string;
+  active: boolean;
   isOnline: boolean | null;
   lightStatus: string | null;
   installDate: string | null;

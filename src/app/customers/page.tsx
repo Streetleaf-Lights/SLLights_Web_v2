@@ -11,7 +11,7 @@ import { CustomersTable } from "@/components/CustomersTable";
 export const dynamic = "force-dynamic";
 
 export default async function CustomersPage() {
-  const customers = await getCustomers();
+  const customers = await getCustomers({ active: true });
 
   return (
     <>

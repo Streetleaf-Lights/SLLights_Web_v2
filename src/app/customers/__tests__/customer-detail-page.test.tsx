@@ -42,6 +42,7 @@ const customer: Customer = {
   state: "LA",
   zip: "70115",
   phone: "504-555-0132",
+  active: true,
   createdAt: "2026-02-11 14:20:05-05:00",
 };
 
@@ -57,6 +58,7 @@ const projects: Project[] = [
     installDates: ["2025-05-23"],
     createdAt: "2024-12-13 12:02:12-05:00",
     leadsunProject: null,
+    active: true,
   },
   {
     id: "p2",
@@ -69,6 +71,7 @@ const projects: Project[] = [
     installDates: [],
     createdAt: "2025-01-10 09:00:00-05:00",
     leadsunProject: null,
+    active: true,
   },
 ];
 
@@ -89,9 +92,9 @@ const vitals: CustomerPoleVitals = {
       totalFaults: 1,
       percentWorking: 92.5,
       poles: [
-        { id: "pv1", poleNumber: "51079-1000", locationId: "loc-1", isOnline: true, lightStatus: "Working", installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, lampPower1: null, lampPower2: null, batteryElecCurrent1: null, batteryElecCurrent2: null, solarBoardVoltage: null, solarBoardElecCurrent: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null, sunsetTime: null, lightStatusLabel: null, panelStatusLabel: null, panelIdleReason: null, batteryStatusLabel: null, electricCurrentAverage: null, isLedFault: null, isBatteryFault: null, isPanelFault: null, isOpenIssueFault: null, isPoleFault: null },
-        { id: "pv2", poleNumber: "51079-1001", locationId: "loc-2", isOnline: true, lightStatus: "Daylight", installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, lampPower1: null, lampPower2: null, batteryElecCurrent1: null, batteryElecCurrent2: null, solarBoardVoltage: null, solarBoardElecCurrent: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null, sunsetTime: null, lightStatusLabel: null, panelStatusLabel: null, panelIdleReason: null, batteryStatusLabel: null, electricCurrentAverage: null, isLedFault: null, isBatteryFault: null, isPanelFault: null, isOpenIssueFault: null, isPoleFault: null },
-        { id: "pv3", poleNumber: "51079-1002", locationId: "loc-3", isOnline: false, lightStatus: "Fault", installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, lampPower1: null, lampPower2: null, batteryElecCurrent1: null, batteryElecCurrent2: null, solarBoardVoltage: null, solarBoardElecCurrent: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null, sunsetTime: null, lightStatusLabel: null, panelStatusLabel: null, panelIdleReason: null, batteryStatusLabel: null, electricCurrentAverage: null, isLedFault: null, isBatteryFault: null, isPanelFault: null, isOpenIssueFault: null, isPoleFault: null },
+        { id: "pv1", poleNumber: "51079-1000", locationId: "loc-1", active: true, isOnline: true, lightStatus: "Working", installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, lampPower1: null, lampPower2: null, batteryElecCurrent1: null, batteryElecCurrent2: null, solarBoardVoltage: null, solarBoardElecCurrent: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null, sunsetTime: null, lightStatusLabel: null, panelStatusLabel: null, panelIdleReason: null, batteryStatusLabel: null, electricCurrentAverage: null, isLedFault: null, isBatteryFault: null, isPanelFault: null, isOpenIssueFault: null, isPoleFault: null },
+        { id: "pv2", poleNumber: "51079-1001", locationId: "loc-2", active: true, isOnline: true, lightStatus: "Daylight", installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, lampPower1: null, lampPower2: null, batteryElecCurrent1: null, batteryElecCurrent2: null, solarBoardVoltage: null, solarBoardElecCurrent: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null, sunsetTime: null, lightStatusLabel: null, panelStatusLabel: null, panelIdleReason: null, batteryStatusLabel: null, electricCurrentAverage: null, isLedFault: null, isBatteryFault: null, isPanelFault: null, isOpenIssueFault: null, isPoleFault: null },
+        { id: "pv3", poleNumber: "51079-1002", locationId: "loc-3", active: true, isOnline: false, lightStatus: "Fault", installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, lampPower1: null, lampPower2: null, batteryElecCurrent1: null, batteryElecCurrent2: null, solarBoardVoltage: null, solarBoardElecCurrent: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null, sunsetTime: null, lightStatusLabel: null, panelStatusLabel: null, panelIdleReason: null, batteryStatusLabel: null, electricCurrentAverage: null, isLedFault: null, isBatteryFault: null, isPanelFault: null, isOpenIssueFault: null, isPoleFault: null },
       ],
     },
     {
@@ -248,6 +251,64 @@ describe("CustomerDetailPage", () => {
 
     expect(screen.queryByText(/This is a stub detail page/)).not.toBeInTheDocument();
     expect(screen.queryByText("r2")).not.toBeInTheDocument();
+  });
+
+  it("does not show '(Inactive)' next to the customer name when the customer is active", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
+    const jsx = await CustomerDetailPage({
+      params: Promise.resolve({ id: "r2" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(screen.queryByText("(Inactive)")).not.toBeInTheDocument();
+  });
+
+  it("shows '(Inactive)' in orange next to the customer name when the customer is not active", async () => {
+    getCustomerMock.mockResolvedValue({ ...customer, active: false });
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
+    const jsx = await CustomerDetailPage({
+      params: Promise.resolve({ id: "r2" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    const badge = screen.getByText("(Inactive)");
+    expect(badge).toBeInTheDocument();
+    expect(badge.className).toContain("text-[var(--status-warning)]");
+    // Sits right next to the customer name, inside the same heading.
+    expect(screen.getByRole("heading", { name: /Coastal Power & Light/ })).toContainElement(
+      badge,
+    );
+  });
+
+  it("does not show '(Inactive)' when active is undefined (regression: was showing Inactive on a customer's first-ever fetch, before some upstream cache/propagation delay resolved) — undefined only means 'not explicitly known to be inactive', not inactive", async () => {
+    getCustomerMock.mockResolvedValue({ ...customer, active: undefined });
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
+    const jsx = await CustomerDetailPage({
+      params: Promise.resolve({ id: "r2" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(screen.queryByText("(Inactive)")).not.toBeInTheDocument();
+  });
+
+  it("does not show '(Inactive)' when active is null", async () => {
+    getCustomerMock.mockResolvedValue({ ...customer, active: null });
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
+    const jsx = await CustomerDetailPage({
+      params: Promise.resolve({ id: "r2" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(screen.queryByText("(Inactive)")).not.toBeInTheDocument();
   });
 
   it("shows a Summary box with real totalLights/percentWorking/totalFaults from /getPoleVitals", async () => {

@@ -6,6 +6,7 @@ import { StatGroup } from "@/components/StatGroup";
 import { ProjectPolesTable } from "@/components/ProjectPolesTable";
 import { LocationMap } from "@/components/LocationMap";
 import { RemoteControlLink } from "@/components/RemoteControlLink";
+import { InactiveBadge } from "@/components/InactiveBadge";
 import { withQueryParam, withSearchContext } from "@/lib/url";
 import { getSessionUser, isCustomerScoped } from "@/lib/session";
 import { hasLeadsunProducts } from "@/lib/leadsun";
@@ -75,9 +76,13 @@ export default async function ProjectDetailPage({
 
       <div className="flex items-center justify-between gap-6 border-b border-t border-[var(--border)] bg-[var(--surface)] px-8 py-5">
         <div className="flex flex-col justify-center gap-1">
-          <p className="text-[12.5px] font-medium text-[var(--accent)]">{customer.name}</p>
-          <h1 className="text-[20px] font-semibold leading-tight tracking-tight text-[var(--ink)]">
+          <p className="flex items-center text-[12.5px] font-medium text-[var(--accent)]">
+            {customer.name}
+            {customer.active === false && <InactiveBadge />}
+          </p>
+          <h1 className="flex items-center text-[20px] font-semibold leading-tight tracking-tight text-[var(--ink)]">
             {project.name}
+            {project.active === false && <InactiveBadge />}
           </h1>
         </div>
         {hasLeadsunProducts(project.leadsunProject) && <RemoteControlLink />}
