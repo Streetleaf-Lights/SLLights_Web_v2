@@ -1,4 +1,4 @@
-import type { LeadsunProduct, LeadsunProject } from "@/lib/types";
+import type { LeadsunLampStatus, LeadsunProduct, LeadsunProject } from "@/lib/types";
 
 /** True if this project has at least one Leadsun product configured, in any group. */
 export function hasLeadsunProducts(leadsunProject: LeadsunProject | null | undefined): boolean {
@@ -23,4 +23,9 @@ export function findLeadsunProduct(
     if (match) return match;
   }
   return undefined;
+}
+
+/** A lamp is ON if either channel is drawing any power at all — OFF (both 0) otherwise. */
+export function isLampOn(lamp: Pick<LeadsunLampStatus, "lampPower1" | "lampPower2">): boolean {
+  return lamp.lampPower1 + lamp.lampPower2 > 0;
 }

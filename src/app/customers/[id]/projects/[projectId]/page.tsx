@@ -85,7 +85,9 @@ export default async function ProjectDetailPage({
             {project.active === false && <InactiveBadge />}
           </h1>
         </div>
-        {hasLeadsunProducts(project.leadsunProject) && <RemoteControlLink />}
+        {project.leadsunProject && hasLeadsunProducts(project.leadsunProject) && (
+          <RemoteControlLink leadsunProject={project.leadsunProject} />
+        )}
       </div>
 
       <div className="mx-8 mt-6">

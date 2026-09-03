@@ -1,16 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { findLeadsunProduct, hasLeadsunProducts } from "@/lib/leadsun";
+import { findLeadsunProduct, hasLeadsunProducts, isLampOn } from "@/lib/leadsun";
 import type { LeadsunProject } from "@/lib/types";
 
 const leadsunProject: LeadsunProject = {
   ProjectId: "545",
   ProjectName: "Manatee County - Buffalo Creek",
   UserName: "12081-FLManatee",
+  totalGateways: 1,
+  totalPoles: 2,
   groups: [
     {
       GroupId: 1263,
       GroupName: "Buffalo Creek",
       GatewayCode: "GT12L94A2310260A",
+      totalPoles: 2,
       products: [
         {
           ProductId: 12548,
@@ -88,7 +91,7 @@ describe("findLeadsunProduct", () => {
     const secondGroupProject: LeadsunProject = {
       ...leadsunProject,
       groups: [
-        { GroupId: 1, GroupName: "Empty", GatewayCode: "GW1", products: [] },
+        { GroupId: 1, GroupName: "Empty", GatewayCode: "GW1", totalPoles: 0, products: [] },
         leadsunProject.groups[0],
       ],
     };
@@ -114,5 +117,30 @@ describe("findLeadsunProduct", () => {
     expect(() => hasLeadsunProducts(project)).not.toThrow();
     expect(hasLeadsunProducts(project)).toBe(false);
     expect(() => findLeadsunProduct(project, "12081-1102")).not.toThrow();
+  });
+});
+
+describe("isLampOn", () => {
+  it("is ON when only lampPower1 is drawing power", () => {
+    expect(isLampOn({ lampPower1: 45, lampPower2: 0 })).toBe(true);
+  });
+
+  it("is ON when only lampPower2 is drawing power", () => {
+    expect(isLampOn({ lampPower1: 0, lampPower2: 30 })).toBe(true);
+  });
+
+  it("is ON when both channels are drawing power", () => {
+    expect(isLampOn({ lampPower1: 20, lampPower2: 25 })).toBe(true);
+  });
+
+  it("is OFF when both channels are exactly 0", () => {
+    expect(isLampOn({ lampPower1: 0, lampPower2: 0 })).toBe(false);
+  });
+
+  it("treats a negative reading combined with a positive one per the literal sum, not clamped", () => {
+    // Documenting the exact rule as specified — sum > 0, no special-casing
+    // of negative sensor noise.
+    expect(isLampOn({ lampPower1: -5, lampPower2: 10 })).toBe(true);
+    expect(isLampOn({ lampPower1: -5, lampPower2: 5 })).toBe(false);
   });
 });

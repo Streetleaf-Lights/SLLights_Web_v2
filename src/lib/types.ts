@@ -39,6 +39,7 @@ export interface LeadsunGroup {
   GroupId: number;
   GroupName: string;
   GatewayCode: string;
+  totalPoles: number;
   products: LeadsunProduct[];
 }
 
@@ -53,7 +54,25 @@ export interface LeadsunProject {
   ProjectId: string;
   ProjectName: string;
   UserName: string;
+  totalGateways: number;
+  totalPoles: number;
   groups: LeadsunGroup[];
+}
+
+/**
+ * A single lamp's live status from Leadsun's own status API (GET
+ * /lamps/{leadsunProjectId}[/{productId}]) — separate from LeadsunProduct
+ * above, which only describes a pole's static identity/config. Only the
+ * fields this app actually uses are typed here; the real payload has many
+ * more (battery/solar telemetry, temperatures, etc.) that we don't need.
+ */
+export interface LeadsunLampStatus {
+  productId: string;
+  productName: string;
+  lampPower1: number;
+  lampPower2: number;
+  isOnline: boolean;
+  lastUpload: string | null;
 }
 
 export interface Project {

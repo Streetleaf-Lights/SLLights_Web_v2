@@ -264,9 +264,9 @@ export default async function PoleDetailPage({
               </span>
             )}
           </div>
-          {leadsunProduct && (
+          {leadsunProduct && project.leadsunProject && (
             <div className="flex items-center">
-              <RemoteControlLink />
+              <RemoteControlLink leadsunProject={project.leadsunProject} product={leadsunProduct} />
             </div>
           )}
         </div>

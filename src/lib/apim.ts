@@ -148,11 +148,20 @@ function parseLeadsunProject(
   }
   if (!value || typeof value !== "object") return null;
   const candidate = value as Partial<LeadsunProject>;
+  const groups = Array.isArray(candidate.groups) ? candidate.groups : [];
   return {
     ProjectId: candidate.ProjectId ?? "",
     ProjectName: candidate.ProjectName ?? "",
     UserName: candidate.UserName ?? "",
-    groups: Array.isArray(candidate.groups) ? candidate.groups : [],
+    totalGateways: candidate.totalGateways ?? groups.length,
+    totalPoles: candidate.totalPoles ?? 0,
+    groups: groups.map((group) => ({
+      GroupId: group?.GroupId ?? 0,
+      GroupName: group?.GroupName ?? "",
+      GatewayCode: group?.GatewayCode ?? "",
+      totalPoles: group?.totalPoles ?? group?.products?.length ?? 0,
+      products: Array.isArray(group?.products) ? group.products : [],
+    })),
   };
 }
 
