@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { RemoteControlLink } from "@/components/RemoteControlLink";
 import type { LeadsunLampStatus, LeadsunProduct, LeadsunProject } from "@/lib/types";
@@ -9,12 +9,12 @@ const product: LeadsunProduct = {
   ProductName: "12081-1102",
   ControllerCode: "UPP40LA323110001",
   ProvidedProductId: "AEXSAP4323111877",
+  PoleNumber: "AEXSAP4323111877-A",
 };
 
 const leadsunProject: LeadsunProject = {
   ProjectId: "482",
   ProjectName: "Chaparral",
-  UserName: "12009-brevard",
   totalGateways: 2,
   totalPoles: 5,
   groups: [
@@ -29,12 +29,14 @@ const leadsunProject: LeadsunProject = {
           ProductName: "12009-1001",
           ControllerCode: "CTRL-1",
           ProvidedProductId: "PROV-1",
+          PoleNumber: "PROV-1-A",
         },
         {
           ProductId: 2,
           ProductName: "12009-1002",
           ControllerCode: "CTRL-2",
           ProvidedProductId: "PROV-2",
+          PoleNumber: "PROV-2-A",
         },
       ],
     },
@@ -49,6 +51,7 @@ const leadsunProject: LeadsunProject = {
           ProductName: "12009-2001",
           ControllerCode: "CTRL-3",
           ProvidedProductId: "PROV-3",
+          PoleNumber: "PROV-3-A",
         },
       ],
     },
@@ -103,6 +106,14 @@ describe("RemoteControlLink", () => {
     expect(trigger.className).not.toContain("--accent-ink");
   });
 
+  it("looks like a button (bordered/padded) and explicitly shows a pointer cursor on hover — Tailwind's preflight otherwise resets <button> to cursor: default", () => {
+    render(<RemoteControlLink leadsunProject={leadsunProject} product={product} />);
+    const trigger = screen.getByRole("button", { name: "Remote Control" });
+    expect(trigger.className).toContain("cursor-pointer");
+    expect(trigger.className).toContain("border");
+    expect(trigger.className).toContain("rounded-md");
+  });
+
   it("closes the modal via the Close button", async () => {
     const user = userEvent.setup();
     render(<RemoteControlLink leadsunProject={leadsunProject} product={product} />);
@@ -153,7 +164,10 @@ describe("RemoteControlLink", () => {
       render(<RemoteControlLink leadsunProject={leadsunProject} product={product} />);
       await user.click(screen.getByRole("button", { name: "Remote Control" }));
 
-      expect(fetch).toHaveBeenCalledWith("/api/leadsunlampstatus?projectId=482&productId=12548");
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/leadsunlampstatus?projectId=482&productId=AEXSAP4323111877",
+        { cache: "no-store" },
+      );
     });
 
     it("fetches from /api/leadsunlampstatus with just projectId, in project mode (no productId)", async () => {
@@ -161,7 +175,9 @@ describe("RemoteControlLink", () => {
       render(<RemoteControlLink leadsunProject={leadsunProject} />);
       await user.click(screen.getByRole("button", { name: "Remote Control" }));
 
-      expect(fetch).toHaveBeenCalledWith("/api/leadsunlampstatus?projectId=482");
+      expect(fetch).toHaveBeenCalledWith("/api/leadsunlampstatus?projectId=482", {
+        cache: "no-store",
+      });
     });
 
     it("shows a loading indicator before the fetch resolves", async () => {
@@ -184,7 +200,7 @@ describe("RemoteControlLink", () => {
     });
 
     it("shows ON (with the lit-bulb color/glow) when lampPower1+lampPower2 > 0", async () => {
-      mockFetchOnce([makeLamp({ productId: "12548", lampPower1: 45, lampPower2: 0 })]);
+      mockFetchOnce([makeLamp({ productId: "AEXSAP4323111877", lampPower1: 45, lampPower2: 0 })]);
       const user = userEvent.setup();
       render(<RemoteControlLink leadsunProject={leadsunProject} product={product} />);
       await user.click(screen.getByRole("button", { name: "Remote Control" }));
@@ -197,7 +213,7 @@ describe("RemoteControlLink", () => {
     });
 
     it("shows OFF when lampPower1+lampPower2 === 0", async () => {
-      mockFetchOnce([makeLamp({ productId: "12548", lampPower1: 0, lampPower2: 0 })]);
+      mockFetchOnce([makeLamp({ productId: "AEXSAP4323111877", lampPower1: 0, lampPower2: 0 })]);
       const user = userEvent.setup();
       render(<RemoteControlLink leadsunProject={leadsunProject} product={product} />);
       await user.click(screen.getByRole("button", { name: "Remote Control" }));
@@ -207,7 +223,7 @@ describe("RemoteControlLink", () => {
     });
 
     it("shows ON when only one of the two lamp channels is drawing power", async () => {
-      mockFetchOnce([makeLamp({ productId: "12548", lampPower1: 0, lampPower2: 12 })]);
+      mockFetchOnce([makeLamp({ productId: "AEXSAP4323111877", lampPower1: 0, lampPower2: 12 })]);
       const user = userEvent.setup();
       render(<RemoteControlLink leadsunProject={leadsunProject} product={product} />);
       await user.click(screen.getByRole("button", { name: "Remote Control" }));
@@ -285,6 +301,81 @@ describe("RemoteControlLink", () => {
     });
   });
 
+  describe("Control Action form (Brightness/Time/GO!)", () => {
+    it("defaults Brightness to 50 and Time to 30", async () => {
+      const user = userEvent.setup();
+      render(<RemoteControlLink leadsunProject={leadsunProject} product={product} />);
+      await user.click(screen.getByRole("button", { name: "Remote Control" }));
+      await user.click(screen.getByRole("button", { name: "Control" }));
+
+      expect(screen.getByText("Brightness (50)")).toBeInTheDocument();
+      const timeInput = screen.getByLabelText(/Time/) as HTMLInputElement;
+      expect(timeInput.value).toBe("30");
+    });
+
+    it("shows GO! as the button label by default", async () => {
+      const user = userEvent.setup();
+      render(<RemoteControlLink leadsunProject={leadsunProject} product={product} />);
+      await user.click(screen.getByRole("button", { name: "Remote Control" }));
+      await user.click(screen.getByRole("button", { name: "Control" }));
+
+      expect(screen.getByRole("button", { name: "GO!" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "TURN OFF" })).not.toBeInTheDocument();
+    });
+
+    it("changes the button label to TURN OFF when Brightness is set to 0", async () => {
+      const user = userEvent.setup();
+      render(<RemoteControlLink leadsunProject={leadsunProject} product={product} />);
+      await user.click(screen.getByRole("button", { name: "Remote Control" }));
+      await user.click(screen.getByRole("button", { name: "Control" }));
+
+      const brightnessInput = screen.getByLabelText(/Brightness/) as HTMLInputElement;
+      fireEvent.change(brightnessInput, { target: { value: "0" } });
+
+      expect(screen.getByRole("button", { name: "TURN OFF" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "GO!" })).not.toBeInTheDocument();
+    });
+
+    it("switches back to GO! once Brightness is raised above 0 again", async () => {
+      const user = userEvent.setup();
+      render(<RemoteControlLink leadsunProject={leadsunProject} product={product} />);
+      await user.click(screen.getByRole("button", { name: "Remote Control" }));
+      await user.click(screen.getByRole("button", { name: "Control" }));
+
+      const brightnessInput = screen.getByLabelText(/Brightness/) as HTMLInputElement;
+      fireEvent.change(brightnessInput, { target: { value: "0" } });
+      expect(screen.getByRole("button", { name: "TURN OFF" })).toBeInTheDocument();
+
+      fireEvent.change(brightnessInput, { target: { value: "75" } });
+      expect(screen.getByRole("button", { name: "GO!" })).toBeInTheDocument();
+    });
+
+    it("has independent form state per Control Action instance", async () => {
+      const user = userEvent.setup();
+      render(<RemoteControlLink leadsunProject={leadsunProject} />);
+      await user.click(screen.getByRole("button", { name: "Remote Control" }));
+      const [firstPoleControl, secondPoleControl] = screen.getAllByRole("button", {
+        name: "Control",
+      });
+
+      await user.click(firstPoleControl);
+      const firstBrightness = screen.getByLabelText(/Brightness/) as HTMLInputElement;
+      fireEvent.change(firstBrightness, { target: { value: "0" } });
+      expect(screen.getByRole("button", { name: "TURN OFF" })).toBeInTheDocument();
+
+      // Close just the first pole's Control Action modal (scoped by its own
+      // dialog, since both it and the outer Remote Control modal have a
+      // Close button while both are open), then open the second — its own
+      // Brightness should still be at the default, unaffected by the first.
+      const firstControlDialog = screen
+        .getByRole("heading", { name: "Light Remote Control" })
+        .closest('[role="dialog"]') as HTMLElement;
+      await user.click(within(firstControlDialog).getByRole("button", { name: "Close" }));
+      await user.click(secondPoleControl);
+      expect(screen.getByRole("button", { name: "GO!" })).toBeInTheDocument();
+    });
+  });
+
   describe("pole mode (product given)", () => {
     it("shows the product's ProductName and ProvidedProductId, and nothing else", async () => {
       const user = userEvent.setup();
@@ -307,7 +398,7 @@ describe("RemoteControlLink", () => {
     });
 
     it("shows the indicator right alongside the ProductName heading", async () => {
-      mockFetchOnce([makeLamp({ productId: "12548", lampPower1: 10, lampPower2: 0 })]);
+      mockFetchOnce([makeLamp({ productId: "AEXSAP4323111877", lampPower1: 10, lampPower2: 0 })]);
       const user = userEvent.setup();
       render(<RemoteControlLink leadsunProject={leadsunProject} product={product} />);
       await user.click(screen.getByRole("button", { name: "Remote Control" }));
@@ -317,12 +408,42 @@ describe("RemoteControlLink", () => {
       expect(heading.parentElement).toContainElement(onLabel);
     });
 
-    it("still shows the 'coming soon' note for actual remote control actions", async () => {
+    it("shows a 'Control' stub link inline right after the dot/ON-OFF indicator, not below it", async () => {
       const user = userEvent.setup();
       render(<RemoteControlLink leadsunProject={leadsunProject} product={product} />);
       await user.click(screen.getByRole("button", { name: "Remote Control" }));
 
-      expect(screen.getByText("Remote control actions are coming soon.")).toBeInTheDocument();
+      const controlButton = screen.getByRole("button", { name: "Control" });
+      expect(controlButton).toBeInTheDocument();
+      // Sibling of the indicator, in the same wrapper — not a separate row underneath.
+      const indicator = await waitFor(() => screen.getByText("—"));
+      expect(indicator.parentElement).toBe(controlButton.parentElement);
+    });
+
+    it("opens a 'Light Remote Control' modal with a Brightness/Time form when the 'Control' link is clicked, on top of the Remote Control modal", async () => {
+      const user = userEvent.setup();
+      render(<RemoteControlLink leadsunProject={leadsunProject} product={product} />);
+      await user.click(screen.getByRole("button", { name: "Remote Control" }));
+      await user.click(screen.getByRole("button", { name: "Control" }));
+
+      const dialogs = screen.getAllByRole("dialog");
+      expect(dialogs).toHaveLength(2);
+      expect(screen.getByRole("heading", { name: "Light Remote Control" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "GO!" })).toBeInTheDocument();
+    });
+
+    it("closing the 'Control Action' modal leaves the Remote Control modal open", async () => {
+      const user = userEvent.setup();
+      render(<RemoteControlLink leadsunProject={leadsunProject} product={product} />);
+      await user.click(screen.getByRole("button", { name: "Remote Control" }));
+      await user.click(screen.getByRole("button", { name: "Control" }));
+
+      const controlActionDialog = screen.getByRole("heading", { name: "Light Remote Control" })
+        .closest('[role="dialog"]') as HTMLElement;
+      await user.click(within(controlActionDialog).getByRole("button", { name: "Close" }));
+
+      expect(screen.getAllByRole("dialog")).toHaveLength(1);
+      expect(screen.getByRole("heading", { name: product.ProductName })).toBeInTheDocument();
     });
   });
 
@@ -413,7 +534,6 @@ describe("RemoteControlLink", () => {
       const oneOfEachProject: LeadsunProject = {
         ProjectId: "1",
         ProjectName: "Solo Project",
-        UserName: "user",
         totalGateways: 1,
         totalPoles: 1,
         groups: [
@@ -434,11 +554,11 @@ describe("RemoteControlLink", () => {
       expect(within(dialog).getByText("1 Gateway · 1 Light")).toBeInTheDocument();
     });
 
-    it("shows each pole's own indicator, matched by ProductId, independently of the others", async () => {
+    it("shows each pole's own indicator, matched by ProvidedProductId, independently of the others", async () => {
       mockFetchOnce([
-        makeLamp({ productId: "1", lampPower1: 50, lampPower2: 0 }), // on
-        makeLamp({ productId: "2", lampPower1: 0, lampPower2: 0 }), // off
-        // productId "3" intentionally omitted — unknown/no data.
+        makeLamp({ productId: "PROV-1", lampPower1: 50, lampPower2: 0 }), // on
+        makeLamp({ productId: "PROV-2", lampPower1: 0, lampPower2: 0 }), // off
+        // PROV-3 intentionally omitted — unknown/no data.
       ]);
       const user = userEvent.setup();
       render(<RemoteControlLink leadsunProject={leadsunProject} />);
@@ -451,12 +571,101 @@ describe("RemoteControlLink", () => {
       });
     });
 
-    it("still shows the 'coming soon' note for actual remote control actions", async () => {
+    it("shows a 'Project Control' link inline right after the Gateways/Lights count, not right-aligned", async () => {
       const user = userEvent.setup();
       render(<RemoteControlLink leadsunProject={leadsunProject} />);
       await user.click(screen.getByRole("button", { name: "Remote Control" }));
 
-      expect(screen.getByText("Remote control actions are coming soon.")).toBeInTheDocument();
+      const countLine = screen.getByText(/2 Gateways/).closest("div") as HTMLElement;
+      const controlButton = within(countLine).getByRole("button", { name: "Project Control" });
+      expect(controlButton).toBeInTheDocument();
+      // Genuinely the same inline flow, not a separate flex item pushed to
+      // the far right via justify-between.
+      expect(countLine.className).not.toContain("justify-between");
+      expect(countLine.textContent).toMatch(/2 Gateways.*5 Lights.*Project Control/);
+    });
+
+    it("opens a 'Project Remote Control' modal listing every pole across all gateways when 'Project Control' is clicked", async () => {
+      const user = userEvent.setup();
+      render(<RemoteControlLink leadsunProject={leadsunProject} />);
+      await user.click(screen.getByRole("button", { name: "Remote Control" }));
+      await user.click(screen.getByRole("button", { name: "Project Control" }));
+
+      expect(screen.getAllByRole("dialog")).toHaveLength(2);
+      expect(
+        screen.getByRole("heading", { name: "Project Remote Control" }),
+      ).toBeInTheDocument();
+      expect(screen.getByText("3 poles affected")).toBeInTheDocument();
+      const columnHeaders = screen.getAllByRole("columnheader");
+      expect(columnHeaders.map((h) => h.textContent)).toEqual(["Gateway Name", "Pole Number"]);
+      // All 3 poles, across both gateways, each with the right gateway name
+      // — plus the underlying Remote Control modal's own gateway card
+      // titles, which stay in the DOM (just visually layered behind).
+      expect(screen.getAllByText("Chaparral Ph3")).toHaveLength(3);
+      expect(screen.getAllByText("Chaparral Ph4")).toHaveLength(2);
+      expect(screen.getByText("PROV-1-A")).toBeInTheDocument();
+      expect(screen.getByText("PROV-2-A")).toBeInTheDocument();
+      expect(screen.getByText("PROV-3-A")).toBeInTheDocument();
+    });
+
+    it("shows a 'Gateway Control' link inline right after each gateway's own light count, not right-aligned", async () => {
+      const user = userEvent.setup();
+      render(<RemoteControlLink leadsunProject={leadsunProject} />);
+      await user.click(screen.getByRole("button", { name: "Remote Control" }));
+
+      const ph3Card = screen.getByText("Chaparral Ph3").closest("div") as HTMLElement;
+      const ph4Card = screen.getByText("Chaparral Ph4").closest("div") as HTMLElement;
+      expect(within(ph3Card).getByRole("button", { name: "Gateway Control" })).toBeInTheDocument();
+      expect(within(ph4Card).getByRole("button", { name: "Gateway Control" })).toBeInTheDocument();
+
+      const ph3CountLine = screen.getByText("3 Lights").closest("div") as HTMLElement;
+      expect(within(ph3CountLine).getByRole("button", { name: "Gateway Control" })).toBeInTheDocument();
+      expect(ph3CountLine.className).not.toContain("justify-between");
+      expect(ph3CountLine.textContent).toBe("3 LightsGateway Control");
+    });
+
+    it("opens a 'Gateway Remote Control' modal listing just that gateway's own poles when a 'Gateway Control' link is clicked", async () => {
+      const user = userEvent.setup();
+      render(<RemoteControlLink leadsunProject={leadsunProject} />);
+      await user.click(screen.getByRole("button", { name: "Remote Control" }));
+      const [firstGatewayControl] = screen.getAllByRole("button", { name: "Gateway Control" });
+      await user.click(firstGatewayControl);
+
+      expect(screen.getAllByRole("dialog")).toHaveLength(2);
+      expect(
+        screen.getByRole("heading", { name: "Gateway Remote Control" }),
+      ).toBeInTheDocument();
+      // Ph3 (the first gateway) has 2 poles — not Ph4's 1 pole.
+      expect(screen.getByText("2 poles affected")).toBeInTheDocument();
+      expect(screen.getByText("PROV-1-A")).toBeInTheDocument();
+      expect(screen.getByText("PROV-2-A")).toBeInTheDocument();
+      expect(screen.queryByText("PROV-3-A")).not.toBeInTheDocument();
+    });
+
+    it("shows a 'Control' link inline right after the dot/ON-OFF indicator on each pole row, not below it", async () => {
+      const user = userEvent.setup();
+      render(<RemoteControlLink leadsunProject={leadsunProject} />);
+      await user.click(screen.getByRole("button", { name: "Remote Control" }));
+
+      const controlButtons = screen.getAllByRole("button", { name: "Control" });
+      expect(controlButtons).toHaveLength(3);
+      // Each is a sibling of its own row's indicator, in the same wrapper.
+      const firstIndicator = await waitFor(() => screen.getAllByText("—")[0]);
+      expect(firstIndicator.parentElement).toBe(controlButtons[0].parentElement);
+    });
+
+    it("opens a 'Light Remote Control' modal listing just that one pole, per pole row", async () => {
+      const user = userEvent.setup();
+      render(<RemoteControlLink leadsunProject={leadsunProject} />);
+      await user.click(screen.getByRole("button", { name: "Remote Control" }));
+      const [firstPoleControl] = screen.getAllByRole("button", { name: "Control" });
+      await user.click(firstPoleControl);
+
+      expect(screen.getAllByRole("dialog")).toHaveLength(2);
+      expect(screen.getByRole("heading", { name: "Light Remote Control" })).toBeInTheDocument();
+      expect(screen.getByText("1 pole affected")).toBeInTheDocument();
+      expect(screen.getByText("PROV-1-A")).toBeInTheDocument();
+      expect(screen.queryByText("PROV-2-A")).not.toBeInTheDocument();
     });
   });
 });

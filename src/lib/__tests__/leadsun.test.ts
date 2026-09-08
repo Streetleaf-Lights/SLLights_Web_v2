@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { findLeadsunProduct, hasLeadsunProducts, isLampOn } from "@/lib/leadsun";
+import {
+  findLeadsunGroupForProduct,
+  findLeadsunProduct,
+  hasLeadsunProducts,
+  isLampOn,
+} from "@/lib/leadsun";
 import type { LeadsunProject } from "@/lib/types";
 
 const leadsunProject: LeadsunProject = {
   ProjectId: "545",
   ProjectName: "Manatee County - Buffalo Creek",
-  UserName: "12081-FLManatee",
   totalGateways: 1,
   totalPoles: 2,
   groups: [
@@ -20,12 +24,14 @@ const leadsunProject: LeadsunProject = {
           ProductName: "12081-1102",
           ControllerCode: "UPP40LA323110001",
           ProvidedProductId: "AEXSAP4323111877",
+          PoleNumber: "AEXSAP4323111877-A",
         },
         {
           ProductId: 12549,
           ProductName: "12081-1103",
           ControllerCode: "UPP40LA323110236",
           ProvidedProductId: "AEXSAP4323111878",
+          PoleNumber: "AEXSAP4323111878-A",
         },
       ],
     },
@@ -142,5 +148,60 @@ describe("isLampOn", () => {
     // of negative sensor noise.
     expect(isLampOn({ lampPower1: -5, lampPower2: 10 })).toBe(true);
     expect(isLampOn({ lampPower1: -5, lampPower2: 5 })).toBe(false);
+  });
+});
+
+describe("findLeadsunGroupForProduct", () => {
+  const multiGroupProject: LeadsunProject = {
+    ...leadsunProject,
+    groups: [
+      leadsunProject.groups[0],
+      {
+        GroupId: 9999,
+        GroupName: "Second Gateway",
+        GatewayCode: "GW-SECOND",
+        totalPoles: 1,
+        products: [
+          {
+            ProductId: 77,
+            ProductName: "other-loc",
+            ControllerCode: "CTRL-77",
+            ProvidedProductId: "PROV-77",
+            PoleNumber: "PROV-77-A",
+          },
+        ],
+      },
+    ],
+  };
+
+  it("finds the group containing the given product, matched by ProductId", () => {
+    const group = findLeadsunGroupForProduct(multiGroupProject, { ProductId: 12549 });
+    expect(group?.GroupName).toBe("Buffalo Creek");
+  });
+
+  it("searches across every group, not just the first", () => {
+    const group = findLeadsunGroupForProduct(multiGroupProject, { ProductId: 77 });
+    expect(group?.GroupName).toBe("Second Gateway");
+  });
+
+  it("returns undefined when no group contains a matching product", () => {
+    expect(findLeadsunGroupForProduct(multiGroupProject, { ProductId: 999999 })).toBeUndefined();
+  });
+
+  it("returns undefined for a null/undefined leadsunProject", () => {
+    expect(findLeadsunGroupForProduct(null, { ProductId: 12549 })).toBeUndefined();
+    expect(findLeadsunGroupForProduct(undefined, { ProductId: 12549 })).toBeUndefined();
+  });
+
+  it("returns undefined for a null/undefined product", () => {
+    expect(findLeadsunGroupForProduct(multiGroupProject, null)).toBeUndefined();
+    expect(findLeadsunGroupForProduct(multiGroupProject, undefined)).toBeUndefined();
+  });
+
+  it("does not crash if groups/products are missing entirely", () => {
+    // @ts-expect-error deliberately malformed for this test (missing groups)
+    const malformed: LeadsunProject = { ProjectId: "1", ProjectName: "X" };
+    expect(() => findLeadsunGroupForProduct(malformed, { ProductId: 1 })).not.toThrow();
+    expect(findLeadsunGroupForProduct(malformed, { ProductId: 1 })).toBeUndefined();
   });
 });

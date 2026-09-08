@@ -74,6 +74,31 @@ describe("GET /api/leadsunlampstatus", () => {
     expect(body).toEqual(lamps);
   });
 
+  it("sets Cache-Control: no-store on a successful response — this reflects a pole's current physical state, so a stale cached answer would be actively wrong, not just outdated", async () => {
+    fetchLeadsunLampStatusMock.mockResolvedValue([]);
+    const res = await GET(request({ projectId: "389" }, "valid-token"));
+
+    expect(res.headers.get("Cache-Control")).toBe("no-store");
+  });
+
+  it("sets Cache-Control: no-store on the 401 (no session) response too", async () => {
+    const res = await GET(request({ projectId: "389" }));
+    expect(res.headers.get("Cache-Control")).toBe("no-store");
+  });
+
+  it("sets Cache-Control: no-store on the 400 (missing projectId) response too", async () => {
+    const res = await GET(request({}, "valid-token"));
+    expect(res.headers.get("Cache-Control")).toBe("no-store");
+  });
+
+  it("sets Cache-Control: no-store on the 502 (upstream failure) response too", async () => {
+    fetchLeadsunLampStatusMock.mockRejectedValue(new Error("mTLS handshake failed"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const res = await GET(request({ projectId: "389" }, "valid-token"));
+    expect(res.headers.get("Cache-Control")).toBe("no-store");
+  });
+
   it("returns 502 (not a crash) when fetchLeadsunLampStatus throws, and includes the real reason in 'detail'", async () => {
     fetchLeadsunLampStatusMock.mockRejectedValue(new Error("mTLS handshake failed"));
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
