@@ -51,6 +51,23 @@ const customers: Customer[] = [
     active: true,
     createdAt: "2026-01-01",
   },
+  {
+    // A real customer whose name happens to be exactly "Streetleaf" —
+    // distinct from the internal/no-customer case, which this app also
+    // labels "Streetleaf" in a couple of display-only spots (e.g.
+    // UsersTable's customer column). Selecting this real customer should
+    // behave identically to selecting any other one.
+    id: "cust-streetleaf",
+    name: "Streetleaf",
+    projects: [],
+    address: null,
+    city: null,
+    state: null,
+    zip: null,
+    phone: null,
+    active: true,
+    createdAt: "2026-01-01",
+  },
 ];
 
 type SetupUser = ReturnType<typeof userEvent.setup>;
@@ -493,6 +510,118 @@ describe("InviteUserModal", () => {
       role: "Customer Admin",
       customerId: "cust-2",
     });
+  });
+
+  it("selecting a customer named exactly 'Streetleaf' is treated the same as no customer selected — shows 'Streetleaf Admin', not 'Customer Admin', and omits customerId, not that customer's real id", async () => {
+    const fetchMock = mockInviteResponse(true, successBody);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const user = await openModal();
+    await focusCustomerSearch(user);
+    await user.click(screen.getByRole("button", { name: "Streetleaf" }));
+
+    // Intentional special case: a customer literally named "Streetleaf"
+    // is treated as the internal/top-level case, not a real customer.
+    expect(screen.getByLabelText("Role")).toHaveValue("Streetleaf Admin");
+
+    await user.type(screen.getByLabelText("Email"), "jane@example.com");
+    await user.type(screen.getByLabelText("Name"), "Jane Doe");
+    await user.click(screen.getByRole("button", { name: "Submit" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [, init] = fetchMock.mock.calls[0];
+    const body = JSON.parse(init.body);
+    expect(body).toEqual({ name: "Jane Doe", email: "jane@example.com", role: "Streetleaf Admin" });
+    expect(body.customerId).toBeUndefined();
+  });
+
+  it("still shows 'Selected: Streetleaf' and allows Change after picking the Streetleaf-named customer, even though it's treated as no customer for role/submission purposes", async () => {
+    const user = await openModal();
+    await focusCustomerSearch(user);
+    await user.click(screen.getByRole("button", { name: "Streetleaf" }));
+
+    expect(screen.getByText("Selected:")).toBeInTheDocument();
+    expect(screen.getByText("Streetleaf")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Change" })).toBeInTheDocument();
+  });
+
+  it("does not apply the Streetleaf special case to a locked customer (a genuine Customer Admin's own customer) named 'Streetleaf' — that would let them grant Streetleaf Admin access", async () => {
+    const streetleafLockedCustomer: Customer = {
+      id: "cust-locked-streetleaf",
+      name: "Streetleaf",
+      projects: [],
+      address: null,
+      city: null,
+      state: null,
+      zip: null,
+      phone: null,
+      active: true,
+      createdAt: "2026-01-01",
+    };
+    const fetchMock = mockInviteResponse(true, successBody);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const user = userEvent.setup();
+    render(<InviteUserModal customers={customers} lockedCustomer={streetleafLockedCustomer} />);
+    await user.click(screen.getByRole("button", { name: "Invite user" }));
+
+    expect(screen.getByLabelText("Role")).toHaveValue("Customer Admin");
+
+    await user.type(screen.getByLabelText("Email"), "jane@example.com");
+    await user.type(screen.getByLabelText("Name"), "Jane Doe");
+    await user.click(screen.getByRole("button", { name: "Submit" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [, init] = fetchMock.mock.calls[0];
+    const body = JSON.parse(init.body);
+    expect(body).toEqual({
+      name: "Jane Doe",
+      email: "jane@example.com",
+      role: "Customer Admin",
+      customerId: "cust-locked-streetleaf",
+    });
+  });
+
+  it("still applies the Streetleaf special case when the stored name has a trailing space (regression: the real customer record is \"Streetleaf \", which a bare === would never match)", async () => {
+    const paddedCustomers: Customer[] = [
+      // Excludes the base fixture's exact "Streetleaf" customer — testing-
+      // library normalizes whitespace when computing accessible names, so
+      // "Streetleaf" and "Streetleaf " would resolve to the same name and
+      // collide if both were in the list at once.
+      ...customers.filter((c) => c.name !== "Streetleaf"),
+      {
+        id: "cust-streetleaf-padded",
+        name: "Streetleaf ",
+        projects: [],
+        address: null,
+        city: null,
+        state: null,
+        zip: null,
+        phone: null,
+        active: true,
+        createdAt: "2026-01-01",
+      },
+    ];
+    const fetchMock = mockInviteResponse(true, successBody);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const user = userEvent.setup();
+    render(<InviteUserModal customers={paddedCustomers} />);
+    await user.click(screen.getByRole("button", { name: "Invite user" }));
+    await focusCustomerSearch(user);
+    await user.click(screen.getByRole("button", { name: "Streetleaf" }));
+
+    expect(screen.getByLabelText("Role")).toHaveValue("Streetleaf Admin");
+
+    await user.type(screen.getByLabelText("Email"), "jane@example.com");
+    await user.type(screen.getByLabelText("Name"), "Jane Doe");
+    await user.click(screen.getByRole("button", { name: "Submit" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [, init] = fetchMock.mock.calls[0];
+    const body = JSON.parse(init.body);
+    expect(body).toEqual({ name: "Jane Doe", email: "jane@example.com", role: "Streetleaf Admin" });
+    expect(body.customerId).toBeUndefined();
   });
 
   it("closes the modal on a successful submit", async () => {

@@ -44,15 +44,32 @@ export function InviteUserModal({
     }
   }, [isOpen]);
 
+  // A customer literally named "Streetleaf" (as opposed to no customer
+  // being selected at all, which is the more common way to get a
+  // Streetleaf Admin invite) is treated the same as the internal/
+  // top-level case, not as a real customer — Customer Search still shows
+  // it as a normal, selectable option, but picking it defaults the role
+  // to Streetleaf Admin (not Customer Admin) and omits customerId on
+  // submit (not that customer's own id), exactly as if nothing had been
+  // selected. This only applies to a customer chosen via Customer Search
+  // — not lockedCustomer, since that's always a genuine Customer Admin's
+  // own customer, and letting them grant Streetleaf Admin just because
+  // their own customer happens to be named that would be a real
+  // privilege-escalation risk. Trimmed before comparing — the real
+  // customer record has a trailing space ("Streetleaf "), which a bare
+  // === would silently never match.
+  const treatsAsNoCustomer = !lockedCustomer && selectedCustomer?.name.trim() === "Streetleaf";
+
   // A Streetleaf Admin doesn't belong to any customer — that's the default
-  // when no customer is picked. Selecting an actual customer means this
-  // invite is for someone at that customer, i.e. a Customer Admin by
-  // default. Either way, "User" is always offered as the other option.
-  // Whenever the customer context changes (see the handlers below), role
-  // is reset back to that context's own default, rather than silently
-  // keeping a choice (e.g. "User", or the other context's admin role)
-  // made under the previous context.
-  const defaultRole = selectedCustomer ? "Customer Admin" : "Streetleaf Admin";
+  // when no customer is picked (or the picked one is treated the same
+  // way, see treatsAsNoCustomer above). Selecting an actual customer
+  // means this invite is for someone at that customer, i.e. a Customer
+  // Admin by default. Either way, "User" is always offered as the other
+  // option. Whenever the customer context changes (see the handlers
+  // below), role is reset back to that context's own default, rather
+  // than silently keeping a choice (e.g. "User", or the other context's
+  // admin role) made under the previous context.
+  const defaultRole = selectedCustomer && !treatsAsNoCustomer ? "Customer Admin" : "Streetleaf Admin";
 
   const filteredCustomers = useMemo(() => {
     const q = customerQuery.trim().toLowerCase();
@@ -104,7 +121,7 @@ export function InviteUserModal({
           name: name.trim(),
           email: trimmedEmail,
           role,
-          customerId: selectedCustomer?.id,
+          customerId: treatsAsNoCustomer ? undefined : selectedCustomer?.id,
         }),
       });
       const body = await res.json().catch(() => null);
@@ -144,7 +161,7 @@ export function InviteUserModal({
 
   function handleSelectCustomer(customer: Customer) {
     setSelectedCustomer(customer);
-    setRole("Customer Admin");
+    setRole(customer.name.trim() === "Streetleaf" ? "Streetleaf Admin" : "Customer Admin");
     setSearchFocused(false);
   }
 
