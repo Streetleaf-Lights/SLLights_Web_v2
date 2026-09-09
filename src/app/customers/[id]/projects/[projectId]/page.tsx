@@ -86,7 +86,7 @@ export default async function ProjectDetailPage({
           </h1>
         </div>
         {project.leadsunProject && hasLeadsunProducts(project.leadsunProject) && (
-          <RemoteControlLink leadsunProject={project.leadsunProject} />
+          <RemoteControlLink projectId={project.id} leadsunProject={project.leadsunProject} />
         )}
       </div>
 

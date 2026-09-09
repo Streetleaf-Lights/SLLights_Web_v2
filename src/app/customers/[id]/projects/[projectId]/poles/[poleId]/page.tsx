@@ -266,7 +266,11 @@ export default async function PoleDetailPage({
           </div>
           {leadsunProduct && project.leadsunProject && (
             <div className="flex items-center">
-              <RemoteControlLink leadsunProject={project.leadsunProject} product={leadsunProduct} />
+              <RemoteControlLink
+                projectId={project.id}
+                leadsunProject={project.leadsunProject}
+                product={leadsunProduct}
+              />
             </div>
           )}
         </div>

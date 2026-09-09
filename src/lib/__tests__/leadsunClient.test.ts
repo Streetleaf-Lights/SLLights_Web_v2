@@ -11,6 +11,8 @@ import { fetchLeadsunLampStatus } from "@/lib/leadsunClient";
 
 class FakeRequest extends EventEmitter {
   end = vi.fn();
+  destroy = vi.fn();
+  setTimeout = vi.fn();
 }
 
 class FakeResponse extends EventEmitter {
@@ -194,6 +196,32 @@ describe("fetchLeadsunLampStatus", () => {
     queueMicrotask(() => req.emit("error", new Error("certificate rejected")));
 
     await expect(promise).rejects.toThrow("certificate rejected");
+  });
+
+  it("sets a request timeout, so a hung/unresponsive Leadsun server can't leave this pending forever", async () => {
+    const req = new FakeRequest();
+    httpsRequestMock.mockImplementationOnce(() => req);
+    void fetchLeadsunLampStatus("389");
+    await Promise.resolve();
+
+    expect(req.setTimeout).toHaveBeenCalledWith(8000, expect.any(Function));
+  });
+
+  it("destroys the request (triggering rejection) once the timeout fires", async () => {
+    const req = new FakeRequest();
+    // destroy(err) should emit 'error' with that same error, matching
+    // Node's real https.ClientRequest behavior.
+    req.destroy.mockImplementation((err?: Error) => {
+      if (err) req.emit("error", err);
+    });
+    httpsRequestMock.mockImplementationOnce(() => req);
+    const promise = fetchLeadsunLampStatus("389");
+    await Promise.resolve();
+
+    const [, onTimeout] = req.setTimeout.mock.calls[0];
+    onTimeout();
+
+    await expect(promise).rejects.toThrow(/timed out/);
   });
 
   it("falls back to the default base URL when LEADSUN_LAMP_STATUS_BASE_URL is unset", async () => {

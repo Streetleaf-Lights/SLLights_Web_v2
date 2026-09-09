@@ -2,6 +2,7 @@ import https from "node:https";
 import type { LeadsunLampStatus } from "@/lib/types";
 
 const DEFAULT_BASE_URL = "https://leadsunedge-us.com:8550";
+const REQUEST_TIMEOUT_MS = 8000;
 
 /**
  * Most .env loaders (dotenv included) only expand backslash-n into a real
@@ -81,6 +82,14 @@ export async function fetchLeadsunLampStatus(
         });
       },
     );
+    // Without this, a hung/unresponsive Leadsun server leaves this
+    // promise pending forever — which then hangs our own route, which
+    // then hangs the Remote Control modal's status poll indefinitely
+    // (the poll loop just waits for a response that never comes, with no
+    // way to reach its own attempt limit or show an error).
+    req.setTimeout(REQUEST_TIMEOUT_MS, () => {
+      req.destroy(new Error(`Leadsun lamp status API timed out after ${REQUEST_TIMEOUT_MS}ms`));
+    });
     req.on("error", reject);
     req.end();
   });

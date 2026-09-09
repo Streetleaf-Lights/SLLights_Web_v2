@@ -152,7 +152,6 @@ function parseLeadsunProject(
   return {
     ProjectId: candidate.ProjectId ?? "",
     ProjectName: candidate.ProjectName ?? "",
-    UserName: candidate.UserName ?? "",
     totalGateways: candidate.totalGateways ?? groups.length,
     totalPoles: candidate.totalPoles ?? 0,
     groups: groups.map((group) => ({
@@ -160,7 +159,13 @@ function parseLeadsunProject(
       GroupName: group?.GroupName ?? "",
       GatewayCode: group?.GatewayCode ?? "",
       totalPoles: group?.totalPoles ?? group?.products?.length ?? 0,
-      products: Array.isArray(group?.products) ? group.products : [],
+      products: (Array.isArray(group?.products) ? group.products : []).map((product) => ({
+        ProductId: product?.ProductId ?? 0,
+        ProductName: product?.ProductName ?? "",
+        ControllerCode: product?.ControllerCode ?? "",
+        ProvidedProductId: product?.ProvidedProductId ?? "",
+        PoleNumber: product?.PoleNumber ?? "",
+      })),
     })),
   };
 }
@@ -520,6 +525,89 @@ export async function changeRole(userId: string, token: string): Promise<ChangeR
   }
 
   return body as ChangeRoleResult;
+}
+
+export interface SetPoleLightsResult {
+  success: boolean;
+  message: string;
+  statusCode: string;
+  data: unknown;
+}
+
+/**
+ * POST /setPoleLights — the Remote Control modal's GO!/TURN OFF action.
+ * Scoped to exactly one of a project, a gateway, or a single pole — pass
+ * exactly one of projectId/gatewayCode/poleNumber, matching whichever
+ * level the action was opened from. projectId here is our own internal
+ * Project.id ("rec..."), not Leadsun's own numeric ProjectId. poleNumber
+ * here is actually Leadsun's ProductName field (confirmed by sample
+ * data), not our own PoleNumber field, despite the name — Leadsun's own
+ * naming, not something to "fix" on our end.
+ */
+export async function setPoleLights(
+  params: {
+    brightness: number;
+    time: number;
+  } & (
+    | { projectId: string }
+    | { gatewayCode: string }
+    | { poleNumber: string }
+    | { poleNumbers: string[] }
+  ),
+  token: string,
+): Promise<SetPoleLightsResult> {
+  if (!APIM_BASE_URL) {
+    throw new ApimError("NEXT_PUBLIC_APIM_BASE_URL is not configured. Set it in .env.local.");
+  }
+
+  const res = await fetch(`${APIM_BASE_URL}/setPoleLights`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Ocp-Apim-Subscription-Key": APIM_SUBSCRIPTION_KEY,
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(params),
+    cache: "no-store",
+  });
+
+  // A gateway-level failure (502/503/504) often returns an HTML or
+  // plain-text error page rather than JSON — .json() alone would silently
+  // swallow that, leaving nothing to debug beyond a generic message.
+  // Reading as text first and parsing from there keeps the raw body
+  // available either way.
+  const rawText = await res.text();
+  let body: Record<string, unknown> | null = null;
+  try {
+    body = rawText ? (JSON.parse(rawText) as Record<string, unknown>) : null;
+  } catch {
+    body = null;
+  }
+
+  if (!res.ok) {
+    const parsedMessage = body && typeof body.message === "string" ? body.message : null;
+    const parsedError = body && typeof body.error === "string" ? body.error : null;
+
+    // APIM's own /setPoleLights operation calls out to Leadsun's own Edge
+    // API to actually control the light; this specific text is what comes
+    // back when *that* call fails, as a 502 (not a 429) from APIM itself.
+    // Observed pattern: works a handful of times, then fails, then keeps
+    // failing sooner rather than resetting on reload — classic signs of a
+    // rate limit / cooldown enforced on Leadsun's own side, which nothing
+    // in our own code can control or bypass.
+    const isLeadsunEdgeFailure = parsedError === "Leadsun EDGE API request failed";
+
+    const message = isLeadsunEdgeFailure
+      ? "The request was rejected — it's likely being rate-limited right now. Wait a few seconds and try again."
+      : (parsedMessage ??
+          parsedError ??
+          (rawText
+            ? `Set pole lights failed (${res.status}): ${rawText.slice(0, 200)}`
+            : `Set pole lights failed (${res.status}, empty response body).`));
+    throw new ApimError(message, res.status);
+  }
+
+  return body as unknown as SetPoleLightsResult;
 }
 
 /**

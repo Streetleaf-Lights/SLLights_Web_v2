@@ -32,6 +32,7 @@ export interface LeadsunProduct {
   ProductName: string;
   ControllerCode: string;
   ProvidedProductId: string;
+  PoleNumber: string;
 }
 
 /** A Leadsun gateway grouping of products within a project. */
@@ -53,7 +54,6 @@ export interface LeadsunGroup {
 export interface LeadsunProject {
   ProjectId: string;
   ProjectName: string;
-  UserName: string;
   totalGateways: number;
   totalPoles: number;
   groups: LeadsunGroup[];

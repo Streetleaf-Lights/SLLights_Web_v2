@@ -20,6 +20,7 @@ import {
   registerUser,
   resendInvite,
   resetPassword,
+  setPoleLights,
   signIn,
   signOut,
   type RawCustomer,
@@ -418,18 +419,21 @@ describe("normalizeProject", () => {
     const leadsunProjectJson = JSON.stringify({
       ProjectId: "545",
       ProjectName: "Manatee County - Buffalo Creek",
-      UserName: "12081-FLManatee",
+      totalGateways: 1,
+      totalPoles: 1,
       groups: [
         {
           GroupId: 1263,
           GroupName: "Buffalo Creek",
           GatewayCode: "GT12L94A2310260A",
+          totalPoles: 1,
           products: [
             {
               ProductId: 12548,
               ProductName: "12081-1102",
               ControllerCode: "UPP40LA323110001",
               ProvidedProductId: "AEXSAP4323111877",
+              PoleNumber: "AEXSAP4323111877-A",
             },
           ],
         },
@@ -448,7 +452,8 @@ describe("normalizeProject", () => {
       leadsunProject: {
         ProjectId: "545",
         ProjectName: "Manatee County - Buffalo Creek",
-        UserName: "12081-FLManatee",
+        totalGateways: 0,
+        totalPoles: 0,
         groups: [],
       },
     });
@@ -459,10 +464,83 @@ describe("normalizeProject", () => {
   it("normalizes a missing/malformed groups field to an empty array rather than crashing downstream code", () => {
     const project = normalizeProject({
       ...raw,
-      // @ts-expect-error deliberately malformed for this test
-      leadsunProject: { ProjectId: "545", ProjectName: "X", UserName: "Y" },
+      // @ts-expect-error deliberately malformed for this test (missing groups)
+      leadsunProject: { ProjectId: "545", ProjectName: "X" },
     });
     expect(project.leadsunProject?.groups).toEqual([]);
+  });
+
+  it("passes through PoleNumber on each product", () => {
+    const project = normalizeProject({
+      ...raw,
+      leadsunProject: {
+        ProjectId: "545",
+        ProjectName: "Manatee County - Buffalo Creek",
+        totalGateways: 1,
+        totalPoles: 1,
+        groups: [
+          {
+            GroupId: 1149,
+            GroupName: "Chaparral Ph3",
+            GatewayCode: "GT18L94A25082883",
+            totalPoles: 1,
+            products: [
+              {
+                ProductId: 10358,
+                ProductName: "12009-1000",
+                ControllerCode: "A3P70LA323110598",
+                ProvidedProductId: "AE3SAP7323113143",
+                PoleNumber: "12009-1000-A",
+              },
+            ],
+          },
+        ],
+      },
+    });
+    expect(project.leadsunProject?.groups[0].products[0].PoleNumber).toBe("12009-1000-A");
+  });
+
+  it("defaults a product's missing fields (including PoleNumber) to safe values rather than leaving them undefined at runtime, despite the type saying they're always present", () => {
+    const project = normalizeProject({
+      ...raw,
+      leadsunProject: {
+        ProjectId: "545",
+        ProjectName: "X",
+        totalGateways: 1,
+        totalPoles: 1,
+        groups: [
+          {
+            GroupId: 1,
+            GroupName: "G",
+            GatewayCode: "GW1",
+            totalPoles: 1,
+            // @ts-expect-error deliberately missing every product field for this test
+            products: [{}],
+          },
+        ],
+      },
+    });
+    expect(project.leadsunProject?.groups[0].products[0]).toEqual({
+      ProductId: 0,
+      ProductName: "",
+      ControllerCode: "",
+      ProvidedProductId: "",
+      PoleNumber: "",
+    });
+  });
+
+  it("no longer has a UserName field on leadsunProject (removed from the real API)", () => {
+    const project = normalizeProject({
+      ...raw,
+      leadsunProject: {
+        ProjectId: "545",
+        ProjectName: "X",
+        totalGateways: 0,
+        totalPoles: 0,
+        groups: [],
+      },
+    });
+    expect(project.leadsunProject).not.toHaveProperty("UserName");
   });
 
   it("returns null (not a crash) for an unparseable leadsunProject string", () => {
@@ -1238,6 +1316,226 @@ describe("changeRole", () => {
     await expect(changeRole("user1", "jwt-token")).rejects.toMatchObject({
       message: "Change role failed.",
       status: 500,
+    });
+  });
+});
+
+describe("setPoleLights", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const successBody = {
+    success: true,
+    message: "Request successful",
+    statusCode: "200",
+    data: null,
+  };
+
+  it("sends projectId/brightness/time as a JSON body with the token as a Bearer Authorization header, for a project-level action", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, text: async () => JSON.stringify(successBody) });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await setPoleLights({ projectId: "recpJR5VuDGIrKo5d", brightness: 50, time: 30 }, "jwt-token");
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toMatch(/\/setPoleLights$/);
+    expect(init.method).toBe("POST");
+    expect(init.headers.Authorization).toBe("Bearer jwt-token");
+    expect(init.headers["Ocp-Apim-Subscription-Key"]).toBeDefined();
+    expect(JSON.parse(init.body)).toEqual({
+      projectId: "recpJR5VuDGIrKo5d",
+      brightness: 50,
+      time: 30,
+    });
+  });
+
+  it("sends gatewayCode/brightness/time for a gateway-level action", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, text: async () => JSON.stringify(successBody) });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await setPoleLights({ gatewayCode: "GT13L94A2506283D", brightness: 50, time: 30 }, "jwt-token");
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse(init.body)).toEqual({
+      gatewayCode: "GT13L94A2506283D",
+      brightness: 50,
+      time: 30,
+    });
+  });
+
+  it("sends poleNumber/brightness/time for a pole-level action", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, text: async () => JSON.stringify(successBody) });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await setPoleLights({ poleNumber: "DRH-Orl", brightness: 50, time: 30 }, "jwt-token");
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse(init.body)).toEqual({ poleNumber: "DRH-Orl", brightness: 50, time: 30 });
+  });
+
+  it("sends poleNumbers/brightness/time for a selected-poles action", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, text: async () => JSON.stringify(successBody) });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await setPoleLights(
+      { poleNumbers: ["DRH-Orl", "DUKE-AVE"], brightness: 50, time: 30 },
+      "jwt-token",
+    );
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse(init.body)).toEqual({
+      poleNumbers: ["DRH-Orl", "DUKE-AVE"],
+      brightness: 50,
+      time: 30,
+    });
+  });
+
+  it("does not request caching (this is a mutating call)", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, text: async () => JSON.stringify(successBody) });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await setPoleLights({ projectId: "rec1", brightness: 50, time: 30 }, "jwt-token");
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.cache).toBe("no-store");
+  });
+
+  it("resolves with the server's success/message/statusCode/data on success", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, text: async () => JSON.stringify(successBody) }),
+    );
+
+    await expect(
+      setPoleLights({ projectId: "rec1", brightness: 50, time: 30 }, "jwt-token"),
+    ).resolves.toEqual(successBody);
+  });
+
+  it("throws an ApimError carrying the server's message on failure", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 409,
+        text: async () => JSON.stringify({ message: "Pole is offline" }),
+      }),
+    );
+
+    await expect(
+      setPoleLights({ poleNumber: "DRH-Orl", brightness: 50, time: 30 }, "jwt-token"),
+    ).rejects.toMatchObject({ message: "Pole is offline", status: 409 });
+  });
+
+  it("also reads the 'error' field (not just 'message') — the real API uses 'error', matching every other endpoint in this app", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        text: async () => JSON.stringify({ error: "brightness must be between 0 and 100" }),
+      }),
+    );
+
+    await expect(
+      setPoleLights({ poleNumber: "DRH-Orl", brightness: 150, time: 30 }, "jwt-token"),
+    ).rejects.toMatchObject({
+      message: "brightness must be between 0 and 100",
+      status: 400,
+    });
+  });
+
+  it("shows a clear, actionable message for Leadsun's own rate-limit pattern (502 with error: 'Leadsun EDGE API request failed'), instead of dumping the raw JSON", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 502,
+        text: async () => JSON.stringify({ error: "Leadsun EDGE API request failed" }),
+      }),
+    );
+
+    await expect(
+      setPoleLights({ poleNumber: "DRH-Orl", brightness: 50, time: 30 }, "jwt-token"),
+    ).rejects.toMatchObject({
+      message:
+        "The request was rejected — it's likely being rate-limited right now. Wait a few seconds and try again.",
+      status: 502,
+    });
+  });
+
+  it("does not apply the Leadsun rate-limit message to a differently-worded 502, falling back to the raw error text instead", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 502,
+        text: async () => JSON.stringify({ error: "Upstream service unavailable" }),
+      }),
+    );
+
+    await expect(
+      setPoleLights({ poleNumber: "DRH-Orl", brightness: 50, time: 30 }, "jwt-token"),
+    ).rejects.toMatchObject({ message: "Upstream service unavailable", status: 502 });
+  });
+
+  it("includes the status and a snippet of the raw body when the error response isn't valid JSON (e.g. an HTML/plain-text page from a gateway failure like a 502)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 502,
+        text: async () => "<html><body>Bad Gateway</body></html>",
+      }),
+    );
+
+    await expect(
+      setPoleLights({ projectId: "rec1", brightness: 50, time: 30 }, "jwt-token"),
+    ).rejects.toMatchObject({
+      message: expect.stringContaining("502") as unknown as string,
+      status: 502,
+    });
+    await expect(
+      setPoleLights({ projectId: "rec1", brightness: 50, time: 30 }, "jwt-token"),
+    ).rejects.toMatchObject({
+      message: expect.stringContaining("Bad Gateway") as unknown as string,
+    });
+  });
+
+  it("falls back to a generic message (with status) when the error response body is completely empty", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: false, status: 500, text: async () => "" }),
+    );
+
+    await expect(
+      setPoleLights({ projectId: "rec1", brightness: 50, time: 30 }, "jwt-token"),
+    ).rejects.toMatchObject({
+      message: "Set pole lights failed (500, empty response body).",
+      status: 500,
+    });
+  });
+
+  it("truncates a very long non-JSON error body rather than including it in full", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: false, status: 502, text: async () => "x".repeat(5000) }),
+    );
+
+    await expect(
+      setPoleLights({ projectId: "rec1", brightness: 50, time: 30 }, "jwt-token"),
+    ).rejects.toMatchObject({
+      message: expect.stringMatching(/^Set pole lights failed \(502\): x{200}$/) as unknown as string,
     });
   });
 });

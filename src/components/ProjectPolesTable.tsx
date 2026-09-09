@@ -132,7 +132,11 @@ export function ProjectPolesTable({
                   {showRemoteControlColumn && (
                     <td className="py-3 pr-8">
                       {leadsunProduct && leadsunProject && (
-                        <RemoteControlLink leadsunProject={leadsunProject} product={leadsunProduct} />
+                        <RemoteControlLink
+                          projectId={projectId}
+                          leadsunProject={leadsunProject}
+                          product={leadsunProduct}
+                        />
                       )}
                     </td>
                   )}

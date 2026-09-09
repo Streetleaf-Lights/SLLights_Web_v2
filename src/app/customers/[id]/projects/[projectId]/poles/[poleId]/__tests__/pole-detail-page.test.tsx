@@ -979,18 +979,21 @@ describe("PoleDetailPage", () => {
     const leadsunProject: LeadsunProject = {
       ProjectId: "545",
       ProjectName: "Bayou District Rebuild",
-      UserName: "leadsun-user",
+      totalGateways: 1,
+      totalPoles: 1,
       groups: [
         {
           GroupId: 1263,
           GroupName: "Group A",
           GatewayCode: "GT12L94A2310260A",
+          totalPoles: 1,
           products: [
             {
               ProductId: 12548,
               ProductName: "loc-1",
               ControllerCode: "UPP40LA323110001",
               ProvidedProductId: "AEXSAP4323111877",
+              PoleNumber: "AEXSAP4323111877-A",
             },
           ],
         },
