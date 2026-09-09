@@ -118,7 +118,7 @@ describe("UsersPage", () => {
     expect(screen.getByText("Jane Doe")).toBeInTheDocument();
     expect(screen.getByText("Sam Lee")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Invite user" })).toBeInTheDocument();
-    expect(getCustomersMock).toHaveBeenCalled();
+    expect(getCustomersMock).toHaveBeenCalledWith({ active: true });
   });
 
   it("scopes the user list to the Customer Admin's own customer", async () => {

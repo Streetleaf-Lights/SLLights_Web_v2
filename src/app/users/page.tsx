@@ -32,10 +32,13 @@ export default async function UsersPage() {
   // browse/search the full customer list (that's Streetleaf-Admin-only
   // for their own invite flow) — so skip getCustomers() for them, and
   // instead fetch just their own customer record, to lock the invite
-  // modal to it (no search, always that one customer).
+  // modal to it (no search, always that one customer). When it is
+  // fetched, active: true keeps inactive customers out of the invite
+  // modal's search results — no reason to invite someone into a
+  // customer that's no longer active.
   const [allUsers, customers, ownCustomer] = await Promise.all([
     getUsers(),
-    isCustomerAdmin ? Promise.resolve([]) : getCustomers(),
+    isCustomerAdmin ? Promise.resolve([]) : getCustomers({ active: true }),
     isCustomerAdmin && sessionUser?.customerId
       ? getCustomer(sessionUser.customerId)
       : Promise.resolve(undefined),
