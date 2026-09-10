@@ -128,6 +128,10 @@ export interface PoleVital {
   batteryStatusLabel: string | null;
   // Not shown anywhere yet — reserved for the pole detail page.
   electricCurrentAverage: number | null;
+  /** Pre-computed "48h Connected" label — replaces the old client-side connectionStatus(isOnline, lastUpdate) computation. */
+  connectedLabel: string | null;
+  /** Pre-computed "48h Overall Status" label — replaces the old client-side poleOverallStatus(pole) computation. */
+  overallStatusLabel: string | null;
 }
 
 /** Vitals for a single project, as nested inside GET /getPoleVitals?customerId=... */

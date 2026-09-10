@@ -693,6 +693,16 @@ describe("getPoleVitalsForCustomer", () => {
     const [url] = fetchMock.mock.calls[0];
     expect(url).toContain("customerId=rec%20with%20space");
   });
+
+  it("uses cache: no-store, for freshness — this powers detail pages showing live pole status, where a stale-while-revalidate cache entry could otherwise persist for far longer than its nominal revalidate window", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => rawVitals });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getPoleVitalsForCustomer("recD6nliOfFlp0VFh");
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.cache).toBe("no-store");
+  });
 });
 
 describe("getPoles", () => {

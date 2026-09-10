@@ -269,11 +269,26 @@ export async function getProjectsForCustomer(customerId: string): Promise<Projec
 // Pole vitals (lights working / faults, per customer + per project)
 // ---------------------------------------------------------------------------
 
+/**
+ * Bypasses the Data Cache entirely (unlike most reads via apimFetch,
+ * which get a 30s revalidate window) — this powers 4 detail-style pages
+ * (customer, project, pole, and the top-level projects list) showing
+ * live pole health data: Last Update, connectivity, fault flags. A stale
+ * cached response here isn't just "up to 30s old" in practice — Next.js's
+ * revalidate is stale-while-revalidate, so the cached value keeps being
+ * served until something actually requests it again to trigger a
+ * background refresh; a pole/project that isn't visited often can show a
+ * reading that's arbitrarily old. Given how much smaller a single
+ * customer's own vitals are than the full /getPoles response, the
+ * 2MB-cache-entry problem noStore was originally added for elsewhere
+ * doesn't apply here — this is purely about freshness.
+ */
 export async function getPoleVitalsForCustomer(
   customerId: string,
 ): Promise<CustomerPoleVitals | undefined> {
   const raw = await apimFetch<CustomerPoleVitals | null>(
     `/getPoleVitals?customerId=${encodeURIComponent(customerId)}`,
+    { noStore: true },
   );
   return raw ?? undefined;
 }

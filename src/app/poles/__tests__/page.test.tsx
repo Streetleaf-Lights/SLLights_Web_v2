@@ -50,7 +50,7 @@ const poles: PoleSummary[] = [
     panelStatusLabel: null,
     panelIdleReason: null,
     batteryStatusLabel: null,
-    electricCurrentAverage: null,
+    electricCurrentAverage: null, connectedLabel: null, overallStatusLabel: null,
     lampPower1: null,
     lampPower2: null,
     batteryElecCurrent1: null,

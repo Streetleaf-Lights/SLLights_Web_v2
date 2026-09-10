@@ -6,11 +6,9 @@ import { Pagination } from "@/components/Pagination";
 import { RemoteControlLink } from "@/components/RemoteControlLink";
 import { withSearchContext } from "@/lib/url";
 import {
-  connectionStatus,
-  poleOverallStatus,
-  lightColumnText,
-  panelColumnText,
-  batteryColumnText,
+  connectedLabelClassName,
+  overallStatusLabelClassName,
+  panelLabelText,
 } from "@/lib/text";
 import { findLeadsunProduct } from "@/lib/leadsun";
 import type { LeadsunProject, PoleVital } from "@/lib/types";
@@ -88,8 +86,6 @@ export function ProjectPolesTable({
           </thead>
           <tbody>
             {pagePoles.map((pole) => {
-              const connected = connectionStatus(pole.isOnline, pole.lastUpdate);
-              const status = poleOverallStatus(pole);
               const leadsunProduct = findLeadsunProduct(leadsunProject, pole.locationId);
               return (
                 <tr
@@ -119,15 +115,21 @@ export function ProjectPolesTable({
                     </Link>
                   </td>
                   {!customerScoped && (
-                    <td className={`py-3 pr-4 font-medium ${connected.className}`}>
-                      {connected.text}
+                    <td
+                      className={`py-3 pr-4 font-medium ${connectedLabelClassName(pole.connectedLabel)}`}
+                    >
+                      {pole.connectedLabel ?? "—"}
                     </td>
                   )}
-                  <td className={`py-3 pr-4 font-medium ${status.className}`}>{status.text}</td>
-                  <td className="py-3 pr-4">{lightColumnText(pole, customerScoped)}</td>
-                  <td className="py-3 pr-4">{panelColumnText(pole)}</td>
+                  <td
+                    className={`py-3 pr-4 font-medium ${overallStatusLabelClassName(pole.overallStatusLabel)}`}
+                  >
+                    {pole.overallStatusLabel ?? "—"}
+                  </td>
+                  <td className="py-3 pr-4">{pole.lightStatusLabel ?? "—"}</td>
+                  <td className="py-3 pr-4">{panelLabelText(pole)}</td>
                   <td className={`py-3 ${showRemoteControlColumn ? "pr-4" : "pr-8"}`}>
-                    {batteryColumnText(pole)}
+                    {pole.batteryStatusLabel ?? "—"}
                   </td>
                   {showRemoteControlColumn && (
                     <td className="py-3 pr-8">

@@ -8,7 +8,13 @@ import { PoleVitalsChart } from "@/components/PoleVitalsChart";
 import { RemoteControlLink } from "@/components/RemoteControlLink";
 import { InactiveBadge } from "@/components/InactiveBadge";
 import { withQueryParam, withSearchContext } from "@/lib/url";
-import { formatPercent, formatTimestamp, connectionStatus, isSilentPole } from "@/lib/text";
+import {
+  formatPercent,
+  formatTimestamp,
+  connectionStatus,
+  overallStatusLabelClassName,
+  overallStatusLabelWeightClassName,
+} from "@/lib/text";
 import { findLeadsunProduct } from "@/lib/leadsun";
 import { getSessionUser, isCustomerScoped } from "@/lib/session";
 
@@ -122,7 +128,7 @@ function StatusBox({
             <Fragment key={metric.label}>
               <div className="flex items-center justify-between gap-3 text-[12.5px]">
                 <span className="text-[var(--ink-faint)]">{metric.label}</span>
-                <span className="font-mono-data text-[var(--ink)]">{metric.value}</span>
+                <span className="font-mono-data text-[var(--ink-muted)]">{metric.value}</span>
               </div>
               {metric.note && (
                 <div className="-mt-1 text-right text-[12px] text-[var(--ink-muted)]">
@@ -187,15 +193,21 @@ export default async function PoleDetailPage({
   }
 
   const connected = connectionStatus(pole.isOnline, pole.lastUpdate);
-  const isSilent = isSilentPole(pole.lastUpdate);
   // A pole with Unknown connectivity (never reported at all — no isOnline,
   // no lastUpdate) has no reliable telemetry basis for its fault flags or
   // 48h averages either, even though those fields might still hold some
   // real (stale) value — show a dash everywhere on this page rather than a
   // status that may be inconsistent with reality: the header's Overall
-  // Status, all 4 cards, and the 48h Average % metrics.
+  // Status, all 4 cards, and the 48H Average % metrics.
   const isUnknownConnected = connected.text === "Unknown";
-  const overallStatus = faultStatus(isUnknownConnected ? null : pole.isPoleFault, "OK", "Fault");
+  // The 48H Overall Status header uses the API's pre-computed
+  // overallStatusLabel directly — no more faultStatus/isUnknownConnected
+  // override here, since the API's label already accounts for whether
+  // the pole has reliable telemetry (e.g. "Not Reporting"/"Not Reporting
+  // 48H") the same way isUnknownConnected used to compensate for
+  // client-side. isUnknownConnected itself is still needed below for the
+  // 4 status cards and the 48H Average % metrics, which weren't part of
+  // this change.
   function cardFaultStatus(
     isFault: boolean | null | undefined,
     okLabel: string,
@@ -259,8 +271,12 @@ export default async function PoleDetailPage({
             </span>
             {!viewerIsCustomerScoped && (
               <span>
-                <span className="text-[var(--ink-faint)]">48h Overall Status:</span>{" "}
-                <span className={overallStatus.className}>{overallStatus.text}</span>
+                <span className="text-[var(--ink-faint)]">48H Overall Status:</span>{" "}
+                <span
+                  className={`${overallStatusLabelWeightClassName(pole.overallStatusLabel)} ${overallStatusLabelClassName(pole.overallStatusLabel)}`}
+                >
+                  {pole.overallStatusLabel ?? "—"}
+                </span>
               </span>
             )}
           </div>
@@ -278,7 +294,7 @@ export default async function PoleDetailPage({
 
       <div className="mx-8 mb-6 mt-6">
         <div className="mb-3 text-[11px] uppercase tracking-wide text-[var(--ink-muted)]">
-          {isSilent ? "Last Known Statuses" : "Statuses"}
+          Statuses
         </div>
         <div className="flex flex-col gap-4 sm:flex-row">
           <StatusBox
@@ -295,7 +311,7 @@ export default async function PoleDetailPage({
                 ? []
                 : [
                     {
-                      label: "48h Average Light %",
+                      label: "48H Average Light %",
                       value: avgPercentText(pole.avgLightPercentage),
                     },
                     {
@@ -321,7 +337,7 @@ export default async function PoleDetailPage({
                 ? []
                 : [
                     {
-                      label: "48h Average Panel %",
+                      label: "48H Average Panel %",
                       value: avgPercentText(pole.avgPanelPercentage),
                     },
                     {
@@ -350,7 +366,7 @@ export default async function PoleDetailPage({
                 : [
                     { label: "Operating Status", value: pole.batteryStatusLabel ?? "—" },
                     {
-                      label: "48h Average Battery %",
+                      label: "48H Average Battery %",
                       value: avgPercentText(pole.avgBatteryPercentage),
                     },
                     {
@@ -378,7 +394,13 @@ export default async function PoleDetailPage({
           />
           <StatusBox
             title="Issue Entry"
-            status={cardFaultStatus(pole.isOpenIssueFault, "None", "Yes")}
+            // Not cardFaultStatus — isOpenIssueFault isn't derived from
+            // the pole's own telemetry the way isLedFault/isPanelFault/
+            // isBatteryFault are, so it doesn't become unreliable just
+            // because the pole has Unknown connectivity. A real false
+            // here means no open issue, full stop, even if the pole has
+            // never reported in — shown as-is rather than dashed out.
+            status={faultStatus(pole.isOpenIssueFault, "None", "Yes")}
             metrics={[]}
           />
         </div>
@@ -386,7 +408,7 @@ export default async function PoleDetailPage({
 
       <div className="mx-8 mb-6">
         <div className="mb-3 text-[11px] uppercase tracking-wide text-[var(--ink-muted)]">
-          {isSilent ? "Last Known Vital History" : "Vitals History"}
+          Vitals History
         </div>
         <PoleVitalsChart poleId={pole.id} />
       </div>

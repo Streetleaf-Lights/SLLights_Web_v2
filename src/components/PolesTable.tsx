@@ -6,11 +6,9 @@ import { useSearchParams } from "next/navigation";
 import { Toolbar } from "@/components/Toolbar";
 import { Pagination } from "@/components/Pagination";
 import {
-  connectionStatus,
-  poleOverallStatus,
-  lightColumnText,
-  panelColumnText,
-  batteryColumnText,
+  connectedLabelClassName,
+  overallStatusLabelClassName,
+  panelLabelText,
 } from "@/lib/text";
 import { withQueryParam } from "@/lib/url";
 import type { PoleSummary } from "@/lib/types";
@@ -27,10 +25,11 @@ export function PolesTable({
   /**
    * True when the viewer (Customer Admin or "Customer User") is scoped to
    * a single customer — drops "48h Connected" entirely (they're already
-   * looking at just their own poles, so it reads as noise), shortens
-   * "48h Overall Status" to "Overall Status", and collapses "Not Reporting
-   * 48H" down to plain "Not Reporting" (the "48H" distinction is a
-   * Streetleaf-only detail). Same behavior as ProjectPolesTable.
+   * looking at just their own poles, so it reads as noise) and shortens
+   * "48h Overall Status" to "Overall Status". Same behavior as
+   * ProjectPolesTable. Light/Panel/Battery/Overall Status values
+   * themselves are the API's own pre-computed labels, shown as-is
+   * regardless of viewer — no client-side "48H" stripping.
    */
   customerScoped?: boolean;
   /**
@@ -127,60 +126,58 @@ export function PolesTable({
                 </tr>
               </thead>
               <tbody>
-                {pagePoles.map((pole) => {
-                  const connected = connectionStatus(pole.isOnline, pole.lastUpdate);
-                  const status = poleOverallStatus(pole);
-                  return (
-                    <tr
-                      key={pole.id}
-                      className="border-b border-[var(--border)] last:border-b-0 hover:bg-[var(--surface-sunken)]"
+                {pagePoles.map((pole) => (
+                  <tr
+                    key={pole.id}
+                    className="border-b border-[var(--border)] last:border-b-0 hover:bg-[var(--surface-sunken)]"
+                  >
+                    {showCustomerColumn && <td className="py-3 pl-4 pr-4">{customerName}</td>}
+                    {showProjectColumn && (
+                      <td className={`py-3 pr-4 ${showCustomerColumn ? "" : "pl-4"}`}>
+                        {projectNames?.[pole.projectId] ?? "—"}
+                      </td>
+                    )}
+                    <td
+                      className={`py-3 pr-4 font-mono-data text-[12px] font-medium ${showProjectColumn ? "" : "pl-4"}`}
                     >
-                      {showCustomerColumn && (
-                        <td className="py-3 pl-4 pr-4">{customerName}</td>
-                      )}
-                      {showProjectColumn && (
-                        <td className={`py-3 pr-4 ${showCustomerColumn ? "" : "pl-4"}`}>
-                          {projectNames?.[pole.projectId] ?? "—"}
-                        </td>
-                      )}
-                      <td
-                        className={`py-3 pr-4 font-mono-data text-[12px] font-medium ${showProjectColumn ? "" : "pl-4"}`}
+                      <Link
+                        href={withQueryParam(
+                          `/customers/${pole.customerId}/projects/${pole.projectId}/poles/${pole.id}`,
+                          "pole_q",
+                          query,
+                        )}
+                        className="flex items-center gap-2 text-[var(--ink)] hover:underline"
                       >
-                        <Link
-                          href={withQueryParam(
-                            `/customers/${pole.customerId}/projects/${pole.projectId}/poles/${pole.id}`,
-                            "pole_q",
-                            query,
-                          )}
-                          className="flex items-center gap-2 text-[var(--ink)] hover:underline"
-                        >
-                          <span
-                            className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                              pole.isOnline === null
-                                ? "bg-[var(--ink-faint)]"
-                                : pole.isOnline
-                                  ? "bg-[var(--status-active)]"
-                                  : "bg-[var(--status-flagged)]"
-                            }`}
-                            aria-hidden="true"
-                          />
-                          {pole.poleNumber}
-                        </Link>
+                        <span
+                          className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                            pole.isOnline === null
+                              ? "bg-[var(--ink-faint)]"
+                              : pole.isOnline
+                                ? "bg-[var(--status-active)]"
+                                : "bg-[var(--status-flagged)]"
+                          }`}
+                          aria-hidden="true"
+                        />
+                        {pole.poleNumber}
+                      </Link>
+                    </td>
+                    {!customerScoped && (
+                      <td
+                        className={`py-3 pr-4 font-medium ${connectedLabelClassName(pole.connectedLabel)}`}
+                      >
+                        {pole.connectedLabel ?? "—"}
                       </td>
-                      {!customerScoped && (
-                        <td className={`py-3 pr-4 font-medium ${connected.className}`}>
-                          {connected.text}
-                        </td>
-                      )}
-                      <td className={`py-3 pr-4 font-medium ${status.className}`}>
-                        {status.text}
-                      </td>
-                      <td className="py-3 pr-4">{lightColumnText(pole, customerScoped)}</td>
-                      <td className="py-3 pr-4">{panelColumnText(pole)}</td>
-                      <td className="py-3 pr-8">{batteryColumnText(pole)}</td>
-                    </tr>
-                  );
-                })}
+                    )}
+                    <td
+                      className={`py-3 pr-4 font-medium ${overallStatusLabelClassName(pole.overallStatusLabel)}`}
+                    >
+                      {pole.overallStatusLabel ?? "—"}
+                    </td>
+                    <td className="py-3 pr-4">{pole.lightStatusLabel ?? "—"}</td>
+                    <td className="py-3 pr-4">{panelLabelText(pole)}</td>
+                    <td className="py-3 pr-8">{pole.batteryStatusLabel ?? "—"}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

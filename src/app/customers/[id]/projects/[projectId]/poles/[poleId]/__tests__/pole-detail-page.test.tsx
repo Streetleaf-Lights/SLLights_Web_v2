@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Customer, CustomerPoleVitals, LeadsunProject, Project } from "@/lib/types";
+import { formatTimestamp } from "@/lib/text";
 
 /**
  * A timestamp within the last 48h, formatted like the API's own
@@ -16,7 +17,7 @@ function recentTimestamp(hoursAgo = 1): string {
 }
 
 const RECENT_LAST_UPDATE = recentTimestamp(1);
-const RECENT_LAST_UPDATE_DISPLAY = RECENT_LAST_UPDATE.replace("+00:00", "");
+const RECENT_LAST_UPDATE_DISPLAY = formatTimestamp(RECENT_LAST_UPDATE);
 
 const { getCustomerMock, getProjectsForCustomerMock, getPoleVitalsForCustomerMock, getSessionUserMock } =
   vi.hoisted(() => ({
@@ -130,7 +131,7 @@ const vitals: CustomerPoleVitals = {
           panelStatusLabel: "OK",
           panelIdleReason: "OK",
           batteryStatusLabel: "OK",
-          electricCurrentAverage: 0,
+          electricCurrentAverage: 0, connectedLabel: "Online", overallStatusLabel: "OK",
           isLedFault: false,
           isBatteryFault: false,
           isPanelFault: false,
@@ -370,9 +371,46 @@ describe("PoleDetailPage", () => {
     expect(screen.getByText("-82.2750467")).toBeInTheDocument(); // long, full precision, not rounded
     expect(screen.queryByText("48h Connected:")).not.toBeInTheDocument();
     expect(screen.getByText("Online")).toBeInTheDocument();
-    expect(screen.getByText("48h Overall Status:").parentElement).toHaveTextContent(
-      "48h Overall Status: OK",
+    expect(screen.getByText("48H Overall Status:").parentElement).toHaveTextContent(
+      "48H Overall Status: OK",
     );
+  });
+
+  it("shows the header's Overall Status exactly as overallStatusLabel sends it — 'Not Reporting 48H', a value the old isPoleFault-based computation never produced — even when isPoleFault suggests otherwise", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue({
+      ...vitals,
+      projects: [
+        {
+          ...vitals.projects[0],
+          poles: [
+            {
+              ...vitals.projects[0].poles[0],
+              isPoleFault: false,
+              overallStatusLabel: "Not Reporting 48H",
+            },
+          ],
+        },
+      ],
+    });
+    const jsx = await PoleDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(screen.getByText("48H Overall Status:").parentElement).toHaveTextContent(
+      "48H Overall Status: Not Reporting 48H",
+    );
+    const overallStatusValue = screen
+      .getByText("48H Overall Status:")
+      .parentElement?.querySelector("span:last-child");
+    expect(overallStatusValue?.className).toContain("text-[var(--ink-muted)]");
+    // Not bold — only OK/Fault get the bold treatment matching the cards.
+    expect(overallStatusValue?.className).not.toContain("font-semibold");
+    expect(overallStatusValue?.className).not.toContain("status-active");
+    expect(overallStatusValue?.className).not.toContain("status-flagged");
   });
 
   it("shows Disconnected for 48h Connected when isOnline is null but the pole has reported before (lastUpdate present)", async () => {
@@ -461,6 +499,28 @@ describe("PoleDetailPage", () => {
     expect(screen.getByText("Long:").parentElement).toHaveTextContent("Long: —");
   });
 
+  it("shows the Light/Panel/Battery cards' own metric values in dark-gray (--ink-muted), matching the header's Last Update/Install Date tone — not the bolder --ink used before", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
+    const jsx = await PoleDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    // "Operating Status" appears 3 times (Light/Panel/Battery); check each
+    // metric row's value (the label's next sibling).
+    const operatingStatuses = screen.getAllByText("Operating Status");
+    for (const label of operatingStatuses) {
+      expect(label.nextElementSibling?.className).toContain("text-[var(--ink-muted)]");
+      expect(label.nextElementSibling?.className).not.toContain("text-[var(--ink)]");
+    }
+    expect(screen.getByText("Battery Percentage").nextElementSibling?.className).toContain(
+      "text-[var(--ink-muted)]",
+    );
+  });
+
   it("shows a Statuses section with Light/Panel/Battery/Issue boxes, all OK/No Issue (green) with correct metrics when no faults are flagged", async () => {
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
@@ -477,24 +537,31 @@ describe("PoleDetailPage", () => {
     expect(screen.getByText("Battery")).toBeInTheDocument();
     expect(screen.getByText("Issue Entry")).toBeInTheDocument();
 
-    // The 3 green box status badges (Light/Panel/Battery), scoped by their
-    // badge styling (font-semibold) — the header's own Overall Status span
-    // isn't font-semibold, and the metric values below happen to read "OK"
-    // too in this fixture, so a plain text match would over-count.
-    const okBadges = screen.getAllByText("OK").filter((el) => el.className.includes("font-semibold"));
+    // The 3 green box status badges (Light/Panel/Battery) are each their
+    // title's next sibling — scoping this way (rather than a plain text
+    // match) since the header's own Overall Status span and the metric
+    // values below happen to read "OK" too in this fixture.
+    const okBadges = ["Light", "Panel", "Battery"].map(
+      (title) => screen.getByText(title).nextElementSibling as HTMLElement,
+    );
     expect(okBadges).toHaveLength(3);
     for (const stat of okBadges) {
+      expect(stat).toHaveTextContent("OK");
+      expect(stat.className).toContain("font-semibold");
       expect(stat.className).toContain("text-[var(--status-active)]");
     }
     const noIssue = screen.getByText("None");
     expect(noIssue.className).toContain("text-[var(--status-active)]");
-    expect(screen.getByText("48h Overall Status:").parentElement).toHaveTextContent(
-      "48h Overall Status: OK",
+    expect(screen.getByText("48H Overall Status:").parentElement).toHaveTextContent(
+      "48H Overall Status: OK",
     );
-    expect(
-      screen.getByText("48h Overall Status:").parentElement?.querySelector("span:last-child")
-        ?.className,
-    ).toContain("text-[var(--status-active)]");
+    // The header's own Overall Status is bold too now, for OK/Fault,
+    // matching the cards' own badges above.
+    const headerOverallStatus = screen
+      .getByText("48H Overall Status:")
+      .parentElement?.querySelector("span:last-child");
+    expect(headerOverallStatus?.className).toContain("font-semibold");
+    expect(headerOverallStatus?.className).toContain("text-[var(--status-active)]");
 
     const operatingStatuses = screen.getAllByText("Operating Status");
     expect(operatingStatuses).toHaveLength(3);
@@ -510,7 +577,7 @@ describe("PoleDetailPage", () => {
     expect(avgElecCurrentRow?.nextElementSibling).toBe(elecCurrent1Row);
   });
 
-  it("keeps 'Last Known' only on section headings for a silent pole (lastUpdate more than 48h ago) — the header's Overall Status label and box metric labels are no longer prefixed at all, while the underlying values are unaffected", async () => {
+  it("always shows plain 'Statuses' and 'Vitals History' section titles, regardless of how long the pole has been silent — no more 'Last Known' prefix at any point", async () => {
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
     getPoleVitalsForCustomerMock.mockResolvedValue({
@@ -528,81 +595,29 @@ describe("PoleDetailPage", () => {
     });
     render(jsx);
 
-    // Header — no prefix regardless of silence.
-    expect(screen.getByText("48h Overall Status:").parentElement).toHaveTextContent(
-      "48h Overall Status: OK",
+    // Header — no prefix.
+    expect(screen.getByText("48H Overall Status:").parentElement).toHaveTextContent(
+      "48H Overall Status: OK",
     );
-    expect(screen.queryByText("Last Known 48h Overall Status:")).not.toBeInTheDocument();
 
-    // Section heading (box titles Light/Panel/Battery/Issue stay the same)
-    // still carries the prefix — that's a section-level indicator, unaffected.
-    expect(screen.getByText("Last Known Statuses")).toBeInTheDocument();
-    expect(screen.queryByText("Statuses")).not.toBeInTheDocument();
+    // Section titles — always plain now, even for a long-silent pole.
+    expect(screen.getByText("Statuses")).toBeInTheDocument();
+    expect(screen.queryByText("Last Known Statuses")).not.toBeInTheDocument();
     expect(screen.getByText("Light")).toBeInTheDocument();
     expect(screen.getByText("Panel")).toBeInTheDocument();
     expect(screen.getByText("Battery")).toBeInTheDocument();
     expect(screen.getByText("Issue Entry")).toBeInTheDocument();
+    expect(screen.getByText("Vitals History")).toBeInTheDocument();
+    expect(screen.queryByText("Last Known Vital History")).not.toBeInTheDocument();
 
-    // Box metric labels are plain — no prefix at all, silent or not — the
-    // underlying values are unaffected by silence.
+    // Box metric labels are plain too — no prefix at all, silent or not —
+    // the underlying values are unaffected by silence.
     const operatingStatuses = screen.getAllByText("Operating Status");
     expect(operatingStatuses).toHaveLength(3);
     for (const label of operatingStatuses) {
       expect(label.nextElementSibling).toHaveTextContent("OK");
     }
     expect(screen.getByText("Battery Percentage").nextElementSibling).toHaveTextContent("0");
-    expect(screen.queryByText("Last Known Operating Status")).not.toBeInTheDocument();
-    expect(screen.queryByText("Recent Operating Status")).not.toBeInTheDocument();
-
-    // Vitals History heading
-    expect(screen.getByText("Last Known Vital History")).toBeInTheDocument();
-    expect(screen.queryByText("Vitals History")).not.toBeInTheDocument();
-  });
-
-  it("uses normal (non-'Last Known') section headings right up to 48h, and switches to 'Last Known' just past it", async () => {
-    getCustomerMock.mockResolvedValue(customer);
-    getProjectsForCustomerMock.mockResolvedValue(projects);
-    getPoleVitalsForCustomerMock.mockResolvedValue({
-      ...vitals,
-      projects: [
-        {
-          ...vitals.projects[0],
-          poles: [{ ...vitals.projects[0].poles[0], lastUpdate: recentTimestamp(47) }],
-        },
-      ],
-    });
-    const jsx = await PoleDetailPage({
-      params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
-      searchParams: Promise.resolve({}),
-    });
-    render(jsx);
-
-    expect(screen.getByText("Statuses")).toBeInTheDocument();
-    expect(screen.getByText("Vitals History")).toBeInTheDocument();
-    expect(screen.getAllByText("Operating Status")).toHaveLength(3);
-    expect(screen.queryByText("Last Known Statuses")).not.toBeInTheDocument();
-  });
-
-  it("does not change the box metric labels at all across the 48h boundary — they're never prefixed regardless of silence", async () => {
-    getCustomerMock.mockResolvedValue(customer);
-    getProjectsForCustomerMock.mockResolvedValue(projects);
-    getPoleVitalsForCustomerMock.mockResolvedValue({
-      ...vitals,
-      projects: [
-        {
-          ...vitals.projects[0],
-          poles: [{ ...vitals.projects[0].poles[0], lastUpdate: recentTimestamp(49) }],
-        },
-      ],
-    });
-    const jsx = await PoleDetailPage({
-      params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
-      searchParams: Promise.resolve({}),
-    });
-    render(jsx);
-
-    expect(screen.getByText("Last Known Statuses")).toBeInTheDocument();
-    expect(screen.getAllByText("Operating Status")).toHaveLength(3);
     expect(screen.queryByText("Last Known Operating Status")).not.toBeInTheDocument();
     expect(screen.queryByText("Recent Operating Status")).not.toBeInTheDocument();
   });
@@ -623,6 +638,7 @@ describe("PoleDetailPage", () => {
               isPanelFault: true,
               isBatteryFault: true,
               isOpenIssueFault: true,
+              overallStatusLabel: "Fault",
             },
           ],
         },
@@ -661,6 +677,7 @@ describe("PoleDetailPage", () => {
               isPanelFault: null,
               isBatteryFault: null,
               isOpenIssueFault: null,
+              overallStatusLabel: null,
             },
           ],
         },
@@ -673,8 +690,8 @@ describe("PoleDetailPage", () => {
     render(jsx);
 
     expect(screen.getByText("Disconnected")).toBeInTheDocument();
-    expect(screen.getByText("48h Overall Status:").parentElement).toHaveTextContent(
-      "48h Overall Status: —",
+    expect(screen.getByText("48H Overall Status:").parentElement).toHaveTextContent(
+      "48H Overall Status: —",
     );
 
     // Light/Panel/Battery boxes' status + Issue box's status -> 4 dashes,
@@ -790,7 +807,7 @@ describe("PoleDetailPage", () => {
               panelStatusLabel: null,
               panelIdleReason: null,
               batteryStatusLabel: null,
-              electricCurrentAverage: null,
+              electricCurrentAverage: null, connectedLabel: null, overallStatusLabel: null,
               isLedFault: null,
               isBatteryFault: null,
               isPanelFault: null,
@@ -847,7 +864,7 @@ describe("PoleDetailPage", () => {
               panelStatusLabel: null,
               panelIdleReason: null,
               batteryStatusLabel: null,
-              electricCurrentAverage: null,
+              electricCurrentAverage: null, connectedLabel: null, overallStatusLabel: null,
               isLedFault: null,
               isBatteryFault: null,
               isPanelFault: null,
@@ -865,8 +882,8 @@ describe("PoleDetailPage", () => {
     render(jsx);
 
     expect(screen.getByText("Unknown")).toBeInTheDocument();
-    expect(screen.getByText("48h Overall Status:").parentElement).toHaveTextContent(
-      "48h Overall Status: —",
+    expect(screen.getByText("48H Overall Status:").parentElement).toHaveTextContent(
+      "48H Overall Status: —",
     );
     for (const heading of [
       screen.getByText("Light"),
@@ -884,7 +901,7 @@ describe("PoleDetailPage", () => {
     expect(screen.getByText("Battery Percentage").nextElementSibling).toHaveTextContent("—");
   });
 
-  it("shows a dash on the header's Overall Status, all 4 cards (Light/Panel/Battery/Issue), and the 48h Average % metrics when 48h Connected is Unknown, even though every fault flag and percentage has a real (non-null) value", async () => {
+  it("shows a dash on Light/Panel/Battery cards and the 48H Average % metrics when 48h Connected is Unknown, even though every fault flag and percentage has a real (non-null) value — but Issue Entry still shows its real value, since it isn't derived telemetry — and a dash on the header's Overall Status too, since overallStatusLabel is null here", async () => {
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
     getPoleVitalsForCustomerMock.mockResolvedValue({
@@ -898,16 +915,28 @@ describe("PoleDetailPage", () => {
               isOnline: null,
               lastUpdate: null,
               // Real, non-null fault/percentage data — the point of this
-              // test is that it's still overridden to a dash, since
+              // test is that the Light/Panel/Battery cards and 48H
+              // Average % metrics are still overridden to a dash, since
               // Unknown connectivity means this data has no reliable
-              // telemetry basis. avgLightPercentage/avgPanelPercentage/
-              // avgBatteryPercentage are already real values on the base
-              // fixture (11.3/10.8/90.4), left as-is here.
+              // telemetry basis (that override logic is unrelated to the
+              // header, and unchanged here). Issue Entry is deliberately
+              // NOT overridden — isOpenIssueFault isn't derived from the
+              // pole's own telemetry, so a real false here still means
+              // "no open issue" regardless of connectivity.
+              // avgLightPercentage/avgPanelPercentage/avgBatteryPercentage
+              // are already real values on the base fixture
+              // (11.3/10.8/90.4), left as-is here. The header itself no
+              // longer has any such override — it just shows whatever
+              // overallStatusLabel the API sends, so this is set to null
+              // here to realistically match an unknown-connectivity pole
+              // (the API presumably wouldn't send "OK" for a pole it's
+              // never heard from).
               isLedFault: true,
               isPanelFault: false,
               isBatteryFault: true,
               isOpenIssueFault: false,
               isPoleFault: true,
+              overallStatusLabel: null,
             },
           ],
         },
@@ -921,21 +950,29 @@ describe("PoleDetailPage", () => {
 
     expect(screen.getByText("Unknown")).toBeInTheDocument();
 
-    // Header's Overall Status — dashed, not "Fault" (isPoleFault is true).
-    expect(screen.getByText("48h Overall Status:").parentElement).toHaveTextContent(
-      "48h Overall Status: —",
+    // Header's Overall Status — dashed because overallStatusLabel is null
+    // in this fixture, not because of any client-side override (the
+    // header no longer computes from isPoleFault/isUnknownConnected).
+    expect(screen.getByText("48H Overall Status:").parentElement).toHaveTextContent(
+      "48H Overall Status: —",
     );
 
-    for (const title of ["Light", "Panel", "Battery", "Issue Entry"]) {
+    for (const title of ["Light", "Panel", "Battery"]) {
       const badge = screen.getByText(title).nextElementSibling;
       expect(badge).toHaveTextContent("—");
       expect(badge?.className).not.toContain("status-active");
       expect(badge?.className).not.toContain("status-flagged");
     }
 
-    expect(screen.getByText("48h Average Light %").nextElementSibling).toHaveTextContent("—");
-    expect(screen.getByText("48h Average Panel %").nextElementSibling).toHaveTextContent("—");
-    expect(screen.getByText("48h Average Battery %").nextElementSibling).toHaveTextContent("—");
+    // Issue Entry shows its real value ("None", green) despite Unknown
+    // connectivity — not dashed out like the other 3 cards.
+    const issueBadge = screen.getByText("Issue Entry").nextElementSibling;
+    expect(issueBadge).toHaveTextContent("None");
+    expect(issueBadge?.className).toContain("text-[var(--status-active)]");
+
+    expect(screen.getByText("48H Average Light %").nextElementSibling).toHaveTextContent("—");
+    expect(screen.getByText("48H Average Panel %").nextElementSibling).toHaveTextContent("—");
+    expect(screen.getByText("48H Average Battery %").nextElementSibling).toHaveTextContent("—");
     // Confirms this isn't a coincidental dash — the real percentages/fault
     // text would otherwise show up as these exact strings.
     expect(screen.queryByText("Fault")).not.toBeInTheDocument();
@@ -962,7 +999,7 @@ describe("PoleDetailPage", () => {
     // direct child of the outer right-aligned group — same level as the
     // Overall Status line span.
     const connectedWrapper = screen.getByText("Online").parentElement;
-    const overallStatusLine = screen.getByText("48h Overall Status:").parentElement;
+    const overallStatusLine = screen.getByText("48H Overall Status:").parentElement;
 
     // Last Update and Install Date share the same column (parent).
     expect(lastUpdateLine?.parentElement).toBe(installDateLine?.parentElement);
@@ -1097,7 +1134,7 @@ describe("PoleDetailPage", () => {
     render(jsx);
 
     expect(screen.queryByText("48h Connected:")).not.toBeInTheDocument();
-    expect(screen.queryByText("48h Overall Status:")).not.toBeInTheDocument();
+    expect(screen.queryByText("48H Overall Status:")).not.toBeInTheDocument();
     const online = screen.getByText("Online");
     // The dot indicator sits right alongside the text.
     const dot = online.parentElement?.querySelector("span[aria-hidden]");
@@ -1119,10 +1156,10 @@ describe("PoleDetailPage", () => {
     render(jsx);
 
     expect(screen.queryByText("48h Connected:")).not.toBeInTheDocument();
-    expect(screen.queryByText("48h Overall Status:")).not.toBeInTheDocument();
+    expect(screen.queryByText("48H Overall Status:")).not.toBeInTheDocument();
   });
 
-  it("drops the '48h Connected' label for a Streetleaf Admin too (dot + plain text now, same as customer scope), but still shows the '48h Overall Status' label", async () => {
+  it("drops the '48h Connected' label for a Streetleaf Admin too (dot + plain text now, same as customer scope), but still shows the '48H Overall Status' label", async () => {
     getSessionUserMock.mockResolvedValue({ id: "u1", role: "Streetleaf Admin", customerId: null });
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
@@ -1137,10 +1174,10 @@ describe("PoleDetailPage", () => {
     const online = screen.getByText("Online");
     const dot = online.parentElement?.querySelector("span[aria-hidden]");
     expect(dot?.className).toContain("rounded-full");
-    expect(screen.getByText("48h Overall Status:")).toBeInTheDocument();
+    expect(screen.getByText("48H Overall Status:")).toBeInTheDocument();
   });
 
-  it("shows only a single simplified metric per box (Operating Status, + Battery Percentage for Battery) for a Customer Admin, dropping the 48h Average/point-in-time metrics", async () => {
+  it("shows only a single simplified metric per box (Operating Status, + Battery Percentage for Battery) for a Customer Admin, dropping the 48H Average/point-in-time metrics", async () => {
     getSessionUserMock.mockResolvedValue({ id: "u1", role: "Customer Admin", customerId: "r2" });
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
@@ -1163,13 +1200,13 @@ describe("PoleDetailPage", () => {
     expect(screen.queryByText("Last Known Operating Status")).not.toBeInTheDocument();
 
     // The old 48h-average and point-in-time metrics are gone entirely.
-    expect(screen.queryByText("48h Average Light %")).not.toBeInTheDocument();
+    expect(screen.queryByText("48H Average Light %")).not.toBeInTheDocument();
     expect(screen.queryByText("Recent Light Power 1")).not.toBeInTheDocument();
     expect(screen.queryByText("Recent Light Power 2")).not.toBeInTheDocument();
-    expect(screen.queryByText("48h Average Panel %")).not.toBeInTheDocument();
+    expect(screen.queryByText("48H Average Panel %")).not.toBeInTheDocument();
     expect(screen.queryByText("Recent Panel Voltage")).not.toBeInTheDocument();
     expect(screen.queryByText("Recent Panel Electric Current")).not.toBeInTheDocument();
-    expect(screen.queryByText("48h Average Battery %")).not.toBeInTheDocument();
+    expect(screen.queryByText("48H Average Battery %")).not.toBeInTheDocument();
     expect(screen.queryByText("Recent Electric Current 1")).not.toBeInTheDocument();
     expect(screen.queryByText("Recent Electric Current 2")).not.toBeInTheDocument();
     expect(screen.queryByText("Recent Battery Voltage 1")).not.toBeInTheDocument();
@@ -1239,7 +1276,7 @@ describe("PoleDetailPage", () => {
     expect(operatingStatusRow?.nextElementSibling).toBe(expectedOn);
   });
 
-  it("positions 'Expected ON @ ...' right below Operating Status, above 48h Average Light % and Light Power 1/2, for a Streetleaf Admin", async () => {
+  it("positions 'Expected ON @ ...' right below Operating Status, above 48H Average Light % and Light Power 1/2, for a Streetleaf Admin", async () => {
     getSessionUserMock.mockResolvedValue({ id: "u1", role: "Streetleaf Admin", customerId: null });
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
@@ -1271,7 +1308,7 @@ describe("PoleDetailPage", () => {
     expect(rowTexts).toEqual([
       "Operating StatusOFF",
       "Expected ON @ 19:54 EDT",
-      "48h Average Light %11.3%",
+      "48H Average Light %11.3%",
       "Light Power 145",
       "Light Power 246",
     ]);
@@ -1444,15 +1481,15 @@ describe("PoleDetailPage", () => {
     expect(screen.queryByText("Last Known Operating Status")).not.toBeInTheDocument();
 
     // Restored old detailed metrics, also no prefix.
-    expect(screen.getByText("48h Average Light %").nextElementSibling).toHaveTextContent("11.3%");
+    expect(screen.getByText("48H Average Light %").nextElementSibling).toHaveTextContent("11.3%");
     expect(screen.getByText("Light Power 1").nextElementSibling).toHaveTextContent("45");
     expect(screen.getByText("Light Power 2").nextElementSibling).toHaveTextContent("46");
-    expect(screen.getByText("48h Average Panel %").nextElementSibling).toHaveTextContent("10.8%");
+    expect(screen.getByText("48H Average Panel %").nextElementSibling).toHaveTextContent("10.8%");
     expect(screen.getByText("Panel Voltage").nextElementSibling).toHaveTextContent("18.565V");
     expect(screen.getByText("Panel Electric Current").nextElementSibling).toHaveTextContent(
       "4.443",
     );
-    expect(screen.getByText("48h Average Battery %").nextElementSibling).toHaveTextContent(
+    expect(screen.getByText("48H Average Battery %").nextElementSibling).toHaveTextContent(
       "90.4%",
     );
     expect(screen.getByText("Electric Current 1").nextElementSibling).toHaveTextContent("90");
@@ -1480,7 +1517,7 @@ describe("PoleDetailPage", () => {
 
     expect(rowLabels).toEqual([
       "Operating Status",
-      "48h Average Battery %",
+      "48H Average Battery %",
       "Battery Percentage",
       "Electric Current 1",
       "Electric Current 2",
@@ -1500,13 +1537,13 @@ describe("PoleDetailPage", () => {
     });
     render(jsx);
 
-    expect(screen.queryByText("48h Average Light %")).not.toBeInTheDocument();
+    expect(screen.queryByText("48H Average Light %")).not.toBeInTheDocument();
     expect(screen.queryByText("Recent Light Power 1")).not.toBeInTheDocument();
     expect(screen.queryByText("Recent Light Power 2")).not.toBeInTheDocument();
-    expect(screen.queryByText("48h Average Panel %")).not.toBeInTheDocument();
+    expect(screen.queryByText("48H Average Panel %")).not.toBeInTheDocument();
     expect(screen.queryByText("Recent Panel Voltage")).not.toBeInTheDocument();
     expect(screen.queryByText("Recent Panel Electric Current")).not.toBeInTheDocument();
-    expect(screen.queryByText("48h Average Battery %")).not.toBeInTheDocument();
+    expect(screen.queryByText("48H Average Battery %")).not.toBeInTheDocument();
     expect(screen.queryByText("Recent Electric Current 1")).not.toBeInTheDocument();
     expect(screen.queryByText("Recent Electric Current 2")).not.toBeInTheDocument();
     expect(screen.queryByText("Recent Battery Voltage 1")).not.toBeInTheDocument();

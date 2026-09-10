@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  connectedLabelClassName,
   connectionStatus,
   formatLightStatus,
   formatPercent,
@@ -7,6 +8,9 @@ import {
   initials,
   isLightStatusWorking,
   isSilentPole,
+  overallStatusLabelClassName,
+  overallStatusLabelWeightClassName,
+  panelLabelText,
   poleOverallStatus,
   tieredPercentClass,
 } from "@/lib/text";
@@ -185,16 +189,16 @@ describe("isLightStatusWorking", () => {
 });
 
 describe("formatTimestamp", () => {
-  it("strips a +00:00 offset", () => {
-    expect(formatTimestamp("2026-07-26 13:25:41+00:00")).toBe("2026-07-26 13:25:41");
+  it("strips a +00:00 offset and truncates to minutes", () => {
+    expect(formatTimestamp("2026-07-26 13:25:41+00:00")).toBe("2026-07-26 13:25");
   });
 
-  it("strips a negative offset", () => {
-    expect(formatTimestamp("2026-02-11 14:20:05-05:00")).toBe("2026-02-11 14:20:05");
+  it("strips a negative offset and truncates to minutes", () => {
+    expect(formatTimestamp("2026-02-11 14:20:05-05:00")).toBe("2026-02-11 14:20");
   });
 
-  it("strips a trailing Z", () => {
-    expect(formatTimestamp("2026-07-26T13:25:41Z")).toBe("2026-07-26T13:25:41");
+  it("strips a trailing Z and truncates to minutes", () => {
+    expect(formatTimestamp("2026-07-26T13:25:41Z")).toBe("2026-07-26T13:25");
   });
 
   it("returns — for null", () => {
@@ -205,8 +209,20 @@ describe("formatTimestamp", () => {
     expect(formatTimestamp(undefined)).toBe("—");
   });
 
-  it("leaves a timestamp with no offset unchanged", () => {
-    expect(formatTimestamp("2026-07-26 13:25:41")).toBe("2026-07-26 13:25:41");
+  it("truncates seconds even with no offset present", () => {
+    expect(formatTimestamp("2026-07-26 13:25:41")).toBe("2026-07-26 13:25");
+  });
+
+  it("drops fractional seconds along with the whole seconds part", () => {
+    expect(formatTimestamp("2026-09-09 19:40:21.524542-05:00")).toBe("2026-09-09 19:40");
+  });
+
+  it("leaves a timestamp that already has no seconds unchanged", () => {
+    expect(formatTimestamp("2026-07-26 13:25")).toBe("2026-07-26 13:25");
+  });
+
+  it("pads a single-digit minute correctly (no accidental truncation of the minute itself)", () => {
+    expect(formatTimestamp("2026-07-26 13:05:41+00:00")).toBe("2026-07-26 13:05");
   });
 });
 
@@ -285,6 +301,125 @@ describe("poleOverallStatus", () => {
     expect(
       poleOverallStatus({ isOnline: true, lastUpdate: "2026-07-26 13:25:41+00:00", isPoleFault: null }),
     ).toEqual({ text: "—", className: "text-[var(--ink-faint)]" });
+  });
+});
+
+describe("connectedLabelClassName", () => {
+  it("colors 'Online' green", () => {
+    expect(connectedLabelClassName("Online")).toBe("text-[var(--status-active)]");
+  });
+
+  it("colors 'Offline' red", () => {
+    expect(connectedLabelClassName("Offline")).toBe("text-[var(--status-flagged)]");
+  });
+
+  it("colors 'Disconnected' red", () => {
+    expect(connectedLabelClassName("Disconnected")).toBe("text-[var(--status-flagged)]");
+  });
+
+  it("colors 'Unknown' neutral", () => {
+    expect(connectedLabelClassName("Unknown")).toBe("text-[var(--ink-faint)]");
+  });
+
+  it("colors null/undefined neutral, same as an unrecognized value", () => {
+    expect(connectedLabelClassName(null)).toBe("text-[var(--ink-faint)]");
+    expect(connectedLabelClassName(undefined)).toBe("text-[var(--ink-faint)]");
+  });
+
+  it("colors any unrecognized label neutral, rather than throwing", () => {
+    expect(connectedLabelClassName("Some New Value")).toBe("text-[var(--ink-faint)]");
+  });
+});
+
+describe("overallStatusLabelClassName", () => {
+  it("colors 'OK' green", () => {
+    expect(overallStatusLabelClassName("OK")).toBe("text-[var(--status-active)]");
+  });
+
+  it("colors 'Fault' red", () => {
+    expect(overallStatusLabelClassName("Fault")).toBe("text-[var(--status-flagged)]");
+  });
+
+  it("colors 'Not Reporting' dark-gray, matching the header's other values (Last Update, Install Date, etc.) rather than the lighter neutral used for a true dash/unknown", () => {
+    expect(overallStatusLabelClassName("Not Reporting")).toBe("text-[var(--ink-muted)]");
+  });
+
+  it("colors 'Not Reporting 48H' the same dark-gray — a value the old client-side computation never produced", () => {
+    expect(overallStatusLabelClassName("Not Reporting 48H")).toBe("text-[var(--ink-muted)]");
+  });
+
+  it("colors a dash neutral", () => {
+    expect(overallStatusLabelClassName("—")).toBe("text-[var(--ink-faint)]");
+  });
+
+  it("colors null/undefined neutral, same as an unrecognized value", () => {
+    expect(overallStatusLabelClassName(null)).toBe("text-[var(--ink-faint)]");
+    expect(overallStatusLabelClassName(undefined)).toBe("text-[var(--ink-faint)]");
+  });
+});
+
+describe("overallStatusLabelWeightClassName", () => {
+  it("is bold for 'OK'", () => {
+    expect(overallStatusLabelWeightClassName("OK")).toBe("font-semibold");
+  });
+
+  it("is bold for 'Fault'", () => {
+    expect(overallStatusLabelWeightClassName("Fault")).toBe("font-semibold");
+  });
+
+  it("is not bold for 'Not Reporting'", () => {
+    expect(overallStatusLabelWeightClassName("Not Reporting")).toBe("");
+  });
+
+  it("is not bold for 'Not Reporting 48H'", () => {
+    expect(overallStatusLabelWeightClassName("Not Reporting 48H")).toBe("");
+  });
+
+  it("is not bold for a dash", () => {
+    expect(overallStatusLabelWeightClassName("—")).toBe("");
+  });
+
+  it("is not bold for null/undefined", () => {
+    expect(overallStatusLabelWeightClassName(null)).toBe("");
+    expect(overallStatusLabelWeightClassName(undefined)).toBe("");
+  });
+
+  it("is not bold for an unrecognized value", () => {
+    expect(overallStatusLabelWeightClassName("Some New Value")).toBe("");
+  });
+});
+
+describe("panelLabelText", () => {
+  it("shows the label as-is when it's not Idle", () => {
+    expect(panelLabelText({ panelStatusLabel: "Charging", panelIdleReason: null })).toBe(
+      "Charging",
+    );
+  });
+
+  it("appends the idle reason in parentheses when the label is Idle and a reason is given", () => {
+    expect(panelLabelText({ panelStatusLabel: "Idle", panelIdleReason: "Battery Full" })).toBe(
+      "Idle (Battery Full)",
+    );
+  });
+
+  it("does not append a parenthetical when Idle but no reason is given", () => {
+    expect(panelLabelText({ panelStatusLabel: "Idle", panelIdleReason: null })).toBe("Idle");
+  });
+
+  it("does not append the idle reason for a non-Idle label, even if a reason happens to be set", () => {
+    expect(panelLabelText({ panelStatusLabel: "Charging", panelIdleReason: "Battery Full" })).toBe(
+      "Charging",
+    );
+  });
+
+  it("shows a dash when panelStatusLabel is null", () => {
+    expect(panelLabelText({ panelStatusLabel: null, panelIdleReason: null })).toBe("—");
+  });
+
+  it("shows 'Not Reporting 48H' as-is — no isSilentPole/lastUpdate override, unlike panelColumnText", () => {
+    expect(
+      panelLabelText({ panelStatusLabel: "Not Reporting 48H", panelIdleReason: null }),
+    ).toBe("Not Reporting 48H");
   });
 });
 

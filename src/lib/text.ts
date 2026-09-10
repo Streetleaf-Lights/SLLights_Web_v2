@@ -29,7 +29,11 @@ export function tieredPercentClass(value: number | null | undefined): string {
  */
 export function formatTimestamp(value: string | null | undefined): string {
   if (!value) return "—";
-  return value.replace(/(?:[+-]\d{2}:\d{2}|Z)$/, "").trim();
+  const withoutOffset = value.replace(/(?:[+-]\d{2}:\d{2}|Z)$/, "").trim();
+  // Only show up to minutes — drops seconds and any fractional seconds
+  // (e.g. "2026-08-24 14:07:15" or "...14:07:15.524542" -> "...14:07").
+  // A no-op if the value already has no seconds part.
+  return withoutOffset.replace(/(\d{2}:\d{2}):\d{2}(?:\.\d+)?$/, "$1");
 }
 
 /**
@@ -148,6 +152,60 @@ export function poleOverallStatus(
 }
 
 /**
+ * Color for the API's pre-computed "48h Connected" label (connectedLabel)
+ * — same color scheme connectionStatus() above used when this was
+ * computed client-side from isOnline/lastUpdate, just keyed by the label
+ * text instead, since the raw fields aren't needed anymore.
+ */
+export function connectedLabelClassName(label: string | null | undefined): string {
+  switch (label) {
+    case "Online":
+      return "text-[var(--status-active)]";
+    case "Offline":
+    case "Disconnected":
+      return "text-[var(--status-flagged)]";
+    default:
+      return "text-[var(--ink-faint)]"; // "Unknown", null, or anything unrecognized
+  }
+}
+
+/**
+ * Color for the API's pre-computed "48h Overall Status" label
+ * (overallStatusLabel) — same color scheme poleStatusLabel() above used
+ * for OK/Fault, extended to also cover the "Not Reporting"/"Not Reporting
+ * 48H" values this label can now carry (matching Light/Panel/Battery's
+ * own status labels), which the old client-side computation never
+ * produced.
+ */
+export function overallStatusLabelClassName(label: string | null | undefined): string {
+  switch (label) {
+    case "OK":
+      return "text-[var(--status-active)]";
+    case "Fault":
+      return "text-[var(--status-flagged)]";
+    case "Not Reporting":
+    case "Not Reporting 48H":
+      // Same dark-gray tone as the header's other values (Last Update,
+      // Install Date, etc.) — distinct from --ink-faint below, which is
+      // for values with no real answer at all (a dash, an unrecognized
+      // label), not "reporting stopped" which is a known, meaningful state.
+      return "text-[var(--ink-muted)]";
+    default:
+      return "text-[var(--ink-faint)]"; // "—", null, "Unknown"-ish, or anything else unrecognized
+  }
+}
+
+/**
+ * Bold for "OK"/"Fault" — matching the pole detail header's own status
+ * cards (Light/Panel/Battery/Issue Entry), which are always bold. Not
+ * bold for "Not Reporting"/"Not Reporting 48H"/a dash/anything else,
+ * which read as informational notes rather than a definitive status.
+ */
+export function overallStatusLabelWeightClassName(label: string | null | undefined): string {
+  return label === "OK" || label === "Fault" ? "font-semibold" : "";
+}
+
+/**
  * "Not Reporting" if this pole has never had any update at all (no
  * lastUpdate on record), or — for a customer-scoped viewer — any time it's
  * silent at all (the "48H" distinction is a Streetleaf-only detail).
@@ -189,4 +247,21 @@ export function batteryColumnText(
 ): string {
   if (isSilentPole(pole.lastUpdate)) return "—";
   return pole.batteryStatusLabel ?? "—";
+}
+
+/**
+ * Panel status text using the API's pre-computed panelStatusLabel
+ * directly — no isSilentPole/lastUpdate override, since the API now
+ * bakes "Not Reporting"/"Not Reporting 48H" into the label itself. Still
+ * appends the idle reason in parentheses when actually Idle, since that's
+ * additional context from a separate field, not a computed status.
+ */
+export function panelLabelText(
+  pole: Pick<PoleStatusFields, "panelStatusLabel" | "panelIdleReason">,
+): string {
+  const label = pole.panelStatusLabel ?? "—";
+  if (label === "Idle" && pole.panelIdleReason) {
+    return `${label} (${pole.panelIdleReason})`;
+  }
+  return label;
 }
