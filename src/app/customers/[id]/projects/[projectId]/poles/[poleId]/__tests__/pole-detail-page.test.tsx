@@ -577,6 +577,96 @@ describe("PoleDetailPage", () => {
     expect(avgElecCurrentRow?.nextElementSibling).toBe(elecCurrent1Row);
   });
 
+  /** Renders the page with vitals.projects[0].poles[0] merged with the given overrides. */
+  async function renderWithPoleOverrides(overrides: Record<string, unknown>) {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue({
+      ...vitals,
+      projects: [
+        {
+          ...vitals.projects[0],
+          poles: [{ ...vitals.projects[0].poles[0], ...overrides }],
+        },
+      ],
+    });
+    const jsx = await PoleDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+  }
+
+  it("treats a pole as provisioned (single-channel) when lampPower2 is null — hides Light Power 2 and drops the '1' suffix from Light Power", async () => {
+    await renderWithPoleOverrides({ lampPower2: null });
+
+    expect(screen.getByText("Light Power")).toBeInTheDocument();
+    expect(screen.queryByText("Light Power 1")).not.toBeInTheDocument();
+    expect(screen.queryByText("Light Power 2")).not.toBeInTheDocument();
+  });
+
+  it("treats a pole as provisioned when batteryElecCurrent2 is null — hides all three '2' metrics and drops the '1' suffix from all three labels, even though lampPower2/batteryVoltage2 are still real values (provisioned is a single, unified state, not per-field)", async () => {
+    await renderWithPoleOverrides({ batteryElecCurrent2: null });
+
+    expect(screen.getByText("Electric Current")).toBeInTheDocument();
+    expect(screen.queryByText("Electric Current 1")).not.toBeInTheDocument();
+    expect(screen.queryByText("Electric Current 2")).not.toBeInTheDocument();
+    // Light Power and Battery Voltage are ALSO affected, even though their
+    // own channel-2 fields are still real (non-null) values — any one of
+    // the three fields being null means the whole pole is provisioned.
+    expect(screen.getByText("Light Power")).toBeInTheDocument();
+    expect(screen.queryByText("Light Power 1")).not.toBeInTheDocument();
+    expect(screen.queryByText("Light Power 2")).not.toBeInTheDocument();
+    expect(screen.getByText("Battery Voltage")).toBeInTheDocument();
+    expect(screen.queryByText("Battery Voltage 1")).not.toBeInTheDocument();
+    expect(screen.queryByText("Battery Voltage 2")).not.toBeInTheDocument();
+  });
+
+  it("treats a pole as provisioned when batteryVoltage2 is null — hides Battery Voltage 2 and drops the '1' suffix from Battery Voltage", async () => {
+    await renderWithPoleOverrides({ batteryVoltage2: null });
+
+    expect(screen.getByText("Battery Voltage")).toBeInTheDocument();
+    expect(screen.queryByText("Battery Voltage 1")).not.toBeInTheDocument();
+    expect(screen.queryByText("Battery Voltage 2")).not.toBeInTheDocument();
+  });
+
+  it("still shows the real (non-null) values under the renamed labels for a provisioned pole — the values themselves aren't affected, just the labels/visibility", async () => {
+    await renderWithPoleOverrides({
+      lampPower1: 12,
+      lampPower2: null,
+      batteryElecCurrent1: 85,
+      batteryElecCurrent2: null,
+      batteryVoltage1: 13.2,
+      batteryVoltage2: null,
+    });
+
+    expect(screen.getByText("Light Power").nextElementSibling).toHaveTextContent("12");
+    expect(screen.getByText("Electric Current").nextElementSibling).toHaveTextContent("85");
+    expect(screen.getByText("Battery Voltage").nextElementSibling).toHaveTextContent("13.2V");
+  });
+
+  it("shows all 6 channel-1/2 metrics with their '1'/'2' suffixes intact for a normal (non-provisioned) pole — none of the three fields are null", async () => {
+    await renderWithPoleOverrides({
+      lampPower2: 46,
+      batteryElecCurrent2: 100,
+      batteryVoltage2: 13.8,
+    });
+
+    for (const label of [
+      "Light Power 1",
+      "Light Power 2",
+      "Electric Current 1",
+      "Electric Current 2",
+      "Battery Voltage 1",
+      "Battery Voltage 2",
+    ]) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
+    expect(screen.queryByText("Light Power")).not.toBeInTheDocument();
+    expect(screen.queryByText("Electric Current")).not.toBeInTheDocument();
+    expect(screen.queryByText("Battery Voltage")).not.toBeInTheDocument();
+  });
+
   it("always shows plain 'Statuses' and 'Vitals History' section titles, regardless of how long the pole has been silent — no more 'Last Known' prefix at any point", async () => {
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);

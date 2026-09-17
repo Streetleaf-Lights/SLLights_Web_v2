@@ -200,6 +200,15 @@ export default async function PoleDetailPage({
   // status that may be inconsistent with reality: the header's Overall
   // Status, all 4 cards, and the 48H Average % metrics.
   const isUnknownConnected = connected.text === "Unknown";
+  // A "provisioned" (single-channel) pole only has one lamp/battery
+  // circuit, not two — any of these three being null (rather than all
+  // three, since a pole could plausibly be silent on just one channel's
+  // own sensor while still having two circuits) is the signal, since
+  // real dual-channel poles always report all three together. Channel 2's
+  // metrics are hidden entirely, and channel 1's own labels drop the "1"
+  // suffix, since there's no "2" to distinguish it from anymore.
+  const isProvisioned =
+    pole.lampPower2 === null || pole.batteryElecCurrent2 === null || pole.batteryVoltage2 === null;
   // The 48H Overall Status header uses the API's pre-computed
   // overallStatusLabel directly — no more faultStatus/isUnknownConnected
   // override here, since the API's label already accounts for whether
@@ -315,13 +324,17 @@ export default async function PoleDetailPage({
                       value: avgPercentText(pole.avgLightPercentage),
                     },
                     {
-                      label: "Light Power 1",
+                      label: isProvisioned ? "Light Power" : "Light Power 1",
                       value: formatNumber(pole.lampPower1),
                     },
-                    {
-                      label: "Light Power 2",
-                      value: formatNumber(pole.lampPower2),
-                    },
+                    ...(isProvisioned
+                      ? []
+                      : [
+                          {
+                            label: "Light Power 2",
+                            value: formatNumber(pole.lampPower2),
+                          },
+                        ]),
                   ]),
             ]}
           />
@@ -374,21 +387,29 @@ export default async function PoleDetailPage({
                       value: formatNumber(pole.electricCurrentAverage),
                     },
                     {
-                      label: "Electric Current 1",
+                      label: isProvisioned ? "Electric Current" : "Electric Current 1",
                       value: formatNumber(pole.batteryElecCurrent1),
                     },
+                    ...(isProvisioned
+                      ? []
+                      : [
+                          {
+                            label: "Electric Current 2",
+                            value: formatNumber(pole.batteryElecCurrent2),
+                          },
+                        ]),
                     {
-                      label: "Electric Current 2",
-                      value: formatNumber(pole.batteryElecCurrent2),
-                    },
-                    {
-                      label: "Battery Voltage 1",
+                      label: isProvisioned ? "Battery Voltage" : "Battery Voltage 1",
                       value: formatVoltage(pole.batteryVoltage1),
                     },
-                    {
-                      label: "Battery Voltage 2",
-                      value: formatVoltage(pole.batteryVoltage2),
-                    },
+                    ...(isProvisioned
+                      ? []
+                      : [
+                          {
+                            label: "Battery Voltage 2",
+                            value: formatVoltage(pole.batteryVoltage2),
+                          },
+                        ]),
                   ]
             }
           />
