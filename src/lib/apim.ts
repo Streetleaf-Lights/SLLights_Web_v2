@@ -22,7 +22,6 @@ import type {
   CustomerProjectRef,
   LeadsunProject,
   PeriodType,
-  Pole,
   PoleSummary,
   PoleVitalsByPeriod,
   Project,
@@ -335,15 +334,6 @@ export async function getPoles(filters?: PoleFilters): Promise<PoleSummary[]> {
   return raw
     .slice()
     .sort((a, b) => a.poleNumber.localeCompare(b.poleNumber, undefined, { numeric: true }));
-}
-
-/**
- * Full single-pole record (not summary-limited — filtering to one poleId
- * never approaches the row cap, so this returns every field).
- */
-export async function getPole(poleId: string): Promise<Pole | undefined> {
-  const raw = await apimFetch<Pole[]>(`/getPoles${buildPoleQuery({ poleId })}`);
-  return raw[0];
 }
 
 /**

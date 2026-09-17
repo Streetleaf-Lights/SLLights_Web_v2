@@ -151,16 +151,6 @@ export interface CustomerPoleVitals extends ProjectVitals {
 }
 
 /**
- * A pole from GET /getPoles?poleId=&projectId=&customerId= (all filters
- * optional). Same live-telemetry fields as PoleVital, plus the foreign keys
- * needed to link back into the Customer -> Project -> Pole hierarchy.
- */
-export interface Pole extends PoleVital {
-  customerId: string;
-  projectId: string;
-}
-
-/**
  * Lightweight pole record from GET /getPoles?summary=true. The unfiltered
  * /getPoles response is capped at 1000 records without summary mode, but the
  * full system has ~14k poles — summary mode lifts that cap in exchange for

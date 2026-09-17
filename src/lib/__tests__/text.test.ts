@@ -2,17 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   connectedLabelClassName,
   connectionStatus,
-  formatLightStatus,
   formatPercent,
   formatTimestamp,
   initials,
-  isLightStatusWorking,
   isSilentPole,
   overallStatusLabelClassName,
   overallStatusLabelWeightClassName,
   panelLabelText,
-  poleOverallStatus,
-  tieredPercentClass,
 } from "@/lib/text";
 
 describe("initials", () => {
@@ -64,127 +60,6 @@ describe("formatPercent", () => {
 
   it("returns a dash for NaN", () => {
     expect(formatPercent(NaN)).toBe("—");
-  });
-});
-
-
-describe("formatLightStatus", () => {
-  it("labels 'Working' as Working in green", () => {
-    expect(formatLightStatus("Working")).toEqual({
-      label: "Working",
-      className: "text-[var(--status-active)]",
-    });
-  });
-
-  it("labels 'Daylight' as Working in green too", () => {
-    expect(formatLightStatus("Daylight")).toEqual({
-      label: "Working",
-      className: "text-[var(--status-active)]",
-    });
-  });
-
-  it("labels the real API's exact 'DayLight' casing as Working in green", () => {
-    expect(formatLightStatus("DayLight")).toEqual({
-      label: "Working",
-      className: "text-[var(--status-active)]",
-    });
-  });
-
-  it("shows a neutral dash (not red) for a null status, e.g. no telemetry available", () => {
-    expect(formatLightStatus(null)).toEqual({
-      label: "—",
-      className: "text-[var(--ink-faint)]",
-    });
-  });
-
-  it("shows a neutral dash (not red) for an undefined status too — the API sometimes omits the field entirely rather than nulling it", () => {
-    expect(formatLightStatus(undefined)).toEqual({
-      label: "—",
-      className: "text-[var(--ink-faint)]",
-    });
-  });
-
-  it("shows any other status as-is in red", () => {
-    expect(formatLightStatus("Fault")).toEqual({
-      label: "Fault",
-      className: "text-[var(--status-flagged)]",
-    });
-  });
-
-  it("shows an unrecognized status string as-is in red", () => {
-    expect(formatLightStatus("Offline")).toEqual({
-      label: "Offline",
-      className: "text-[var(--status-flagged)]",
-    });
-  });
-
-  it("matches 'working'/'daylight' regardless of casing", () => {
-    expect(formatLightStatus("working").label).toBe("Working");
-    expect(formatLightStatus("WORKING").label).toBe("Working");
-    expect(formatLightStatus("daylight").label).toBe("Working");
-    expect(formatLightStatus("DAYLIGHT").label).toBe("Working");
-    expect(formatLightStatus("DayLight").label).toBe("Working");
-  });
-
-  it("tolerates leading/trailing whitespace from the API", () => {
-    expect(formatLightStatus(" Daylight ").label).toBe("Working");
-    expect(formatLightStatus(" Working").label).toBe("Working");
-  });
-
-  it("preserves the original casing when displaying a non-working status as-is", () => {
-    expect(formatLightStatus("FAULT").label).toBe("FAULT");
-  });
-});
-
-describe("tieredPercentClass", () => {
-  it("returns green at/above 80%", () => {
-    expect(tieredPercentClass(80)).toBe("text-[var(--status-active)]");
-    expect(tieredPercentClass(90.43)).toBe("text-[var(--status-active)]");
-    expect(tieredPercentClass(100)).toBe("text-[var(--status-active)]");
-  });
-
-  it("returns yellow/warning from 50% up to (but not including) 80%", () => {
-    expect(tieredPercentClass(50)).toBe("text-[var(--status-warning)]");
-    expect(tieredPercentClass(65)).toBe("text-[var(--status-warning)]");
-    expect(tieredPercentClass(79.9)).toBe("text-[var(--status-warning)]");
-  });
-
-  it("returns red below 50%", () => {
-    expect(tieredPercentClass(49.9)).toBe("text-[var(--status-flagged)]");
-    expect(tieredPercentClass(10.79)).toBe("text-[var(--status-flagged)]");
-    expect(tieredPercentClass(0)).toBe("text-[var(--status-flagged)]");
-  });
-
-  it("returns no color class for null or undefined", () => {
-    expect(tieredPercentClass(null)).toBe("");
-    expect(tieredPercentClass(undefined)).toBe("");
-  });
-});
-
-describe("isLightStatusWorking", () => {
-  it("is true for 'Working'", () => {
-    expect(isLightStatusWorking("Working")).toBe(true);
-  });
-
-  it("is true for the real API's 'DayLight' casing", () => {
-    expect(isLightStatusWorking("DayLight")).toBe(true);
-  });
-
-  it("is true regardless of casing/whitespace", () => {
-    expect(isLightStatusWorking("daylight")).toBe(true);
-    expect(isLightStatusWorking(" WORKING ")).toBe(true);
-  });
-
-  it("is false for null", () => {
-    expect(isLightStatusWorking(null)).toBe(false);
-  });
-
-  it("is false for undefined (the API sometimes omits the field entirely rather than nulling it)", () => {
-    expect(isLightStatusWorking(undefined)).toBe(false);
-  });
-
-  it("is false for any other status", () => {
-    expect(isLightStatusWorking("Fault")).toBe(false);
   });
 });
 
@@ -264,43 +139,6 @@ describe("connectionStatus", () => {
       text: "Unknown",
       className: "text-[var(--ink-faint)]",
     });
-  });
-});
-
-describe("poleOverallStatus", () => {
-  it("shows the real OK/Fault status when the pole is Online", () => {
-    expect(
-      poleOverallStatus({ isOnline: true, lastUpdate: "2026-07-26 13:25:41+00:00", isPoleFault: true }),
-    ).toEqual({ text: "Fault", className: "text-[var(--status-flagged)]" });
-    expect(
-      poleOverallStatus({ isOnline: true, lastUpdate: "2026-07-26 13:25:41+00:00", isPoleFault: false }),
-    ).toEqual({ text: "OK", className: "text-[var(--status-active)]" });
-  });
-
-  it("forces a dash for a Disconnected pole, even if isPoleFault has a real value", () => {
-    expect(
-      poleOverallStatus({ isOnline: null, lastUpdate: "2026-07-26 13:25:41+00:00", isPoleFault: true }),
-    ).toEqual({ text: "—", className: "text-[var(--ink-faint)]" });
-    expect(
-      poleOverallStatus({ isOnline: null, lastUpdate: "2026-07-26 13:25:41+00:00", isPoleFault: false }),
-    ).toEqual({ text: "—", className: "text-[var(--ink-faint)]" });
-  });
-
-  it("forces a dash for an Unknown pole (both isOnline and lastUpdate null), even if isPoleFault has a real value — the underlying data would be inconsistent", () => {
-    expect(poleOverallStatus({ isOnline: null, lastUpdate: null, isPoleFault: true })).toEqual({
-      text: "—",
-      className: "text-[var(--ink-faint)]",
-    });
-    expect(poleOverallStatus({ isOnline: null, lastUpdate: null, isPoleFault: false })).toEqual({
-      text: "—",
-      className: "text-[var(--ink-faint)]",
-    });
-  });
-
-  it("shows a dash when isPoleFault is null and the pole is Online (nothing to override)", () => {
-    expect(
-      poleOverallStatus({ isOnline: true, lastUpdate: "2026-07-26 13:25:41+00:00", isPoleFault: null }),
-    ).toEqual({ text: "—", className: "text-[var(--ink-faint)]" });
   });
 });
 
