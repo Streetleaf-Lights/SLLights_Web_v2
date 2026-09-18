@@ -271,6 +271,16 @@ export function PoleVitalsChart({ poleId }: { poleId: string }) {
                   </ul>
                 )}
               />
+              {/*
+                No connectNulls on any of these three — a pole can go
+                hours (or longer) with no vitals at all for a given period
+                (isOnline/every fault flag/every average all null
+                together), and connectNulls would draw a straight line
+                across that entire gap as if it were real, interpolated
+                data, silently hiding that the pole wasn't reporting.
+                Leaving it off means Recharts breaks the line for any
+                stretch of null points, which is the honest picture.
+              */}
               <Line
                 type="monotone"
                 dataKey="light"
@@ -278,7 +288,6 @@ export function PoleVitalsChart({ poleId }: { poleId: string }) {
                 stroke="var(--status-active)"
                 strokeWidth={2}
                 dot={false}
-                connectNulls
               />
               <Line
                 type="monotone"
@@ -287,7 +296,6 @@ export function PoleVitalsChart({ poleId }: { poleId: string }) {
                 stroke="var(--status-warning)"
                 strokeWidth={2}
                 dot={false}
-                connectNulls
               />
               <Line
                 type="monotone"
@@ -296,7 +304,6 @@ export function PoleVitalsChart({ poleId }: { poleId: string }) {
                 stroke="var(--accent)"
                 strokeWidth={2}
                 dot={false}
-                connectNulls
               />
             </LineChart>
           </ResponsiveContainer>

@@ -1,6 +1,24 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { createElement } from "react";
+
+// Captures the props each <Line> actually receives from PoleVitalsChart —
+// specifically for asserting connectNulls is never set (see the test
+// below) — while still rendering the real recharts <Line> underneath, so
+// the rest of this file's tests exercise the genuine chart output.
+const capturedLineProps: Record<string, unknown>[] = [];
+vi.mock("recharts", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("recharts")>();
+  return {
+    ...actual,
+    Line: (props: Record<string, unknown>) => {
+      capturedLineProps.push(props);
+      return createElement(actual.Line, props);
+    },
+  };
+});
+
 import {
   formatPeriodLabel,
   formatTickLabel,
@@ -12,6 +30,7 @@ import {
 // children (legend, lines, axes); jsdom reports 0x0 by default, which
 // causes it to render nothing. Force a plausible size for these tests.
 beforeEach(() => {
+  capturedLineProps.length = 0;
   vi.stubGlobal(
     "ResizeObserver",
     class {
@@ -161,6 +180,18 @@ describe("PoleVitalsChart", () => {
     expect(await screen.findByText("Battery %")).toBeInTheDocument();
     expect(screen.getByText("Panel %")).toBeInTheDocument();
     expect(screen.getByText("Light %")).toBeInTheDocument();
+  });
+
+  it("does not set connectNulls on any of the three lines — a gap in reporting (a run of null vitals) should show as a visual break in the line, not a straight line drawn across it as if that data were real", async () => {
+    vi.stubGlobal("fetch", mockVitalsResponse(true, { vitals: sampleVitals }));
+
+    render(<PoleVitalsChart poleId="recAOlPiepBddUcCv" />);
+    await screen.findByText("Light %");
+
+    expect(capturedLineProps.length).toBeGreaterThan(0);
+    for (const props of capturedLineProps) {
+      expect(props.connectNulls).not.toBe(true);
+    }
   });
 
   it("lists the legend/lines in order: Light, Panel, Battery", async () => {
