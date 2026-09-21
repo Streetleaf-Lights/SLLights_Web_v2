@@ -25,7 +25,6 @@ const customers: Customer[] = [
     zip: null,
     phone: null,
     active: true,
-    createdAt: "2026-01-01",
   },
   {
     id: "cust-2",
@@ -37,7 +36,6 @@ const customers: Customer[] = [
     zip: null,
     phone: null,
     active: true,
-    createdAt: "2026-01-01",
   },
   {
     id: "cust-3",
@@ -49,7 +47,6 @@ const customers: Customer[] = [
     zip: null,
     phone: null,
     active: true,
-    createdAt: "2026-01-01",
   },
   {
     // A real customer whose name happens to be exactly "Streetleaf" —
@@ -66,7 +63,6 @@ const customers: Customer[] = [
     zip: null,
     phone: null,
     active: true,
-    createdAt: "2026-01-01",
   },
 ];
 
@@ -556,7 +552,6 @@ describe("InviteUserModal", () => {
       zip: null,
       phone: null,
       active: true,
-      createdAt: "2026-01-01",
     };
     const fetchMock = mockInviteResponse(true, successBody);
     vi.stubGlobal("fetch", fetchMock);
@@ -599,7 +594,6 @@ describe("InviteUserModal", () => {
         zip: null,
         phone: null,
         active: true,
-        createdAt: "2026-01-01",
       },
     ];
     const fetchMock = mockInviteResponse(true, successBody);
@@ -768,7 +762,6 @@ describe("InviteUserModal with a lockedCustomer (Customer Admin inviting into th
     zip: null,
     phone: null,
     active: true,
-    createdAt: "2026-01-01",
   };
 
   async function openLockedModal() {

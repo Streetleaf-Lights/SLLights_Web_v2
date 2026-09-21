@@ -22,7 +22,6 @@ export interface Customer {
   zip: string | null;
   phone: string | null;
   active: boolean;
-  createdAt: string;
 }
 
 /** Full project record from GET /getProjects?customerId=... */
@@ -30,7 +29,6 @@ export interface Customer {
 export interface LeadsunProduct {
   ProductId: number;
   ProductName: string;
-  ControllerCode: string;
   ProvidedProductId: string;
   PoleNumber: string;
 }
@@ -68,23 +66,13 @@ export interface LeadsunProject {
  */
 export interface LeadsunLampStatus {
   productId: string;
-  productName: string;
   lampPower1: number;
   lampPower2: number;
-  isOnline: boolean;
-  lastUpload: string | null;
 }
 
 export interface Project {
   id: string;
   name: string;
-  customerId: string;
-  poleNumbers: string[];
-  poleIds: string[];
-  polesUnderContract: number;
-  effectiveDate: string;
-  installDates: string[];
-  createdAt: string;
   leadsunProject: LeadsunProject | null;
   active: boolean;
 }
@@ -100,7 +88,6 @@ export interface PoleVital {
   locationId: string;
   active: boolean;
   isOnline: boolean | null;
-  lightStatus: string | null;
   installDate: string | null;
   lat: number | null;
   long: number | null;
@@ -122,16 +109,16 @@ export interface PoleVital {
   avgPanelPercentage: number | null;
   avgLightPercentage: number | null;
   sunsetTime: string | null;
-  lightStatusLabel: string | null;
-  panelStatusLabel: string | null;
+  lightStatusText: string | null;
+  panelStatusText: string | null;
   panelIdleReason: string | null;
-  batteryStatusLabel: string | null;
-  // Not shown anywhere yet — reserved for the pole detail page.
+  batteryStatusText: string | null;
+  /** Shown as "Battery Percentage" on the pole detail page's Battery card. */
   electricCurrentAverage: number | null;
   /** Pre-computed "48h Connected" label — replaces the old client-side connectionStatus(isOnline, lastUpdate) computation. */
-  connectedLabel: string | null;
+  connectedText: string | null;
   /** Pre-computed "48h Overall Status" label — replaces the old client-side poleOverallStatus(pole) computation. */
-  overallStatusLabel: string | null;
+  overallStatusText: string | null;
 }
 
 /** Vitals for a single project, as nested inside GET /getPoleVitals?customerId=... */
@@ -167,9 +154,6 @@ export type PeriodType = "Hour" | "Day";
 /** A single aggregated period's vitals, as returned by GET /getPoleVitalsByPeriod. */
 export interface PoleVitalPeriod {
   periodStart: string;
-  periodEnd: string;
-  lightStatus: string | null;
-  isOnline: boolean | null;
   avgBatteryPercentage: number | null;
   avgPanelPercentage: number | null;
   avgLightPercentage: number | null;
@@ -177,13 +161,6 @@ export interface PoleVitalPeriod {
 
 /** Response shape for GET /getPoleVitalsByPeriod?poleId=&periodType=&limit= */
 export interface PoleVitalsByPeriod {
-  id: string;
-  poleNumber: string;
-  locationId: string;
-  installDate: string | null;
-  lat: number | null;
-  long: number | null;
-  lastUpdate: string | null;
   vitals: PoleVitalPeriod[];
 }
 

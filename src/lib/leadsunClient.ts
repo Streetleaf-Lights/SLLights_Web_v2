@@ -105,10 +105,7 @@ function normalizeLampStatus(raw: unknown): LeadsunLampStatus {
   >;
   return {
     productId: String(candidate.productId ?? ""),
-    productName: String(candidate.productName ?? ""),
     lampPower1: Number(candidate.lampPower1 ?? 0),
     lampPower2: Number(candidate.lampPower2 ?? 0),
-    isOnline: Boolean(candidate.isOnline),
-    lastUpload: typeof candidate.lastUpload === "string" ? candidate.lastUpload : null,
   };
 }

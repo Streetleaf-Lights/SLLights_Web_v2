@@ -26,17 +26,16 @@ function makePole(overrides: Partial<PoleSummary> = {}): PoleSummary {
     lat: 27.74143766,
     long: -82.40508593,
     lastUpdate: null,
-    lightStatus: "DayLight",
     isOnline: true,
     avgBatteryPercentage: null,
     avgPanelPercentage: null,
     avgLightPercentage: null,
     sunsetTime: null,
-    lightStatusLabel: null,
-    panelStatusLabel: null,
+    lightStatusText: null,
+    panelStatusText: null,
     panelIdleReason: null,
-    batteryStatusLabel: null,
-    electricCurrentAverage: null, connectedLabel: null, overallStatusLabel: null,
+    batteryStatusText: null,
+    electricCurrentAverage: null, connectedText: null, overallStatusText: null,
     lampPower1: null,
     lampPower2: null,
     batteryElecCurrent1: null,
@@ -64,15 +63,15 @@ describe("PolesTable", () => {
       id: "p1",
       poleNumber: "51079-1000",
       isOnline: true,
-      connectedLabel: "Online",
-      overallStatusLabel: "OK",
+      connectedText: "Online",
+      overallStatusText: "OK",
     }),
     makePole({
       id: "p2",
       poleNumber: "51079-1001",
       isOnline: true,
-      connectedLabel: "Online",
-      overallStatusLabel: "OK",
+      connectedText: "Online",
+      overallStatusText: "OK",
       projectId: "recOtherProject",
       customerId: "recOtherCustomer",
     }),
@@ -80,19 +79,19 @@ describe("PolesTable", () => {
       id: "p3",
       poleNumber: "51079-1002",
       isOnline: false,
-      connectedLabel: "Offline",
-      overallStatusLabel: "Fault",
+      connectedText: "Offline",
+      overallStatusText: "Fault",
     }),
     makePole({
       id: "p4",
       poleNumber: "51079-1003",
       isOnline: null,
-      connectedLabel: "Unknown",
-      overallStatusLabel: null,
+      connectedText: "Unknown",
+      overallStatusText: null,
     }),
   ];
 
-  it("renders a row per pole, showing connectedLabel directly (not computed)", () => {
+  it("renders a row per pole, showing connectedText directly (not computed)", () => {
     render(<PolesTable poles={poles} />);
     expect(screen.getByText("51079-1000")).toBeInTheDocument();
     const onlineSpans = screen
@@ -124,7 +123,7 @@ describe("PolesTable", () => {
     expect(screen.getByRole("columnheader", { name: "Battery" })).toBeInTheDocument();
   });
 
-  it("shows a dash (no color) when overallStatusLabel is null, rather than computing a fallback", () => {
+  it("shows a dash (no color) when overallStatusText is null, rather than computing a fallback", () => {
     render(<PolesTable poles={[poles[3]]} />);
     const row = screen.getByText("51079-1003").closest("tr") as HTMLElement;
     const cells = row.querySelectorAll("td");
@@ -134,14 +133,14 @@ describe("PolesTable", () => {
     expect(overallStatusCell.className).not.toContain("status-flagged");
   });
 
-  it("shows green OK for Overall Status, exactly as overallStatusLabel sends it", () => {
-    render(<PolesTable poles={[makePole({ overallStatusLabel: "OK" })]} />);
+  it("shows green OK for Overall Status, exactly as overallStatusText sends it", () => {
+    render(<PolesTable poles={[makePole({ overallStatusText: "OK" })]} />);
     const ok = screen.getByText("OK");
     expect(ok.className).toContain("text-[var(--status-active)]");
   });
 
-  it("shows red Fault for Overall Status, exactly as overallStatusLabel sends it", () => {
-    render(<PolesTable poles={[makePole({ overallStatusLabel: "Fault" })]} />);
+  it("shows red Fault for Overall Status, exactly as overallStatusText sends it", () => {
+    render(<PolesTable poles={[makePole({ overallStatusText: "Fault" })]} />);
     const fault = screen.getByText("Fault");
     expect(fault.className).toContain("text-[var(--status-flagged)]");
   });
@@ -149,7 +148,7 @@ describe("PolesTable", () => {
   it("shows Overall Status as 'Not Reporting 48H' in dark-gray, not computed from isPoleFault or lastUpdate", () => {
     render(
       <PolesTable
-        poles={[makePole({ isPoleFault: true, overallStatusLabel: "Not Reporting 48H" })]}
+        poles={[makePole({ isPoleFault: true, overallStatusText: "Not Reporting 48H" })]}
       />,
     );
     const label = screen.getByText("Not Reporting 48H");
@@ -157,50 +156,50 @@ describe("PolesTable", () => {
     expect(label.className).not.toContain("status-flagged");
   });
 
-  it("shows connectedLabel 'Disconnected' in red, exactly as the API sends it", () => {
-    render(<PolesTable poles={[makePole({ connectedLabel: "Disconnected" })]} />);
+  it("shows connectedText 'Disconnected' in red, exactly as the API sends it", () => {
+    render(<PolesTable poles={[makePole({ connectedText: "Disconnected" })]} />);
     const cell = screen.getByText("Disconnected");
     expect(cell.className).toContain("text-[var(--status-flagged)]");
   });
 
-  it("shows connectedLabel 'Unknown' in a neutral color (not green/red)", () => {
+  it("shows connectedText 'Unknown' in a neutral color (not green/red)", () => {
     render(<PolesTable poles={[poles[3]]} />);
     const cell = screen.getByText("Unknown");
     expect(cell.className).not.toContain("status-active");
     expect(cell.className).not.toContain("status-flagged");
   });
 
-  it("shows lightStatusLabel exactly as the API sends it, including 'Not Reporting'/'Not Reporting 48H' — no longer computed from lastUpdate", () => {
-    render(<PolesTable poles={[makePole({ lightStatusLabel: "Not Reporting 48H" })]} />);
+  it("shows lightStatusText exactly as the API sends it, including 'Not Reporting'/'Not Reporting 48H' — no longer computed from lastUpdate", () => {
+    render(<PolesTable poles={[makePole({ lightStatusText: "Not Reporting 48H" })]} />);
     expect(screen.getByText("Not Reporting 48H")).toBeInTheDocument();
   });
 
-  it("does not recompute the Light label from lastUpdate — a recent lastUpdate does not override a 'Not Reporting 48H' lightStatusLabel", () => {
+  it("does not recompute the Light label from lastUpdate — a recent lastUpdate does not override a 'Not Reporting 48H' lightStatusText", () => {
     render(
       <PolesTable
         poles={[
-          makePole({ lastUpdate: recentTimestamp(1), lightStatusLabel: "Not Reporting 48H" }),
+          makePole({ lastUpdate: recentTimestamp(1), lightStatusText: "Not Reporting 48H" }),
         ]}
       />,
     );
     expect(screen.getByText("Not Reporting 48H")).toBeInTheDocument();
   });
 
-  it("shows the real lightStatusLabel in the Light column for a pole reporting within 48h", () => {
+  it("shows the real lightStatusText in the Light column for a pole reporting within 48h", () => {
     render(
-      <PolesTable poles={[makePole({ lastUpdate: recentTimestamp(1), lightStatusLabel: "OFF" })]} />,
+      <PolesTable poles={[makePole({ lastUpdate: recentTimestamp(1), lightStatusText: "OFF" })]} />,
     );
     expect(screen.getByText("OFF")).toBeInTheDocument();
     expect(screen.queryByText("Not Reporting")).not.toBeInTheDocument();
   });
 
-  it("appends the idle reason in parentheses in the Panel column when panelStatusLabel is Idle", () => {
+  it("appends the idle reason in parentheses in the Panel column when panelStatusText is Idle", () => {
     render(
       <PolesTable
         poles={[
           makePole({
             lastUpdate: recentTimestamp(1),
-            panelStatusLabel: "Idle",
+            panelStatusText: "Idle",
             panelIdleReason: "Battery Full",
           }),
         ]}
@@ -209,19 +208,19 @@ describe("PolesTable", () => {
     expect(screen.getByText("Idle (Battery Full)")).toBeInTheDocument();
   });
 
-  it("shows the real batteryStatusLabel in the Battery column for a pole reporting within 48h", () => {
+  it("shows the real batteryStatusText in the Battery column for a pole reporting within 48h", () => {
     render(
-      <PolesTable poles={[makePole({ lastUpdate: recentTimestamp(1), batteryStatusLabel: "Full" })]} />,
+      <PolesTable poles={[makePole({ lastUpdate: recentTimestamp(1), batteryStatusText: "Full" })]} />,
     );
     expect(screen.getByText("Full")).toBeInTheDocument();
   });
 
-  it("does not append the idle reason for a non-Idle panelStatusLabel, even if panelIdleReason happens to be set", () => {
+  it("does not append the idle reason for a non-Idle panelStatusText, even if panelIdleReason happens to be set", () => {
     render(
       <PolesTable
         poles={[
           makePole({
-            panelStatusLabel: "Charging",
+            panelStatusText: "Charging",
             panelIdleReason: "Battery Full",
           }),
         ]}
@@ -254,7 +253,7 @@ describe("PolesTable", () => {
   it("does not strip '48H' from labels for a customerScoped viewer — that was the old client-side computation's job, the API's labels are shown as-is", () => {
     render(
       <PolesTable
-        poles={[makePole({ overallStatusLabel: "Not Reporting 48H" })]}
+        poles={[makePole({ overallStatusText: "Not Reporting 48H" })]}
         customerScoped
       />,
     );

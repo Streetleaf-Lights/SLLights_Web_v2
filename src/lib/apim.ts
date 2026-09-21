@@ -112,7 +112,6 @@ export interface RawCustomer {
   zip: string | null;
   phone: string | null;
   active: boolean;
-  createdAt: string;
 }
 
 /** projectNames/projectIds arrive as JSON-stringified arrays; parse defensively. */
@@ -161,7 +160,6 @@ function parseLeadsunProject(
       products: (Array.isArray(group?.products) ? group.products : []).map((product) => ({
         ProductId: product?.ProductId ?? 0,
         ProductName: product?.ProductName ?? "",
-        ControllerCode: product?.ControllerCode ?? "",
         ProvidedProductId: product?.ProvidedProductId ?? "",
         PoleNumber: product?.PoleNumber ?? "",
       })),
@@ -187,7 +185,6 @@ export function normalizeCustomer(raw: RawCustomer): Customer {
     zip: raw.zip,
     phone: raw.phone,
     active: raw.active,
-    createdAt: raw.createdAt,
   };
 }
 
@@ -221,22 +218,11 @@ export async function getCustomer(id: string): Promise<Customer | undefined> {
 export interface RawProject {
   id: string;
   name: string;
-  /** JSON-stringified string[] */
-  poleNumbers: string;
-  /** JSON-stringified string[], parallel to poleNumbers */
-  poleIds: string;
-  customerId: string;
-  polesUnderContract: number;
-  effectiveDate: string;
-  /** JSON-stringified string[] */
-  installDates: string;
-  createdAt: string;
   // Assumed camelCase key, matching this object's other top-level fields —
   // its own nested content keeps Leadsun's native PascalCase, since that's
   // a separate external system's shape passed through as-is. Flag/confirm
   // if the real API uses a different casing for this key specifically.
-  // May arrive as a JSON string, same as poleNumbers/poleIds/installDates
-  // above, rather than an already-parsed object.
+  // May arrive as a JSON string rather than an already-parsed object.
   leadsunProject?: LeadsunProject | string | null;
   active: boolean;
 }
@@ -245,13 +231,6 @@ export function normalizeProject(raw: RawProject): Project {
   return {
     id: raw.id,
     name: raw.name,
-    customerId: raw.customerId,
-    poleNumbers: parseJsonStringArray(raw.poleNumbers),
-    poleIds: parseJsonStringArray(raw.poleIds),
-    polesUnderContract: raw.polesUnderContract,
-    effectiveDate: raw.effectiveDate,
-    installDates: parseJsonStringArray(raw.installDates),
-    createdAt: raw.createdAt,
     leadsunProject: parseLeadsunProject(raw.leadsunProject),
     active: raw.active,
   };
@@ -372,7 +351,22 @@ export async function getPoleVitalsByPeriod({
     throw new ApimError(message, res.status);
   }
 
-  return body as PoleVitalsByPeriod;
+  // Only pass through what the chart actually uses. The real response also
+  // carries a top-level id/poleNumber/locationId/installDate/lat/long/
+  // lastUpdate (the pole's own identity — redundant with what the page
+  // already has from getPoleVitalsForCustomer) and each period also
+  // carries periodEnd/lightStatus/isOnline, none of which the chart reads
+  // — a blind `as PoleVitalsByPeriod` cast wouldn't actually drop any of
+  // that from what's sent to the browser, so this maps explicitly instead.
+  const rawVitals = Array.isArray(body?.vitals) ? (body.vitals as Record<string, unknown>[]) : [];
+  return {
+    vitals: rawVitals.map((v) => ({
+      periodStart: v.periodStart as string,
+      avgBatteryPercentage: (v.avgBatteryPercentage as number | null) ?? null,
+      avgPanelPercentage: (v.avgPanelPercentage as number | null) ?? null,
+      avgLightPercentage: (v.avgLightPercentage as number | null) ?? null,
+    })),
+  };
 }
 
 // ---------------------------------------------------------------------------

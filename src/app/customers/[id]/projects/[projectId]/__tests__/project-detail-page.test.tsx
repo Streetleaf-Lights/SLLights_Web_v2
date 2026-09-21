@@ -48,33 +48,18 @@ const customer: Customer = {
   zip: null,
   phone: "504-555-0132",
   active: true,
-  createdAt: "2026-02-11 14:20:05-05:00",
 };
 
 const projects: Project[] = [
   {
     id: "p1",
     name: "Bayou District Rebuild",
-    customerId: "r2",
-    poleNumbers: ["51079-1000"],
-    poleIds: ["rec1"],
-    polesUnderContract: 4,
-    effectiveDate: "2024-11-25",
-    installDates: ["2025-05-23"],
-    createdAt: "2024-12-13 12:02:12-05:00",
     leadsunProject: null,
     active: true,
   },
   {
     id: "p2",
     name: "Storm Hardening Phase 2",
-    customerId: "r2",
-    poleNumbers: [],
-    poleIds: [],
-    polesUnderContract: 10,
-    effectiveDate: "2025-01-15",
-    installDates: [],
-    createdAt: "2025-01-10 09:00:00-05:00",
     leadsunProject: null,
     active: true,
   },
@@ -97,9 +82,9 @@ const vitals: CustomerPoleVitals = {
       totalFaults: 1,
       percentWorking: 92.5,
       poles: [
-        { id: "pv1", poleNumber: "51079-1000", locationId: "loc-1", active: true, isOnline: true, lightStatus: "Working", installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, lampPower1: null, lampPower2: null, batteryElecCurrent1: null, batteryElecCurrent2: null, solarBoardVoltage: null, solarBoardElecCurrent: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null, sunsetTime: null, lightStatusLabel: null, panelStatusLabel: null, panelIdleReason: null, batteryStatusLabel: null, electricCurrentAverage: null, connectedLabel: null, overallStatusLabel: null, isLedFault: null, isBatteryFault: null, isPanelFault: null, isOpenIssueFault: null, isPoleFault: null },
-        { id: "pv2", poleNumber: "51079-1001", locationId: "loc-2", active: true, isOnline: true, lightStatus: "Daylight", installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, lampPower1: null, lampPower2: null, batteryElecCurrent1: null, batteryElecCurrent2: null, solarBoardVoltage: null, solarBoardElecCurrent: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null, sunsetTime: null, lightStatusLabel: null, panelStatusLabel: null, panelIdleReason: null, batteryStatusLabel: null, electricCurrentAverage: null, connectedLabel: null, overallStatusLabel: null, isLedFault: null, isBatteryFault: null, isPanelFault: null, isOpenIssueFault: null, isPoleFault: null },
-        { id: "pv3", poleNumber: "51079-1002", locationId: "loc-3", active: true, isOnline: false, lightStatus: "Fault", installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, lampPower1: null, lampPower2: null, batteryElecCurrent1: null, batteryElecCurrent2: null, solarBoardVoltage: null, solarBoardElecCurrent: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null, sunsetTime: null, lightStatusLabel: null, panelStatusLabel: null, panelIdleReason: null, batteryStatusLabel: null, electricCurrentAverage: null, connectedLabel: null, overallStatusLabel: null, isLedFault: null, isBatteryFault: null, isPanelFault: null, isOpenIssueFault: null, isPoleFault: null },
+        { id: "pv1", poleNumber: "51079-1000", locationId: "loc-1", active: true, isOnline: true, installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, lampPower1: null, lampPower2: null, batteryElecCurrent1: null, batteryElecCurrent2: null, solarBoardVoltage: null, solarBoardElecCurrent: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null, sunsetTime: null, lightStatusText: null, panelStatusText: null, panelIdleReason: null, batteryStatusText: null, electricCurrentAverage: null, connectedText: null, overallStatusText: null, isLedFault: null, isBatteryFault: null, isPanelFault: null, isOpenIssueFault: null, isPoleFault: null },
+        { id: "pv2", poleNumber: "51079-1001", locationId: "loc-2", active: true, isOnline: true, installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, lampPower1: null, lampPower2: null, batteryElecCurrent1: null, batteryElecCurrent2: null, solarBoardVoltage: null, solarBoardElecCurrent: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null, sunsetTime: null, lightStatusText: null, panelStatusText: null, panelIdleReason: null, batteryStatusText: null, electricCurrentAverage: null, connectedText: null, overallStatusText: null, isLedFault: null, isBatteryFault: null, isPanelFault: null, isOpenIssueFault: null, isPoleFault: null },
+        { id: "pv3", poleNumber: "51079-1002", locationId: "loc-3", active: true, isOnline: false, installDate: null, lat: null, long: null, lastUpdate: null, batteryVoltage1: null, batteryVoltage2: null, lampPower1: null, lampPower2: null, batteryElecCurrent1: null, batteryElecCurrent2: null, solarBoardVoltage: null, solarBoardElecCurrent: null, avgBatteryPercentage: null, avgPanelPercentage: null, avgLightPercentage: null, sunsetTime: null, lightStatusText: null, panelStatusText: null, panelIdleReason: null, batteryStatusText: null, electricCurrentAverage: null, connectedText: null, overallStatusText: null, isLedFault: null, isBatteryFault: null, isPanelFault: null, isOpenIssueFault: null, isPoleFault: null },
       ],
     },
     {
@@ -621,7 +606,6 @@ describe("ProjectDetailPage", () => {
             {
               ProductId: 12548,
               ProductName: "51079-1000",
-              ControllerCode: "UPP40LA323110001",
               ProvidedProductId: "AEXSAP4323111877",
               PoleNumber: "AEXSAP4323111877-A",
             },

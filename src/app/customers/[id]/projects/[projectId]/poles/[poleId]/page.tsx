@@ -12,8 +12,8 @@ import {
   formatPercent,
   formatTimestamp,
   connectionStatus,
-  overallStatusLabelClassName,
-  overallStatusLabelWeightClassName,
+  overallStatusTextClassName,
+  overallStatusTextWeightClassName,
 } from "@/lib/text";
 import { findLeadsunProduct } from "@/lib/leadsun";
 import { getSessionUser, isCustomerScoped } from "@/lib/session";
@@ -210,7 +210,7 @@ export default async function PoleDetailPage({
   const isProvisioned =
     pole.lampPower2 === null || pole.batteryElecCurrent2 === null || pole.batteryVoltage2 === null;
   // The 48H Overall Status header uses the API's pre-computed
-  // overallStatusLabel directly — no more faultStatus/isUnknownConnected
+  // overallStatusText directly — no more faultStatus/isUnknownConnected
   // override here, since the API's label already accounts for whether
   // the pole has reliable telemetry (e.g. "Not Reporting"/"Not Reporting
   // 48H") the same way isUnknownConnected used to compensate for
@@ -282,9 +282,9 @@ export default async function PoleDetailPage({
               <span>
                 <span className="text-[var(--ink-faint)]">48H Overall Status:</span>{" "}
                 <span
-                  className={`${overallStatusLabelWeightClassName(pole.overallStatusLabel)} ${overallStatusLabelClassName(pole.overallStatusLabel)}`}
+                  className={`${overallStatusTextWeightClassName(pole.overallStatusText)} ${overallStatusTextClassName(pole.overallStatusText)}`}
                 >
-                  {pole.overallStatusLabel ?? "—"}
+                  {pole.overallStatusText ?? "—"}
                 </span>
               </span>
             )}
@@ -312,9 +312,9 @@ export default async function PoleDetailPage({
             metrics={[
               {
                 label: "Operating Status",
-                value: pole.lightStatusLabel ?? "—",
+                value: pole.lightStatusText ?? "—",
                 note:
-                  pole.lightStatusLabel === "OFF" ? formatSunsetExpectation(pole.sunsetTime) : null,
+                  pole.lightStatusText === "OFF" ? formatSunsetExpectation(pole.sunsetTime) : null,
               },
               ...(viewerIsCustomerScoped
                 ? []
@@ -344,7 +344,7 @@ export default async function PoleDetailPage({
             metrics={[
               {
                 label: "Operating Status",
-                value: panelStatusText(pole.panelStatusLabel, pole.panelIdleReason),
+                value: panelStatusText(pole.panelStatusText, pole.panelIdleReason),
               },
               ...(viewerIsCustomerScoped
                 ? []
@@ -370,14 +370,14 @@ export default async function PoleDetailPage({
             metrics={
               viewerIsCustomerScoped
                 ? [
-                    { label: "Operating Status", value: pole.batteryStatusLabel ?? "—" },
+                    { label: "Operating Status", value: pole.batteryStatusText ?? "—" },
                     {
                       label: "Battery Percentage",
                       value: formatNumber(pole.electricCurrentAverage),
                     },
                   ]
                 : [
-                    { label: "Operating Status", value: pole.batteryStatusLabel ?? "—" },
+                    { label: "Operating Status", value: pole.batteryStatusText ?? "—" },
                     {
                       label: "48H Average Battery %",
                       value: avgPercentText(pole.avgBatteryPercentage),

@@ -22,14 +22,12 @@ const leadsunProject: LeadsunProject = {
         {
           ProductId: 12548,
           ProductName: "12081-1102",
-          ControllerCode: "UPP40LA323110001",
           ProvidedProductId: "AEXSAP4323111877",
           PoleNumber: "AEXSAP4323111877-A",
         },
         {
           ProductId: 12549,
           ProductName: "12081-1103",
-          ControllerCode: "UPP40LA323110236",
           ProvidedProductId: "AEXSAP4323111878",
           PoleNumber: "AEXSAP4323111878-A",
         },
@@ -75,7 +73,7 @@ describe("findLeadsunProduct", () => {
   it("finds the product whose ProductName matches the given locationId", () => {
     const product = findLeadsunProduct(leadsunProject, "12081-1103");
     expect(product?.ProductId).toBe(12549);
-    expect(product?.ControllerCode).toBe("UPP40LA323110236");
+    expect(product?.PoleNumber).toBe("AEXSAP4323111878-A");
   });
 
   it("returns undefined when no product matches", () => {
@@ -165,7 +163,6 @@ describe("findLeadsunGroupForProduct", () => {
           {
             ProductId: 77,
             ProductName: "other-loc",
-            ControllerCode: "CTRL-77",
             ProvidedProductId: "PROV-77",
             PoleNumber: "PROV-77-A",
           },

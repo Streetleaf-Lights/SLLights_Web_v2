@@ -39,13 +39,23 @@ function mockNextRequest(statusCode: number, body: string) {
   return req;
 }
 
-const sampleLamp = {
+// Raw shape the real Leadsun API sends — includes fields we deliberately
+// don't keep (productName, isOnline, lastUpload), so these tests also
+// confirm normalization drops them rather than passing them through.
+const rawLamp = {
   productId: "AEXSAM2324122936",
   productName: "DRH-Orl",
   lampPower1: 0,
   lampPower2: 0,
   isOnline: true,
   lastUpload: "2026-09-03T14:39:41.520+00:00",
+};
+
+// What normalizeLampStatus actually keeps from rawLamp.
+const normalizedLamp = {
+  productId: "AEXSAM2324122936",
+  lampPower1: 0,
+  lampPower2: 0,
 };
 
 describe("fetchLeadsunLampStatus", () => {
@@ -162,26 +172,24 @@ describe("fetchLeadsunLampStatus", () => {
   });
 
   it("parses and normalizes a successful JSON array response", async () => {
-    mockNextRequest(200, JSON.stringify([sampleLamp]));
+    mockNextRequest(200, JSON.stringify([rawLamp]));
     const lamps = await fetchLeadsunLampStatus("389");
 
-    expect(lamps).toEqual([sampleLamp]);
+    expect(lamps).toEqual([normalizedLamp]);
   });
 
   it("wraps a single-object response in an array", async () => {
-    mockNextRequest(200, JSON.stringify(sampleLamp));
-    const lamps = await fetchLeadsunLampStatus("389", sampleLamp.productId);
+    mockNextRequest(200, JSON.stringify(rawLamp));
+    const lamps = await fetchLeadsunLampStatus("389", rawLamp.productId);
 
-    expect(lamps).toEqual([sampleLamp]);
+    expect(lamps).toEqual([normalizedLamp]);
   });
 
-  it("normalizes a lamp missing some fields, defaulting numbers to 0 and isOnline to false", async () => {
+  it("normalizes a lamp missing some fields, defaulting numbers to 0", async () => {
     mockNextRequest(200, JSON.stringify([{ productId: "X" }]));
     const lamps = await fetchLeadsunLampStatus("389");
 
-    expect(lamps).toEqual([
-      { productId: "X", productName: "", lampPower1: 0, lampPower2: 0, isOnline: false, lastUpload: null },
-    ]);
+    expect(lamps).toEqual([{ productId: "X", lampPower1: 0, lampPower2: 0 }]);
   });
 
   it("rejects when the response status is not 2xx", async () => {

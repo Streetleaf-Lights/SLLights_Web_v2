@@ -8,7 +8,6 @@ import type { LeadsunLampStatus, LeadsunProduct, LeadsunProject } from "@/lib/ty
 const product: LeadsunProduct = {
   ProductId: 12548,
   ProductName: "12081-1102",
-  ControllerCode: "UPP40LA323110001",
   ProvidedProductId: "AEXSAP4323111877",
   PoleNumber: "AEXSAP4323111877-A",
 };
@@ -28,14 +27,12 @@ const leadsunProject: LeadsunProject = {
         {
           ProductId: 1,
           ProductName: "12009-1001",
-          ControllerCode: "CTRL-1",
           ProvidedProductId: "PROV-1",
           PoleNumber: "PROV-1-A",
         },
         {
           ProductId: 2,
           ProductName: "12009-1002",
-          ControllerCode: "CTRL-2",
           ProvidedProductId: "PROV-2",
           PoleNumber: "PROV-2-A",
         },
@@ -50,7 +47,6 @@ const leadsunProject: LeadsunProject = {
         {
           ProductId: 3,
           ProductName: "12009-2001",
-          ControllerCode: "CTRL-3",
           ProvidedProductId: "PROV-3",
           PoleNumber: "PROV-3-A",
         },
@@ -62,11 +58,8 @@ const leadsunProject: LeadsunProject = {
 function makeLamp(overrides: Partial<LeadsunLampStatus> = {}): LeadsunLampStatus {
   return {
     productId: "1",
-    productName: "12009-1001",
     lampPower1: 0,
     lampPower2: 0,
-    isOnline: true,
-    lastUpload: "2026-09-03T14:39:41.520+00:00",
     ...overrides,
   };
 }

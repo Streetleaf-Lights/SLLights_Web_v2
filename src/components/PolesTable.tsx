@@ -6,8 +6,8 @@ import { useSearchParams } from "next/navigation";
 import { Toolbar } from "@/components/Toolbar";
 import { Pagination } from "@/components/Pagination";
 import {
-  connectedLabelClassName,
-  overallStatusLabelClassName,
+  connectedTextClassName,
+  overallStatusTextClassName,
   panelLabelText,
 } from "@/lib/text";
 import { withQueryParam } from "@/lib/url";
@@ -163,19 +163,19 @@ export function PolesTable({
                     </td>
                     {!customerScoped && (
                       <td
-                        className={`py-3 pr-4 font-medium ${connectedLabelClassName(pole.connectedLabel)}`}
+                        className={`py-3 pr-4 font-medium ${connectedTextClassName(pole.connectedText)}`}
                       >
-                        {pole.connectedLabel ?? "—"}
+                        {pole.connectedText ?? "—"}
                       </td>
                     )}
                     <td
-                      className={`py-3 pr-4 font-medium ${overallStatusLabelClassName(pole.overallStatusLabel)}`}
+                      className={`py-3 pr-4 font-medium ${overallStatusTextClassName(pole.overallStatusText)}`}
                     >
-                      {pole.overallStatusLabel ?? "—"}
+                      {pole.overallStatusText ?? "—"}
                     </td>
-                    <td className="py-3 pr-4">{pole.lightStatusLabel ?? "—"}</td>
+                    <td className="py-3 pr-4">{pole.lightStatusText ?? "—"}</td>
                     <td className="py-3 pr-4">{panelLabelText(pole)}</td>
-                    <td className="py-3 pr-8">{pole.batteryStatusLabel ?? "—"}</td>
+                    <td className="py-3 pr-8">{pole.batteryStatusText ?? "—"}</td>
                   </tr>
                 ))}
               </tbody>

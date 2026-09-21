@@ -20,7 +20,6 @@ function makeCustomer(overrides: Partial<Customer> & { id: string; name: string 
     zip: null,
     phone: null,
     active: true,
-    createdAt: "2026-01-01 00:00:00-05:00",
     ...overrides,
   };
 }

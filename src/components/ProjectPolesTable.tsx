@@ -6,8 +6,8 @@ import { Pagination } from "@/components/Pagination";
 import { RemoteControlLink } from "@/components/RemoteControlLink";
 import { withSearchContext } from "@/lib/url";
 import {
-  connectedLabelClassName,
-  overallStatusLabelClassName,
+  connectedTextClassName,
+  overallStatusTextClassName,
   panelLabelText,
 } from "@/lib/text";
 import { findLeadsunProduct } from "@/lib/leadsun";
@@ -116,20 +116,20 @@ export function ProjectPolesTable({
                   </td>
                   {!customerScoped && (
                     <td
-                      className={`py-3 pr-4 font-medium ${connectedLabelClassName(pole.connectedLabel)}`}
+                      className={`py-3 pr-4 font-medium ${connectedTextClassName(pole.connectedText)}`}
                     >
-                      {pole.connectedLabel ?? "—"}
+                      {pole.connectedText ?? "—"}
                     </td>
                   )}
                   <td
-                    className={`py-3 pr-4 font-medium ${overallStatusLabelClassName(pole.overallStatusLabel)}`}
+                    className={`py-3 pr-4 font-medium ${overallStatusTextClassName(pole.overallStatusText)}`}
                   >
-                    {pole.overallStatusLabel ?? "—"}
+                    {pole.overallStatusText ?? "—"}
                   </td>
-                  <td className="py-3 pr-4">{pole.lightStatusLabel ?? "—"}</td>
+                  <td className="py-3 pr-4">{pole.lightStatusText ?? "—"}</td>
                   <td className="py-3 pr-4">{panelLabelText(pole)}</td>
                   <td className={`py-3 ${showRemoteControlColumn ? "pr-4" : "pr-8"}`}>
-                    {pole.batteryStatusLabel ?? "—"}
+                    {pole.batteryStatusText ?? "—"}
                   </td>
                   {showRemoteControlColumn && (
                     <td className="py-3 pr-8">

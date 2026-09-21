@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
-  connectedLabelClassName,
+  connectedTextClassName,
   connectionStatus,
   formatPercent,
   formatTimestamp,
   initials,
   isSilentPole,
-  overallStatusLabelClassName,
-  overallStatusLabelWeightClassName,
+  overallStatusTextClassName,
+  overallStatusTextWeightClassName,
   panelLabelText,
 } from "@/lib/text";
 
@@ -142,121 +142,121 @@ describe("connectionStatus", () => {
   });
 });
 
-describe("connectedLabelClassName", () => {
+describe("connectedTextClassName", () => {
   it("colors 'Online' green", () => {
-    expect(connectedLabelClassName("Online")).toBe("text-[var(--status-active)]");
+    expect(connectedTextClassName("Online")).toBe("text-[var(--status-active)]");
   });
 
   it("colors 'Offline' red", () => {
-    expect(connectedLabelClassName("Offline")).toBe("text-[var(--status-flagged)]");
+    expect(connectedTextClassName("Offline")).toBe("text-[var(--status-flagged)]");
   });
 
   it("colors 'Disconnected' red", () => {
-    expect(connectedLabelClassName("Disconnected")).toBe("text-[var(--status-flagged)]");
+    expect(connectedTextClassName("Disconnected")).toBe("text-[var(--status-flagged)]");
   });
 
   it("colors 'Unknown' neutral", () => {
-    expect(connectedLabelClassName("Unknown")).toBe("text-[var(--ink-faint)]");
+    expect(connectedTextClassName("Unknown")).toBe("text-[var(--ink-faint)]");
   });
 
   it("colors null/undefined neutral, same as an unrecognized value", () => {
-    expect(connectedLabelClassName(null)).toBe("text-[var(--ink-faint)]");
-    expect(connectedLabelClassName(undefined)).toBe("text-[var(--ink-faint)]");
+    expect(connectedTextClassName(null)).toBe("text-[var(--ink-faint)]");
+    expect(connectedTextClassName(undefined)).toBe("text-[var(--ink-faint)]");
   });
 
   it("colors any unrecognized label neutral, rather than throwing", () => {
-    expect(connectedLabelClassName("Some New Value")).toBe("text-[var(--ink-faint)]");
+    expect(connectedTextClassName("Some New Value")).toBe("text-[var(--ink-faint)]");
   });
 });
 
-describe("overallStatusLabelClassName", () => {
+describe("overallStatusTextClassName", () => {
   it("colors 'OK' green", () => {
-    expect(overallStatusLabelClassName("OK")).toBe("text-[var(--status-active)]");
+    expect(overallStatusTextClassName("OK")).toBe("text-[var(--status-active)]");
   });
 
   it("colors 'Fault' red", () => {
-    expect(overallStatusLabelClassName("Fault")).toBe("text-[var(--status-flagged)]");
+    expect(overallStatusTextClassName("Fault")).toBe("text-[var(--status-flagged)]");
   });
 
   it("colors 'Not Reporting' dark-gray, matching the header's other values (Last Update, Install Date, etc.) rather than the lighter neutral used for a true dash/unknown", () => {
-    expect(overallStatusLabelClassName("Not Reporting")).toBe("text-[var(--ink-muted)]");
+    expect(overallStatusTextClassName("Not Reporting")).toBe("text-[var(--ink-muted)]");
   });
 
   it("colors 'Not Reporting 48H' the same dark-gray — a value the old client-side computation never produced", () => {
-    expect(overallStatusLabelClassName("Not Reporting 48H")).toBe("text-[var(--ink-muted)]");
+    expect(overallStatusTextClassName("Not Reporting 48H")).toBe("text-[var(--ink-muted)]");
   });
 
   it("colors a dash neutral", () => {
-    expect(overallStatusLabelClassName("—")).toBe("text-[var(--ink-faint)]");
+    expect(overallStatusTextClassName("—")).toBe("text-[var(--ink-faint)]");
   });
 
   it("colors null/undefined neutral, same as an unrecognized value", () => {
-    expect(overallStatusLabelClassName(null)).toBe("text-[var(--ink-faint)]");
-    expect(overallStatusLabelClassName(undefined)).toBe("text-[var(--ink-faint)]");
+    expect(overallStatusTextClassName(null)).toBe("text-[var(--ink-faint)]");
+    expect(overallStatusTextClassName(undefined)).toBe("text-[var(--ink-faint)]");
   });
 });
 
-describe("overallStatusLabelWeightClassName", () => {
+describe("overallStatusTextWeightClassName", () => {
   it("is bold for 'OK'", () => {
-    expect(overallStatusLabelWeightClassName("OK")).toBe("font-semibold");
+    expect(overallStatusTextWeightClassName("OK")).toBe("font-semibold");
   });
 
   it("is bold for 'Fault'", () => {
-    expect(overallStatusLabelWeightClassName("Fault")).toBe("font-semibold");
+    expect(overallStatusTextWeightClassName("Fault")).toBe("font-semibold");
   });
 
   it("is not bold for 'Not Reporting'", () => {
-    expect(overallStatusLabelWeightClassName("Not Reporting")).toBe("");
+    expect(overallStatusTextWeightClassName("Not Reporting")).toBe("");
   });
 
   it("is not bold for 'Not Reporting 48H'", () => {
-    expect(overallStatusLabelWeightClassName("Not Reporting 48H")).toBe("");
+    expect(overallStatusTextWeightClassName("Not Reporting 48H")).toBe("");
   });
 
   it("is not bold for a dash", () => {
-    expect(overallStatusLabelWeightClassName("—")).toBe("");
+    expect(overallStatusTextWeightClassName("—")).toBe("");
   });
 
   it("is not bold for null/undefined", () => {
-    expect(overallStatusLabelWeightClassName(null)).toBe("");
-    expect(overallStatusLabelWeightClassName(undefined)).toBe("");
+    expect(overallStatusTextWeightClassName(null)).toBe("");
+    expect(overallStatusTextWeightClassName(undefined)).toBe("");
   });
 
   it("is not bold for an unrecognized value", () => {
-    expect(overallStatusLabelWeightClassName("Some New Value")).toBe("");
+    expect(overallStatusTextWeightClassName("Some New Value")).toBe("");
   });
 });
 
 describe("panelLabelText", () => {
   it("shows the label as-is when it's not Idle", () => {
-    expect(panelLabelText({ panelStatusLabel: "Charging", panelIdleReason: null })).toBe(
+    expect(panelLabelText({ panelStatusText: "Charging", panelIdleReason: null })).toBe(
       "Charging",
     );
   });
 
   it("appends the idle reason in parentheses when the label is Idle and a reason is given", () => {
-    expect(panelLabelText({ panelStatusLabel: "Idle", panelIdleReason: "Battery Full" })).toBe(
+    expect(panelLabelText({ panelStatusText: "Idle", panelIdleReason: "Battery Full" })).toBe(
       "Idle (Battery Full)",
     );
   });
 
   it("does not append a parenthetical when Idle but no reason is given", () => {
-    expect(panelLabelText({ panelStatusLabel: "Idle", panelIdleReason: null })).toBe("Idle");
+    expect(panelLabelText({ panelStatusText: "Idle", panelIdleReason: null })).toBe("Idle");
   });
 
   it("does not append the idle reason for a non-Idle label, even if a reason happens to be set", () => {
-    expect(panelLabelText({ panelStatusLabel: "Charging", panelIdleReason: "Battery Full" })).toBe(
+    expect(panelLabelText({ panelStatusText: "Charging", panelIdleReason: "Battery Full" })).toBe(
       "Charging",
     );
   });
 
-  it("shows a dash when panelStatusLabel is null", () => {
-    expect(panelLabelText({ panelStatusLabel: null, panelIdleReason: null })).toBe("—");
+  it("shows a dash when panelStatusText is null", () => {
+    expect(panelLabelText({ panelStatusText: null, panelIdleReason: null })).toBe("—");
   });
 
   it("shows 'Not Reporting 48H' as-is — no isSilentPole/lastUpdate override, unlike panelColumnText", () => {
     expect(
-      panelLabelText({ panelStatusLabel: "Not Reporting 48H", panelIdleReason: null }),
+      panelLabelText({ panelStatusText: "Not Reporting 48H", panelIdleReason: null }),
     ).toBe("Not Reporting 48H");
   });
 });

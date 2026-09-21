@@ -68,20 +68,12 @@ const customer: Customer = {
   zip: null,
   phone: "504-555-0132",
   active: true,
-  createdAt: "2026-02-11 14:20:05-05:00",
 };
 
 const projects: Project[] = [
   {
     id: "p1",
     name: "Bayou District Rebuild",
-    customerId: "r2",
-    poleNumbers: [],
-    poleIds: [],
-    polesUnderContract: 1,
-    effectiveDate: "2024-11-25",
-    installDates: [],
-    createdAt: "2024-12-13 12:02:12-05:00",
     leadsunProject: null,
     active: true,
   },
@@ -110,7 +102,6 @@ const vitals: CustomerPoleVitals = {
           locationId: "loc-1",
           active: true,
           isOnline: true,
-          lightStatus: "DayLight",
           installDate: "2025-08-28",
           lat: 28.3031566,
           long: -82.2750467,
@@ -127,11 +118,11 @@ const vitals: CustomerPoleVitals = {
           avgPanelPercentage: 10.79,
           avgLightPercentage: 11.3,
           sunsetTime: null,
-          lightStatusLabel: "OK",
-          panelStatusLabel: "OK",
+          lightStatusText: "OK",
+          panelStatusText: "OK",
           panelIdleReason: "OK",
-          batteryStatusLabel: "OK",
-          electricCurrentAverage: 0, connectedLabel: "Online", overallStatusLabel: "OK",
+          batteryStatusText: "OK",
+          electricCurrentAverage: 0, connectedText: "Online", overallStatusText: "OK",
           isLedFault: false,
           isBatteryFault: false,
           isPanelFault: false,
@@ -376,7 +367,7 @@ describe("PoleDetailPage", () => {
     );
   });
 
-  it("shows the header's Overall Status exactly as overallStatusLabel sends it — 'Not Reporting 48H', a value the old isPoleFault-based computation never produced — even when isPoleFault suggests otherwise", async () => {
+  it("shows the header's Overall Status exactly as overallStatusText sends it — 'Not Reporting 48H', a value the old isPoleFault-based computation never produced — even when isPoleFault suggests otherwise", async () => {
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
     getPoleVitalsForCustomerMock.mockResolvedValue({
@@ -388,7 +379,7 @@ describe("PoleDetailPage", () => {
             {
               ...vitals.projects[0].poles[0],
               isPoleFault: false,
-              overallStatusLabel: "Not Reporting 48H",
+              overallStatusText: "Not Reporting 48H",
             },
           ],
         },
@@ -728,7 +719,7 @@ describe("PoleDetailPage", () => {
               isPanelFault: true,
               isBatteryFault: true,
               isOpenIssueFault: true,
-              overallStatusLabel: "Fault",
+              overallStatusText: "Fault",
             },
           ],
         },
@@ -767,7 +758,7 @@ describe("PoleDetailPage", () => {
               isPanelFault: null,
               isBatteryFault: null,
               isOpenIssueFault: null,
-              overallStatusLabel: null,
+              overallStatusText: null,
             },
           ],
         },
@@ -876,7 +867,6 @@ describe("PoleDetailPage", () => {
               locationId: "loc-1",
               active: true,
               isOnline: null,
-              lightStatus: null,
               installDate: null,
               lat: null,
               long: null,
@@ -893,11 +883,11 @@ describe("PoleDetailPage", () => {
               avgPanelPercentage: null,
               avgLightPercentage: null,
               sunsetTime: null,
-              lightStatusLabel: null,
-              panelStatusLabel: null,
+              lightStatusText: null,
+              panelStatusText: null,
               panelIdleReason: null,
-              batteryStatusLabel: null,
-              electricCurrentAverage: null, connectedLabel: null, overallStatusLabel: null,
+              batteryStatusText: null,
+              electricCurrentAverage: null, connectedText: null, overallStatusText: null,
               isLedFault: null,
               isBatteryFault: null,
               isPanelFault: null,
@@ -933,7 +923,6 @@ describe("PoleDetailPage", () => {
               locationId: "loc-1",
               active: true,
               isOnline: null,
-              lightStatus: null,
               installDate: null,
               lat: null,
               long: null,
@@ -950,11 +939,11 @@ describe("PoleDetailPage", () => {
               avgPanelPercentage: null,
               avgLightPercentage: null,
               sunsetTime: null,
-              lightStatusLabel: null,
-              panelStatusLabel: null,
+              lightStatusText: null,
+              panelStatusText: null,
               panelIdleReason: null,
-              batteryStatusLabel: null,
-              electricCurrentAverage: null, connectedLabel: null, overallStatusLabel: null,
+              batteryStatusText: null,
+              electricCurrentAverage: null, connectedText: null, overallStatusText: null,
               isLedFault: null,
               isBatteryFault: null,
               isPanelFault: null,
@@ -991,7 +980,7 @@ describe("PoleDetailPage", () => {
     expect(screen.getByText("Battery Percentage").nextElementSibling).toHaveTextContent("—");
   });
 
-  it("shows a dash on Light/Panel/Battery cards and the 48H Average % metrics when 48h Connected is Unknown, even though every fault flag and percentage has a real (non-null) value — but Issue Entry still shows its real value, since it isn't derived telemetry — and a dash on the header's Overall Status too, since overallStatusLabel is null here", async () => {
+  it("shows a dash on Light/Panel/Battery cards and the 48H Average % metrics when 48h Connected is Unknown, even though every fault flag and percentage has a real (non-null) value — but Issue Entry still shows its real value, since it isn't derived telemetry — and a dash on the header's Overall Status too, since overallStatusText is null here", async () => {
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
     getPoleVitalsForCustomerMock.mockResolvedValue({
@@ -1017,7 +1006,7 @@ describe("PoleDetailPage", () => {
               // are already real values on the base fixture
               // (11.3/10.8/90.4), left as-is here. The header itself no
               // longer has any such override — it just shows whatever
-              // overallStatusLabel the API sends, so this is set to null
+              // overallStatusText the API sends, so this is set to null
               // here to realistically match an unknown-connectivity pole
               // (the API presumably wouldn't send "OK" for a pole it's
               // never heard from).
@@ -1026,7 +1015,7 @@ describe("PoleDetailPage", () => {
               isBatteryFault: true,
               isOpenIssueFault: false,
               isPoleFault: true,
-              overallStatusLabel: null,
+              overallStatusText: null,
             },
           ],
         },
@@ -1040,7 +1029,7 @@ describe("PoleDetailPage", () => {
 
     expect(screen.getByText("Unknown")).toBeInTheDocument();
 
-    // Header's Overall Status — dashed because overallStatusLabel is null
+    // Header's Overall Status — dashed because overallStatusText is null
     // in this fixture, not because of any client-side override (the
     // header no longer computes from isPoleFault/isUnknownConnected).
     expect(screen.getByText("48H Overall Status:").parentElement).toHaveTextContent(
@@ -1118,7 +1107,6 @@ describe("PoleDetailPage", () => {
             {
               ProductId: 12548,
               ProductName: "loc-1",
-              ControllerCode: "UPP40LA323110001",
               ProvidedProductId: "AEXSAP4323111877",
               PoleNumber: "AEXSAP4323111877-A",
             },
@@ -1303,7 +1291,7 @@ describe("PoleDetailPage", () => {
     expect(screen.queryByText("Recent Battery Voltage 2")).not.toBeInTheDocument();
   });
 
-  it("appends the idle reason in parentheses in the Panel Status metric when panelStatusLabel is Idle, for a Customer Admin", async () => {
+  it("appends the idle reason in parentheses in the Panel Status metric when panelStatusText is Idle, for a Customer Admin", async () => {
     getSessionUserMock.mockResolvedValue({ id: "u1", role: "Customer Admin", customerId: "r2" });
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
@@ -1315,7 +1303,7 @@ describe("PoleDetailPage", () => {
           poles: [
             {
               ...vitals.projects[0].poles[0],
-              panelStatusLabel: "Idle",
+              panelStatusText: "Idle",
               panelIdleReason: "Battery Full",
             },
           ],
@@ -1334,7 +1322,7 @@ describe("PoleDetailPage", () => {
     );
   });
 
-  it("shows 'Expected ON @ ...' directly below the Light card's Operating Status row when lightStatusLabel is OFF, with a DST-aware US timezone abbreviation (EDT here, since -04:00 in August)", async () => {
+  it("shows 'Expected ON @ ...' directly below the Light card's Operating Status row when lightStatusText is OFF, with a DST-aware US timezone abbreviation (EDT here, since -04:00 in August)", async () => {
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
     getPoleVitalsForCustomerMock.mockResolvedValue({
@@ -1345,7 +1333,7 @@ describe("PoleDetailPage", () => {
           poles: [
             {
               ...vitals.projects[0].poles[0],
-              lightStatusLabel: "OFF",
+              lightStatusText: "OFF",
               sunsetTime: "2026-08-28 19:54:31.130526-04:00",
             },
           ],
@@ -1378,7 +1366,7 @@ describe("PoleDetailPage", () => {
           poles: [
             {
               ...vitals.projects[0].poles[0],
-              lightStatusLabel: "OFF",
+              lightStatusText: "OFF",
               sunsetTime: "2026-08-28 19:54:31.130526-04:00",
             },
           ],
@@ -1416,7 +1404,7 @@ describe("PoleDetailPage", () => {
           poles: [
             {
               ...vitals.projects[0].poles[0],
-              lightStatusLabel: "OFF",
+              lightStatusText: "OFF",
               sunsetTime: "2026-01-15 17:30:00-05:00",
             },
           ],
@@ -1443,7 +1431,7 @@ describe("PoleDetailPage", () => {
           poles: [
             {
               ...vitals.projects[0].poles[0],
-              lightStatusLabel: "OFF",
+              lightStatusText: "OFF",
               sunsetTime: "2026-08-28 20:15:00-05:00",
             },
           ],
@@ -1459,7 +1447,7 @@ describe("PoleDetailPage", () => {
     expect(screen.getByText("Expected ON @ 20:15 CDT")).toBeInTheDocument();
   });
 
-  it("does not show the sunset expectation when lightStatusLabel is not OFF, even if sunsetTime is present", async () => {
+  it("does not show the sunset expectation when lightStatusText is not OFF, even if sunsetTime is present", async () => {
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
     getPoleVitalsForCustomerMock.mockResolvedValue({
@@ -1470,7 +1458,7 @@ describe("PoleDetailPage", () => {
           poles: [
             {
               ...vitals.projects[0].poles[0],
-              lightStatusLabel: "ON",
+              lightStatusText: "ON",
               sunsetTime: "2026-08-28 19:54:31.130526-04:00",
             },
           ],
@@ -1486,7 +1474,7 @@ describe("PoleDetailPage", () => {
     expect(screen.queryByText(/Expected ON/)).not.toBeInTheDocument();
   });
 
-  it("does not show the sunset expectation when sunsetTime is null, even if lightStatusLabel is OFF", async () => {
+  it("does not show the sunset expectation when sunsetTime is null, even if lightStatusText is OFF", async () => {
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
     getPoleVitalsForCustomerMock.mockResolvedValue({
@@ -1497,7 +1485,7 @@ describe("PoleDetailPage", () => {
           poles: [
             {
               ...vitals.projects[0].poles[0],
-              lightStatusLabel: "OFF",
+              lightStatusText: "OFF",
               sunsetTime: null,
             },
           ],
@@ -1524,7 +1512,7 @@ describe("PoleDetailPage", () => {
           poles: [
             {
               ...vitals.projects[0].poles[0],
-              lightStatusLabel: "OFF",
+              lightStatusText: "OFF",
               sunsetTime: "2026-08-28 19:54:31.130526-04:00",
             },
           ],

@@ -32,20 +32,12 @@ const customer: Customer = {
   zip: "70115",
   phone: "504-555-0132",
   active: true,
-  createdAt: "2026-02-11 14:20:05-05:00",
 };
 
 const projects: Project[] = [
   {
     id: "p1",
     name: "Bayou District Rebuild",
-    customerId: "rec5uaHZMOGZGyVcY",
-    poleNumbers: ["51079-1000"],
-    poleIds: ["rec1"],
-    polesUnderContract: 4,
-    effectiveDate: "2024-11-25",
-    installDates: ["2025-05-23"],
-    createdAt: "2024-12-13 12:02:12-05:00",
     leadsunProject: null,
     active: true,
   },

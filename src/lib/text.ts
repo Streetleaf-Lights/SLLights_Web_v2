@@ -66,12 +66,12 @@ export function isSilentPole(lastUpdate: string | null | undefined): boolean {
 }
 
 /**
- * Color for the API's pre-computed "48h Connected" label (connectedLabel)
+ * Color for the API's pre-computed "48h Connected" label (connectedText)
  * — same color scheme connectionStatus() above used when this was
  * computed client-side from isOnline/lastUpdate, just keyed by the label
  * text instead, since the raw fields aren't needed anymore.
  */
-export function connectedLabelClassName(label: string | null | undefined): string {
+export function connectedTextClassName(label: string | null | undefined): string {
   switch (label) {
     case "Online":
       return "text-[var(--status-active)]";
@@ -85,13 +85,13 @@ export function connectedLabelClassName(label: string | null | undefined): strin
 
 /**
  * Color for the API's pre-computed "48h Overall Status" label
- * (overallStatusLabel) — same color scheme the old client-side OK/Fault
+ * (overallStatusText) — same color scheme the old client-side OK/Fault
  * computation used, extended to also cover the "Not Reporting"/"Not
  * Reporting 48H" values this label can now carry (matching Light/Panel/
  * Battery's own status labels), which the old client-side computation
  * never produced.
  */
-export function overallStatusLabelClassName(label: string | null | undefined): string {
+export function overallStatusTextClassName(label: string | null | undefined): string {
   switch (label) {
     case "OK":
       return "text-[var(--status-active)]";
@@ -115,22 +115,22 @@ export function overallStatusLabelClassName(label: string | null | undefined): s
  * bold for "Not Reporting"/"Not Reporting 48H"/a dash/anything else,
  * which read as informational notes rather than a definitive status.
  */
-export function overallStatusLabelWeightClassName(label: string | null | undefined): string {
+export function overallStatusTextWeightClassName(label: string | null | undefined): string {
   return label === "OK" || label === "Fault" ? "font-semibold" : "";
 }
 
 /**
- * Panel status text using the API's pre-computed panelStatusLabel
+ * Panel status text using the API's pre-computed panelStatusText
  * directly — no isSilentPole/lastUpdate override, since the API now
  * bakes "Not Reporting"/"Not Reporting 48H" into the label itself. Still
  * appends the idle reason in parentheses when actually Idle, since that's
  * additional context from a separate field, not a computed status.
  */
 export function panelLabelText(pole: {
-  panelStatusLabel: string | null;
+  panelStatusText: string | null;
   panelIdleReason: string | null;
 }): string {
-  const label = pole.panelStatusLabel ?? "—";
+  const label = pole.panelStatusText ?? "—";
   if (label === "Idle" && pole.panelIdleReason) {
     return `${label} (${pole.panelIdleReason})`;
   }

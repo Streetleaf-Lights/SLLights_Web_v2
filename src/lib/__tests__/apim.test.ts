@@ -68,7 +68,6 @@ describe("normalizeCustomer", () => {
     zip: "70115",
     phone: "504-555-0132",
     active: true,
-    createdAt: "2026-04-08 09:02:37-04:00",
   };
 
   it("zips projectNames and projectIds into project refs", () => {
@@ -88,7 +87,6 @@ describe("normalizeCustomer", () => {
     expect(customer.state).toBe("LA");
     expect(customer.zip).toBe("70115");
     expect(customer.phone).toBe("504-555-0132");
-    expect(customer.createdAt).toBe("2026-04-08 09:02:37-04:00");
   });
 
   it("passes through the active field unchanged", () => {
@@ -227,7 +225,6 @@ describe("getCustomers", () => {
       zip: null,
       phone: null,
       active: true,
-      createdAt: "2026-04-08 09:02:37-04:00",
     },
     {
       id: "r2",
@@ -240,7 +237,6 @@ describe("getCustomers", () => {
       zip: null,
       phone: "504-555-0132",
       active: true,
-      createdAt: "2026-02-11 14:20:05-05:00",
     },
   ];
 
@@ -316,7 +312,6 @@ describe("getCustomer", () => {
     zip: null,
     phone: "504-555-0132",
     active: true,
-    createdAt: "2026-02-11 14:20:05-05:00",
   };
 
   it("calls /getCustomers with a customerId filter rather than fetching the full list", async () => {
@@ -367,46 +362,13 @@ describe("normalizeProject", () => {
   const raw: RawProject = {
     id: "recRHN9eR4itukKGo",
     name: "29N Greene - Creekside Amenity-VA",
-    poleNumbers: JSON.stringify(["51079-1000", "51079-1001", "51079-1002", "51079-1003"]),
-    poleIds: JSON.stringify([
-      "rec1NE6PGdnlNfDTL",
-      "rec2GKUi0g856OAqC",
-      "rec70ph1TOQ07WoK9",
-      "rec0763poEAWiWIiE",
-    ]),
-    customerId: "recRYzYBqtW5CIVhn",
-    polesUnderContract: 4,
-    effectiveDate: "2024-11-25",
-    installDates: JSON.stringify(["2025-05-23"]),
-    createdAt: "2024-12-13 12:02:12-05:00",
     active: true,
   };
-
-  it("parses poleNumbers/poleIds/installDates from their JSON-stringified form", () => {
-    const project = normalizeProject(raw);
-    expect(project.poleNumbers).toEqual([
-      "51079-1000",
-      "51079-1001",
-      "51079-1002",
-      "51079-1003",
-    ]);
-    expect(project.poleIds).toEqual([
-      "rec1NE6PGdnlNfDTL",
-      "rec2GKUi0g856OAqC",
-      "rec70ph1TOQ07WoK9",
-      "rec0763poEAWiWIiE",
-    ]);
-    expect(project.installDates).toEqual(["2025-05-23"]);
-  });
 
   it("passes through the scalar fields unchanged", () => {
     const project = normalizeProject(raw);
     expect(project.id).toBe("recRHN9eR4itukKGo");
     expect(project.name).toBe("29N Greene - Creekside Amenity-VA");
-    expect(project.customerId).toBe("recRYzYBqtW5CIVhn");
-    expect(project.polesUnderContract).toBe(4);
-    expect(project.effectiveDate).toBe("2024-11-25");
-    expect(project.createdAt).toBe("2024-12-13 12:02:12-05:00");
   });
 
   it("defaults leadsunProject to null when the raw field is absent", () => {
@@ -414,7 +376,7 @@ describe("normalizeProject", () => {
     expect(project.leadsunProject).toBeNull();
   });
 
-  it("parses leadsunProject from its JSON-stringified form, same pattern as poleNumbers/poleIds/installDates", () => {
+  it("parses leadsunProject from its JSON-stringified form, same pattern as other JSON-stringified fields elsewhere in this API", () => {
     const leadsunProjectJson = JSON.stringify({
       ProjectId: "545",
       ProjectName: "Manatee County - Buffalo Creek",
@@ -430,7 +392,6 @@ describe("normalizeProject", () => {
             {
               ProductId: 12548,
               ProductName: "12081-1102",
-              ControllerCode: "UPP40LA323110001",
               ProvidedProductId: "AEXSAP4323111877",
               PoleNumber: "AEXSAP4323111877-A",
             },
@@ -487,7 +448,6 @@ describe("normalizeProject", () => {
               {
                 ProductId: 10358,
                 ProductName: "12009-1000",
-                ControllerCode: "A3P70LA323110598",
                 ProvidedProductId: "AE3SAP7323113143",
                 PoleNumber: "12009-1000-A",
               },
@@ -522,7 +482,6 @@ describe("normalizeProject", () => {
     expect(project.leadsunProject?.groups[0].products[0]).toEqual({
       ProductId: 0,
       ProductName: "",
-      ControllerCode: "",
       ProvidedProductId: "",
       PoleNumber: "",
     });
@@ -567,13 +526,6 @@ describe("getProjectsForCustomer", () => {
     {
       id: "recRHN9eR4itukKGo",
       name: "29N Greene - Creekside Amenity-VA",
-      poleNumbers: JSON.stringify(["51079-1000"]),
-      poleIds: JSON.stringify(["rec1NE6PGdnlNfDTL"]),
-      customerId: "recRYzYBqtW5CIVhn",
-      polesUnderContract: 4,
-      effectiveDate: "2024-11-25",
-      installDates: JSON.stringify(["2025-05-23"]),
-      createdAt: "2024-12-13 12:02:12-05:00",
       active: true,
     },
   ];
@@ -599,8 +551,8 @@ describe("getProjectsForCustomer", () => {
     const projects = await getProjectsForCustomer("recRYzYBqtW5CIVhn");
 
     expect(projects).toHaveLength(1);
-    expect(projects[0].polesUnderContract).toBe(4);
-    expect(projects[0].poleNumbers).toEqual(["51079-1000"]);
+    expect(projects[0].id).toBe("recRHN9eR4itukKGo");
+    expect(projects[0].name).toBe("29N Greene - Creekside Amenity-VA");
   });
 
   it("URL-encodes the customerId in the query string", async () => {
@@ -721,7 +673,6 @@ describe("getPoles", () => {
     lat: 0.0,
     long: 0.0,
     lastUpdate: "2026-07-26 13:25:41+00:00",
-    lightStatus: null,
     isOnline: null,
     avgBatteryPercentage: null,
     avgPanelPercentage: null,
@@ -868,7 +819,6 @@ describe("getPoleVitalsByPeriod", () => {
       {
         periodStart: "2026-07-30 11:00:00-04:00",
         periodEnd: "2026-07-30 12:00:00-04:00",
-        lightStatus: "DayLight",
         isOnline: true,
         avgBatteryPercentage: 100.0,
         avgPanelPercentage: 0.16278533333333334,
@@ -900,7 +850,7 @@ describe("getPoleVitalsByPeriod", () => {
     expect(init.next).toEqual({ revalidate: 30 });
   });
 
-  it("returns the pole + vitals array on success", async () => {
+  it("returns only the vitals array, trimmed to what the chart uses — not the pole's own identity fields (id/poleNumber/locationId/installDate/lat/long/lastUpdate) or each period's periodEnd/isOnline", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => successBody }));
 
     const result = await getPoleVitalsByPeriod({
@@ -909,7 +859,61 @@ describe("getPoleVitalsByPeriod", () => {
       limit: 48,
     });
 
-    expect(result).toEqual(successBody);
+    expect(result).toEqual({
+      vitals: [
+        {
+          periodStart: "2026-07-30 11:00:00-04:00",
+          avgBatteryPercentage: 100.0,
+          avgPanelPercentage: 0.16278533333333334,
+          avgLightPercentage: 0.0,
+        },
+      ],
+    });
+  });
+
+  it("defaults a period's percentage fields to null when missing, rather than passing through undefined", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          ...successBody,
+          vitals: [{ periodStart: "2026-07-30 11:00:00-04:00" }],
+        }),
+      }),
+    );
+
+    const result = await getPoleVitalsByPeriod({
+      poleId: "recAOlPiepBddUcCv",
+      periodType: "Hour",
+      limit: 48,
+    });
+
+    expect(result).toEqual({
+      vitals: [
+        {
+          periodStart: "2026-07-30 11:00:00-04:00",
+          avgBatteryPercentage: null,
+          avgPanelPercentage: null,
+          avgLightPercentage: null,
+        },
+      ],
+    });
+  });
+
+  it("returns an empty vitals array when the response's vitals field is missing or not an array", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ...successBody, vitals: null }) }),
+    );
+
+    const result = await getPoleVitalsByPeriod({
+      poleId: "recAOlPiepBddUcCv",
+      periodType: "Hour",
+      limit: 48,
+    });
+
+    expect(result).toEqual({ vitals: [] });
   });
 
   it("throws an ApimError carrying the server's message for an invalid periodType", async () => {
