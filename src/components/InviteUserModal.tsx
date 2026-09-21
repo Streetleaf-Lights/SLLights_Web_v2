@@ -9,16 +9,28 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export function InviteUserModal({
   customers,
   lockedCustomer,
+  canInviteOwner = false,
 }: {
   customers: Customer[];
   /**
    * When set, this invite is scoped to a single customer that can't be
-   * changed (a Customer Admin inviting into their own customer) — the
-   * Customer Search UI is hidden entirely in favor of a plain read-only
-   * label, and selectedCustomer/role start (and reset back to) this
-   * customer / "Customer Admin" instead of the Streetleaf Admin default.
+   * changed (a Customer Admin or Customer Owner inviting into their own
+   * customer) — the Customer Search UI is hidden entirely in favor of a
+   * plain read-only label, and selectedCustomer/role start (and reset
+   * back to) this customer / "Customer Admin" instead of the Streetleaf
+   * Admin default.
    */
   lockedCustomer?: Customer;
+  /**
+   * Whether "Customer Owner" is offered as a role choice at all — true
+   * for a Streetleaf Admin (any customer) or the customer's own current
+   * Customer Owner (transferring their own ownership). A plain Customer
+   * Admin never gets this option, even though they can otherwise invite
+   * same as an Owner. Only matters once a customer context exists
+   * (locked, or picked via Customer Search) — "Customer Owner" has no
+   * meaning without one.
+   */
+  canInviteOwner?: boolean;
 }) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
@@ -70,6 +82,12 @@ export function InviteUserModal({
   // than silently keeping a choice (e.g. "User", or the other context's
   // admin role) made under the previous context.
   const defaultRole = selectedCustomer && !treatsAsNoCustomer ? "Customer Admin" : "Streetleaf Admin";
+
+  // "Customer Owner" only makes sense once there's an actual customer to
+  // own — locked to one (a Customer Admin/Owner inviting into their own),
+  // or picked via Customer Search and not the Streetleaf special case.
+  const hasCustomerContext = Boolean(lockedCustomer) || (selectedCustomer != null && !treatsAsNoCustomer);
+  const canOfferOwner = canInviteOwner && hasCustomerContext;
 
   const filteredCustomers = useMemo(() => {
     const q = customerQuery.trim().toLowerCase();
@@ -335,8 +353,15 @@ export function InviteUserModal({
                 className="mt-1.5 w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-[13px] text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft)]"
               >
                 <option value={defaultRole}>{defaultRole}</option>
+                {canOfferOwner && <option value="Customer Owner">Customer Owner</option>}
                 <option value="User">User</option>
               </select>
+              {role === "Customer Owner" && (
+                <p className="mt-1.5 text-[12px] text-[var(--status-flagged)]">
+                  This transfers ownership — once accepted, the current Customer Owner is
+                  removed.
+                </p>
+              )}
             </div>
 
             {formError && (

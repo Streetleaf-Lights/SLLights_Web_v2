@@ -831,3 +831,132 @@ describe("InviteUserModal with a lockedCustomer (Customer Admin inviting into th
     expect((screen.getByLabelText("Role") as HTMLSelectElement).value).toBe("Customer Admin");
   });
 });
+
+describe("InviteUserModal — Customer Owner role option (canInviteOwner)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    pushMock.mockClear();
+    refreshMock.mockClear();
+  });
+
+  const lockedCustomer: Customer = {
+    id: "cust-2",
+    name: "Coastal Power & Light",
+    projects: [],
+    address: null,
+    city: null,
+    state: null,
+    zip: null,
+    phone: null,
+    active: true,
+  };
+
+  function roleOptionValues(): string[] {
+    return Array.from((screen.getByLabelText("Role") as HTMLSelectElement).options).map(
+      (o) => o.value,
+    );
+  }
+
+  it("does not offer 'Customer Owner' by default (canInviteOwner false/omitted), even once a customer is selected via search", async () => {
+    const user = await openModal();
+    await focusCustomerSearch(user);
+    await user.click(screen.getByRole("button", { name: "Bayview Municipal Lighting" }));
+
+    expect(roleOptionValues()).not.toContain("Customer Owner");
+  });
+
+  it("offers 'Customer Owner' once a customer is selected via search, when canInviteOwner is true (a Streetleaf Admin)", async () => {
+    const user = userEvent.setup();
+    render(<InviteUserModal customers={customers} canInviteOwner />);
+    await user.click(screen.getByRole("button", { name: "Invite user" }));
+    await focusCustomerSearch(user);
+    await user.click(screen.getByRole("button", { name: "Bayview Municipal Lighting" }));
+
+    expect(roleOptionValues()).toContain("Customer Owner");
+  });
+
+  it("does not offer 'Customer Owner' before any customer is selected, even when canInviteOwner is true — no customer context yet", async () => {
+    const user = userEvent.setup();
+    render(<InviteUserModal customers={customers} canInviteOwner />);
+    await user.click(screen.getByRole("button", { name: "Invite user" }));
+
+    expect(roleOptionValues()).not.toContain("Customer Owner");
+  });
+
+  it("offers 'Customer Owner' immediately when locked to a customer and canInviteOwner is true (the customer's own current Owner, transferring ownership)", async () => {
+    const user = userEvent.setup();
+    render(<InviteUserModal customers={[]} lockedCustomer={lockedCustomer} canInviteOwner />);
+    await user.click(screen.getByRole("button", { name: "Invite user" }));
+
+    expect(roleOptionValues()).toContain("Customer Owner");
+  });
+
+  it("does not offer 'Customer Owner' when locked to a customer but canInviteOwner is false (a plain Customer Admin)", async () => {
+    const user = userEvent.setup();
+    render(<InviteUserModal customers={[]} lockedCustomer={lockedCustomer} />);
+    await user.click(screen.getByRole("button", { name: "Invite user" }));
+
+    expect(roleOptionValues()).not.toContain("Customer Owner");
+  });
+
+  it("shows a warning that ownership will transfer when 'Customer Owner' is selected", async () => {
+    const user = userEvent.setup();
+    render(<InviteUserModal customers={[]} lockedCustomer={lockedCustomer} canInviteOwner />);
+    await user.click(screen.getByRole("button", { name: "Invite user" }));
+    await user.selectOptions(screen.getByLabelText("Role"), "Customer Owner");
+
+    expect(
+      screen.getByText(/transfers ownership.*current Customer Owner is removed/i),
+    ).toBeInTheDocument();
+  });
+
+  it("does not show the ownership-transfer warning for other role choices", async () => {
+    const user = userEvent.setup();
+    render(<InviteUserModal customers={[]} lockedCustomer={lockedCustomer} canInviteOwner />);
+    await user.click(screen.getByRole("button", { name: "Invite user" }));
+
+    expect(screen.queryByText(/transfers ownership/i)).not.toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText("Role"), "Customer Owner");
+    expect(screen.getByText(/transfers ownership/i)).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText("Role"), "User");
+    expect(screen.queryByText(/transfers ownership/i)).not.toBeInTheDocument();
+  });
+
+  it("resets away from Customer Owner (and hides the warning) when the customer selection changes via search", async () => {
+    const user = userEvent.setup();
+    render(<InviteUserModal customers={customers} canInviteOwner />);
+    await user.click(screen.getByRole("button", { name: "Invite user" }));
+    await focusCustomerSearch(user);
+    await user.click(screen.getByRole("button", { name: "Bayview Municipal Lighting" }));
+    await user.selectOptions(screen.getByLabelText("Role"), "Customer Owner");
+    expect(screen.getByText(/transfers ownership/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Change" }));
+
+    expect((screen.getByLabelText("Role") as HTMLSelectElement).value).toBe("Streetleaf Admin");
+    expect(screen.queryByText(/transfers ownership/i)).not.toBeInTheDocument();
+    expect(roleOptionValues()).not.toContain("Customer Owner");
+  });
+
+  it("submits with role: 'Customer Owner' and the selected customer's id", async () => {
+    const fetchMock = mockInviteResponse(true, successBody);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const user = userEvent.setup();
+    render(<InviteUserModal customers={[]} lockedCustomer={lockedCustomer} canInviteOwner />);
+    await user.click(screen.getByRole("button", { name: "Invite user" }));
+    await user.selectOptions(screen.getByLabelText("Role"), "Customer Owner");
+    await user.type(screen.getByLabelText("Email"), "morgan@coastal.example");
+    await user.type(screen.getByLabelText("Name"), "Morgan Lee");
+    await user.click(screen.getByRole("button", { name: "Submit" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse(init.body)).toMatchObject({
+      role: "Customer Owner",
+      customerId: "cust-2",
+    });
+  });
+});

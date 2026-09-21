@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { User } from "@/lib/types";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -15,6 +15,14 @@ function statusBadgeKind(status: string | null | undefined): "active" | "pending
   if (normalized === "pending") return "pending";
   return "inactive";
 }
+
+type UserAction = {
+  key: string;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  destructive?: boolean;
+};
 
 export function UsersTable({
   users,
@@ -51,6 +59,26 @@ export function UsersTable({
     text: string;
     isError: boolean;
   } | null>(null);
+  const [openMenuUserId, setOpenMenuUserId] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!openMenuUserId) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpenMenuUserId(null);
+      }
+    }
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpenMenuUserId(null);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [openMenuUserId]);
 
   function closeConfirm() {
     setPendingDelete(null);
@@ -187,6 +215,46 @@ export function UsersTable({
     }
   }
 
+  /**
+   * What's applicable for this row, in menu order. Re-invite only for a
+   * still-pending invite. Change Role and Delete never apply to your own
+   * row, or to a Customer Owner: changeRole only ever toggles User <->
+   * Admin server-side (see apim.ts), which isn't well-defined for an
+   * Owner, and deleting the customer's sole Owner should only ever happen
+   * as a side effect of a new Owner's invite being accepted (see
+   * InviteUserModal's Customer Owner option) — never as a standalone
+   * action here, since a customer is never meant to be left without one.
+   */
+  function getApplicableActions(user: User): UserAction[] {
+    const actions: UserAction[] = [];
+    const isSelf = user.id === currentUserId;
+    const isOwner = user.role === "Customer Owner";
+
+    if (statusBadgeKind(user.status) === "pending") {
+      actions.push({
+        key: "reinvite",
+        label: reinvitingUserId === user.id ? "Sending…" : "Re-invite",
+        onClick: () => handleReinvite(user),
+        disabled: reinvitingUserId === user.id,
+      });
+    }
+    if (!isSelf && !isOwner) {
+      actions.push({
+        key: "changeRole",
+        label: changingRoleUserId === user.id ? "Changing…" : "Change Role",
+        onClick: () => handleChangeRole(user),
+        disabled: changingRoleUserId === user.id,
+      });
+      actions.push({
+        key: "delete",
+        label: "Delete",
+        onClick: () => setPendingDelete(user),
+        destructive: true,
+      });
+    }
+    return actions;
+  }
+
   const totalPages = Math.max(1, Math.ceil(users.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
   const pageUsers = users.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
@@ -233,65 +301,85 @@ export function UsersTable({
                     {user.customerId === null ? "Streetleaf" : user.customerName}
                   </td>
                 )}
-                {canManageUsers && (
-                  <td className="py-3 pr-8 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      {statusBadgeKind(user.status) === "pending" && (
-                        <button
-                          type="button"
-                          onClick={() => handleReinvite(user)}
-                          disabled={reinvitingUserId === user.id}
-                          className="rounded-md border border-[var(--border)] px-2.5 py-1 text-[12px] font-medium text-[var(--accent-ink)] hover:bg-[var(--accent-soft)] disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {reinvitingUserId === user.id ? "Sending…" : "Re-invite"}
-                        </button>
-                      )}
-                      {user.id !== currentUserId && (
-                        <button
-                          type="button"
-                          onClick={() => handleChangeRole(user)}
-                          disabled={changingRoleUserId === user.id}
-                          className="rounded-md border border-[var(--border)] px-2.5 py-1 text-[12px] font-medium text-[var(--accent-ink)] hover:bg-[var(--accent-soft)] disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {changingRoleUserId === user.id ? "Changing…" : "Change Role"}
-                        </button>
-                      )}
-                      {user.id !== currentUserId && (
-                        <button
-                          type="button"
-                          onClick={() => setPendingDelete(user)}
-                          className="rounded-md border border-[var(--border)] px-2.5 py-1 text-[12px] font-medium text-[var(--status-flagged)] hover:bg-[var(--status-flagged-bg)]"
-                        >
-                          Delete
-                        </button>
-                      )}
-                    </div>
-                    {reinviteResult?.userId === user.id && (
-                      <p
-                        role={reinviteResult.isError ? "alert" : "status"}
-                        className={`mt-1 text-[11px] ${
-                          reinviteResult.isError
-                            ? "text-[var(--status-flagged)]"
-                            : "text-[var(--status-active)]"
-                        }`}
-                      >
-                        {reinviteResult.text}
-                      </p>
-                    )}
-                    {changeRoleResult?.userId === user.id && (
-                      <p
-                        role={changeRoleResult.isError ? "alert" : "status"}
-                        className={`mt-1 text-[11px] ${
-                          changeRoleResult.isError
-                            ? "text-[var(--status-flagged)]"
-                            : "text-[var(--status-active)]"
-                        }`}
-                      >
-                        {changeRoleResult.text}
-                      </p>
-                    )}
-                  </td>
-                )}
+                {canManageUsers &&
+                  (() => {
+                    const actions = getApplicableActions(user);
+                    const isMenuOpen = openMenuUserId === user.id;
+                    return (
+                      <td className="py-3 pr-8 text-right">
+                        {actions.length === 0 ? (
+                          <span className="text-[13px] text-[var(--ink-faint)]">—</span>
+                        ) : (
+                          <div
+                            className="relative inline-block text-left"
+                            ref={isMenuOpen ? menuRef : undefined}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => setOpenMenuUserId(isMenuOpen ? null : user.id)}
+                              aria-haspopup="menu"
+                              aria-expanded={isMenuOpen}
+                              aria-label={`Actions for ${user.name}`}
+                              className="rounded-md border border-[var(--border)] px-2.5 py-1 text-[13px] font-medium leading-none text-[var(--ink-muted)] hover:bg-[var(--surface-sunken)]"
+                            >
+                              •••
+                            </button>
+                            {isMenuOpen && (
+                              <div
+                                role="menu"
+                                aria-label={`Actions for ${user.name}`}
+                                className="absolute right-0 z-10 mt-1 w-36 rounded-md border border-[var(--border)] bg-[var(--surface)] py-1 text-left shadow-lg"
+                              >
+                                {actions.map((action) => (
+                                  <button
+                                    key={action.key}
+                                    type="button"
+                                    role="menuitem"
+                                    disabled={action.disabled}
+                                    onClick={() => {
+                                      setOpenMenuUserId(null);
+                                      action.onClick();
+                                    }}
+                                    className={`block w-full px-3 py-1.5 text-[12.5px] font-medium disabled:cursor-not-allowed disabled:opacity-60 ${
+                                      action.destructive
+                                        ? "text-[var(--status-flagged)] hover:bg-[var(--status-flagged-bg)]"
+                                        : "text-[var(--ink)] hover:bg-[var(--surface-sunken)]"
+                                    }`}
+                                  >
+                                    {action.label}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {reinviteResult?.userId === user.id && (
+                          <p
+                            role={reinviteResult.isError ? "alert" : "status"}
+                            className={`mt-1 text-[11px] ${
+                              reinviteResult.isError
+                                ? "text-[var(--status-flagged)]"
+                                : "text-[var(--status-active)]"
+                            }`}
+                          >
+                            {reinviteResult.text}
+                          </p>
+                        )}
+                        {changeRoleResult?.userId === user.id && (
+                          <p
+                            role={changeRoleResult.isError ? "alert" : "status"}
+                            className={`mt-1 text-[11px] ${
+                              changeRoleResult.isError
+                                ? "text-[var(--status-flagged)]"
+                                : "text-[var(--status-active)]"
+                            }`}
+                          >
+                            {changeRoleResult.text}
+                          </p>
+                        )}
+                      </td>
+                    );
+                  })()}
               </tr>
             ))}
           </tbody>

@@ -30,6 +30,12 @@ const customerAdminToken = fakeJwt({
   customerId: "rec5uaHZMOGZGyVcY",
 });
 
+const customerOwnerToken = fakeJwt({
+  sub: "2C7E2A44-6C0D-4A2B-9E31-9A2B7D4C1F0E",
+  role: "Customer Owner",
+  customerId: "rec5uaHZMOGZGyVcY",
+});
+
 const customerUserToken = fakeJwt({
   sub: "8DAE9C34-2C0A-4B5A-9F1D-3E7C8B6A1F02",
   role: "User",
@@ -121,6 +127,21 @@ describe("proxy", () => {
       }),
     );
     expect(isPassthrough(res)).toBe(true);
+  });
+
+  it("redirects a Customer Owner away from the Customers list, and scopes them to their own customer — same as a Customer Admin", () => {
+    const listRes = proxy(request("/customers", { sessionToken: customerOwnerToken }));
+    expect(isRedirectTo(listRes, "/projects")).toBe(true);
+
+    const otherRes = proxy(
+      request("/customers/some-other-customer/projects/p1", { sessionToken: customerOwnerToken }),
+    );
+    expect(isRedirectTo(otherRes, "/projects")).toBe(true);
+
+    const ownRes = proxy(
+      request("/customers/rec5uaHZMOGZGyVcY/projects/p1", { sessionToken: customerOwnerToken }),
+    );
+    expect(isPassthrough(ownRes)).toBe(true);
   });
 
   it("sends a signed-in Customer Admin from / to /projects", () => {

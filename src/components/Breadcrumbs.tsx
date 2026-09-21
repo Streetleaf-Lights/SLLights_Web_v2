@@ -43,10 +43,10 @@ export function polesCrumb(poleQ?: string): Crumb {
  * to this page: a pole search takes priority over a customer search, since
  * it's the more specific/recent context when both happen to be present.
  *
- * Returns null (no leading crumb at all) for a Customer Admin landing on
- * the Customers variant — they can't access /customers (see proxy.ts), so
- * a link there would be a dead end. The Poles variant is unaffected, since
- * Customer Admins do have access to /poles.
+ * Returns null (no leading crumb at all) for a Customer Admin or Customer
+ * Owner landing on the Customers variant — they can't access /customers
+ * (see proxy.ts), so a link there would be a dead end. The Poles variant
+ * is unaffected, since they do have access to /poles.
  */
 export function leadingCrumb(
   custQ: string | undefined,
@@ -54,7 +54,7 @@ export function leadingCrumb(
   role?: string | null,
 ): Crumb | null {
   if (poleQ) return polesCrumb(poleQ);
-  if (role === "Customer Admin") return null;
+  if (role === "Customer Admin" || role === "Customer Owner") return null;
   return customersCrumb(custQ);
 }
 

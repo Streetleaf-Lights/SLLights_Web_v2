@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { User } from "@/lib/types";
 
 const { getUsersMock, getCustomersMock, getCustomerMock, getSessionUserMock } = vi.hoisted(() => ({
@@ -276,9 +277,11 @@ describe("UsersPage", () => {
 
     const jsx = await UsersPage();
     render(jsx);
+    const user = userEvent.setup();
 
     expect(screen.getByRole("columnheader", { name: "Actions" })).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "Delete" }).length).toBeGreaterThan(0);
+    await user.click(screen.getAllByRole("button", { name: /Actions for/ })[0]);
+    expect(screen.getAllByRole("menuitem", { name: "Delete" }).length).toBeGreaterThan(0);
   });
 
   it("hides the Delete button on a Customer Admin's own row, but still shows it for other users at the same customer", async () => {
@@ -292,13 +295,15 @@ describe("UsersPage", () => {
 
     const jsx = await UsersPage();
     render(jsx);
+    const user = userEvent.setup();
 
     // Jane Doe (self) and Pat Kim (other, same customer) are the only two
     // rows visible to this Customer Admin.
     const janeRow = screen.getByText("Jane Doe").closest("tr") as HTMLElement;
     const patRow = screen.getByText("Pat Kim").closest("tr") as HTMLElement;
-    expect(within(janeRow).queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
-    expect(within(patRow).getByRole("button", { name: "Delete" })).toBeInTheDocument();
+    expect(within(janeRow).queryByRole("button", { name: /Actions for/ })).not.toBeInTheDocument();
+    await user.click(within(patRow).getByRole("button", { name: /Actions for/ }));
+    expect(within(patRow).getByRole("menuitem", { name: "Delete" })).toBeInTheDocument();
   });
 
   it("shows the Actions column and Delete button for other users' rows for a Streetleaf Admin", async () => {
@@ -312,9 +317,11 @@ describe("UsersPage", () => {
 
     const jsx = await UsersPage();
     render(jsx);
+    const user = userEvent.setup();
 
     expect(screen.getByRole("columnheader", { name: "Actions" })).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "Delete" }).length).toBeGreaterThan(0);
+    await user.click(screen.getAllByRole("button", { name: /Actions for/ })[0]);
+    expect(screen.getAllByRole("menuitem", { name: "Delete" }).length).toBeGreaterThan(0);
   });
 
   it("hides the Delete button on a Streetleaf Admin's own row, but still shows it for everyone else", async () => {
@@ -329,11 +336,88 @@ describe("UsersPage", () => {
 
     const jsx = await UsersPage();
     render(jsx);
+    const user = userEvent.setup();
 
     const ownRow = screen.getByText("Alex Rivera").closest("tr") as HTMLElement;
     const otherRow = screen.getByText("Jane Doe").closest("tr") as HTMLElement;
-    expect(within(ownRow).queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
-    expect(within(otherRow).getByRole("button", { name: "Delete" })).toBeInTheDocument();
+    expect(within(ownRow).queryByRole("button", { name: /Actions for/ })).not.toBeInTheDocument();
+    await user.click(within(otherRow).getByRole("button", { name: /Actions for/ }));
+    expect(within(otherRow).getByRole("menuitem", { name: "Delete" })).toBeInTheDocument();
+  });
+
+  it("gives a Customer Owner full management capability, locked to their own customer — same as a Customer Admin, plus offering 'Customer Owner' in the Invite modal's role picker", async () => {
+    getSessionUserMock.mockResolvedValue({
+      id: "u1",
+      role: "Customer Owner",
+      customerId: "rec5uaHZMOGZGyVcY",
+    });
+    getUsersMock.mockResolvedValue(users);
+    getCustomerMock.mockResolvedValue({
+      id: "rec5uaHZMOGZGyVcY",
+      name: "Coastal Power & Light",
+      projects: [],
+      address: null,
+      city: null,
+      state: null,
+      zip: null,
+      phone: null,
+      active: true,
+    });
+
+    const jsx = await UsersPage();
+    render(jsx);
+    const user = userEvent.setup();
+
+    // Customer-scoped: Customer column hidden, only sees rec5uaHZMOGZGyVcY's
+    // own people (Jane Doe), not Alex Rivera (a different/no customer).
+    expect(screen.queryByRole("columnheader", { name: "Customer" })).not.toBeInTheDocument();
+    expect(screen.getByText("Jane Doe")).toBeInTheDocument();
+    expect(screen.queryByText("Alex Rivera")).not.toBeInTheDocument();
+
+    // Locked to their own customer, same as a Customer Admin.
+    expect(screen.getByRole("button", { name: "Invite user" })).toBeInTheDocument();
+    expect(getCustomerMock).toHaveBeenCalledWith("rec5uaHZMOGZGyVcY");
+    expect(getCustomersMock).not.toHaveBeenCalled();
+
+    // Can manage users — Actions column present.
+    expect(screen.getByRole("columnheader", { name: "Actions" })).toBeInTheDocument();
+
+    // Offered "Customer Owner" as an invite role — the transfer mechanism.
+    await user.click(screen.getByRole("button", { name: "Invite user" }));
+    const roleOptions = Array.from(
+      (screen.getByLabelText("Role") as HTMLSelectElement).options,
+    ).map((o) => o.value);
+    expect(roleOptions).toContain("Customer Owner");
+  });
+
+  it("does not offer 'Customer Owner' in the Invite modal's role picker for a plain Customer Admin — only a Streetleaf Admin or the customer's own Owner can transfer ownership", async () => {
+    getSessionUserMock.mockResolvedValue({
+      id: "u1",
+      role: "Customer Admin",
+      customerId: "rec5uaHZMOGZGyVcY",
+    });
+    getUsersMock.mockResolvedValue(users);
+    getCustomerMock.mockResolvedValue({
+      id: "rec5uaHZMOGZGyVcY",
+      name: "Coastal Power & Light",
+      projects: [],
+      address: null,
+      city: null,
+      state: null,
+      zip: null,
+      phone: null,
+      active: true,
+    });
+
+    const jsx = await UsersPage();
+    render(jsx);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "Invite user" }));
+    const roleOptions = Array.from(
+      (screen.getByLabelText("Role") as HTMLSelectElement).options,
+    ).map((o) => o.value);
+    expect(roleOptions).not.toContain("Customer Owner");
   });
 
   it("hides the Actions column entirely for a plain User role, even for other users' rows", async () => {

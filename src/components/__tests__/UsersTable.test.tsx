@@ -42,6 +42,16 @@ function mockChangeRoleResponse(
   });
 }
 
+/** Opens the actions dropdown for the row containing rowText, returning that row element. */
+async function openActionsMenu(
+  user: ReturnType<typeof userEvent.setup>,
+  rowText: string,
+): Promise<HTMLElement> {
+  const row = screen.getByText(rowText).closest("tr") as HTMLElement;
+  await user.click(within(row).getByRole("button", { name: `Actions for ${rowText}` }));
+  return row;
+}
+
 describe("UsersTable", () => {
   afterEach(() => {
     pushMock.mockClear();
@@ -160,32 +170,113 @@ describe("UsersTable", () => {
     expect(screen.getByText("Viewer")).toBeInTheDocument();
   });
 
-  it("renders a Delete button for each row", () => {
+  // --- Actions dropdown: trigger + menu contents ---------------------------
+
+  it("renders an Actions trigger (•••) for each row that has an applicable action", () => {
     render(<UsersTable users={users} />);
-    expect(screen.getAllByRole("button", { name: "Delete" })).toHaveLength(3);
+    expect(screen.getByRole("button", { name: "Actions for Jane Doe" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Actions for Colin Ashworth" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Actions for Priya Nair" })).toBeInTheDocument();
   });
 
-  it("hides the Delete button only on the row matching currentUserId, showing it for everyone else", () => {
+  it("shows a dash instead of a trigger for a row with zero applicable actions (its own row, not pending)", () => {
     render(<UsersTable users={users} currentUserId="user1" />);
 
     const ownRow = screen.getByText("Jane Doe").closest("tr") as HTMLElement;
-    expect(within(ownRow).queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
-    // The other two rows are unaffected.
-    expect(screen.getAllByRole("button", { name: "Delete" })).toHaveLength(2);
+    expect(within(ownRow).queryByRole("button", { name: /Actions for/ })).not.toBeInTheDocument();
+    expect(within(ownRow).getByText("—")).toBeInTheDocument();
   });
 
-  it("shows Delete on every row when currentUserId doesn't match any of them", () => {
-    render(<UsersTable users={users} currentUserId="someone-else" />);
-    expect(screen.getAllByRole("button", { name: "Delete" })).toHaveLength(3);
-  });
-
-  it("renders a Re-invite button only for a Pending user, not Active/Inactive ones", () => {
+  it("opens a menu listing Delete for a row when its trigger is clicked", async () => {
+    const user = userEvent.setup();
     render(<UsersTable users={users} />);
-    expect(screen.getAllByRole("button", { name: "Re-invite" })).toHaveLength(1);
+    const row = await openActionsMenu(user, "Jane Doe");
 
-    const pendingRow = screen.getByText("Priya Nair").closest("tr") as HTMLElement;
-    expect(within(pendingRow).getByRole("button", { name: "Re-invite" })).toBeInTheDocument();
+    expect(within(row).getByRole("menuitem", { name: "Delete" })).toBeInTheDocument();
   });
+
+  it("does not include Delete or Change Role in the menu for the current user's own row", async () => {
+    const user = userEvent.setup();
+    // Give the current user a pending status too, so their row still has a
+    // trigger (Re-invite applies to yourself) — isolates that only
+    // Delete/Change Role are the ones excluded for your own row.
+    const withPendingSelf = [{ ...users[0], status: "Pending" }, ...users.slice(1)];
+    render(<UsersTable users={withPendingSelf} currentUserId="user1" />);
+    const row = await openActionsMenu(user, "Jane Doe");
+
+    expect(within(row).queryByRole("menuitem", { name: "Delete" })).not.toBeInTheDocument();
+    expect(within(row).queryByRole("menuitem", { name: "Change Role" })).not.toBeInTheDocument();
+    expect(within(row).getByRole("menuitem", { name: "Re-invite" })).toBeInTheDocument();
+  });
+
+  it("includes Delete and Change Role for every row when currentUserId doesn't match any of them", async () => {
+    const user = userEvent.setup();
+    render(<UsersTable users={users} currentUserId="someone-else" />);
+    for (const name of ["Jane Doe", "Colin Ashworth", "Priya Nair"]) {
+      const row = await openActionsMenu(user, name);
+      expect(within(row).getByRole("menuitem", { name: "Delete" })).toBeInTheDocument();
+      expect(within(row).getByRole("menuitem", { name: "Change Role" })).toBeInTheDocument();
+    }
+  });
+
+  it("includes Re-invite in the menu only for a Pending user, not Active/Inactive ones", async () => {
+    const user = userEvent.setup();
+    render(<UsersTable users={users} />);
+
+    const pendingRow = await openActionsMenu(user, "Priya Nair");
+    expect(within(pendingRow).getByRole("menuitem", { name: "Re-invite" })).toBeInTheDocument();
+
+    const activeRow = await openActionsMenu(user, "Jane Doe");
+    expect(within(activeRow).queryByRole("menuitem", { name: "Re-invite" })).not.toBeInTheDocument();
+  });
+
+  it("does not render an Actions column, trigger, or menu items when canManageUsers is false", () => {
+    render(<UsersTable users={users} canManageUsers={false} />);
+    expect(screen.queryByRole("columnheader", { name: "Actions" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Actions for/ })).not.toBeInTheDocument();
+  });
+
+  it("shows the Actions column header by default", () => {
+    render(<UsersTable users={users} />);
+    expect(screen.getByRole("columnheader", { name: "Actions" })).toBeInTheDocument();
+  });
+
+  it("closes the currently open menu when a different row's trigger is clicked, keeping only one open at a time", async () => {
+    const user = userEvent.setup();
+    render(<UsersTable users={users} />);
+    const janeRow = await openActionsMenu(user, "Jane Doe");
+    expect(within(janeRow).getByRole("menuitem", { name: "Delete" })).toBeInTheDocument();
+
+    const colinRow = await openActionsMenu(user, "Colin Ashworth");
+    expect(within(colinRow).getByRole("menuitem", { name: "Delete" })).toBeInTheDocument();
+    expect(within(janeRow).queryByRole("menuitem", { name: "Delete" })).not.toBeInTheDocument();
+  });
+
+  it("closes the menu when clicking outside it", async () => {
+    const user = userEvent.setup();
+    render(<UsersTable users={users} />);
+    await openActionsMenu(user, "Jane Doe");
+    expect(screen.getByRole("menuitem", { name: "Delete" })).toBeInTheDocument();
+
+    await user.click(document.body);
+
+    await waitFor(() =>
+      expect(screen.queryByRole("menuitem", { name: "Delete" })).not.toBeInTheDocument(),
+    );
+  });
+
+  it("closes the menu when Escape is pressed", async () => {
+    const user = userEvent.setup();
+    render(<UsersTable users={users} />);
+    await openActionsMenu(user, "Jane Doe");
+    expect(screen.getByRole("menuitem", { name: "Delete" })).toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("menuitem", { name: "Delete" })).not.toBeInTheDocument();
+  });
+
+  // --- Re-invite -------------------------------------------------------------
 
   it("sends the pending user's id to /api/resendinvite and shows a success message on Re-invite", async () => {
     const fetchMock = mockReinviteResponse(true);
@@ -193,7 +284,8 @@ describe("UsersTable", () => {
 
     const user = userEvent.setup();
     render(<UsersTable users={users} />);
-    await user.click(screen.getByRole("button", { name: "Re-invite" }));
+    const row = await openActionsMenu(user, "Priya Nair");
+    await user.click(within(row).getByRole("menuitem", { name: "Re-invite" }));
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/resendinvite",
@@ -205,7 +297,7 @@ describe("UsersTable", () => {
     expect(await screen.findByText("Invite sent.")).toBeInTheDocument();
   });
 
-  it("shows a disabled 'Sending…' label while the resend request is in flight", async () => {
+  it("closes the menu immediately when a menu item is clicked, before the request resolves", async () => {
     let resolveFetch: (value: unknown) => void = () => {};
     vi.stubGlobal(
       "fetch",
@@ -218,10 +310,10 @@ describe("UsersTable", () => {
 
     const user = userEvent.setup();
     render(<UsersTable users={users} />);
-    await user.click(screen.getByRole("button", { name: "Re-invite" }));
+    const row = await openActionsMenu(user, "Priya Nair");
+    await user.click(within(row).getByRole("menuitem", { name: "Re-invite" }));
 
-    const button = await screen.findByRole("button", { name: "Sending…" });
-    expect(button).toBeDisabled();
+    expect(screen.queryByRole("menuitem", { name: "Re-invite" })).not.toBeInTheDocument();
 
     resolveFetch({ ok: true, status: 200, json: () => Promise.resolve({ success: true }) });
     await screen.findByText("Invite sent.");
@@ -235,7 +327,8 @@ describe("UsersTable", () => {
 
     const user = userEvent.setup();
     render(<UsersTable users={users} />);
-    await user.click(screen.getByRole("button", { name: "Re-invite" }));
+    const row = await openActionsMenu(user, "Priya Nair");
+    await user.click(within(row).getByRole("menuitem", { name: "Re-invite" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("user already registered");
   });
@@ -245,7 +338,8 @@ describe("UsersTable", () => {
 
     const user = userEvent.setup();
     render(<UsersTable users={users} />);
-    await user.click(screen.getByRole("button", { name: "Re-invite" }));
+    const row = await openActionsMenu(user, "Priya Nair");
+    await user.click(within(row).getByRole("menuitem", { name: "Re-invite" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Something went wrong. Please try again.",
@@ -253,37 +347,18 @@ describe("UsersTable", () => {
   });
 
   it("redirects to /signin on a 401 from the resend request", async () => {
-    vi.stubGlobal(
-      "fetch",
-      mockReinviteResponse(false, { error: "session expired" }, 401),
-    );
+    vi.stubGlobal("fetch", mockReinviteResponse(false, { error: "session expired" }, 401));
 
     const user = userEvent.setup();
     render(<UsersTable users={users} />);
-    await user.click(screen.getByRole("button", { name: "Re-invite" }));
+    const row = await openActionsMenu(user, "Priya Nair");
+    await user.click(within(row).getByRole("menuitem", { name: "Re-invite" }));
 
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/signin"));
     expect(refreshMock).toHaveBeenCalled();
   });
 
-  it("does not render a Re-invite button when canManageUsers is false (a plain User viewing users)", () => {
-    render(<UsersTable users={users} canManageUsers={false} />);
-    expect(screen.queryByRole("button", { name: "Re-invite" })).not.toBeInTheDocument();
-  });
-
-  it("renders a Change Role button for every row except the current user's own", () => {
-    render(<UsersTable users={users} currentUserId="user1" />);
-    // 3 users total, minus the current user's own row.
-    expect(screen.getAllByRole("button", { name: "Change Role" })).toHaveLength(2);
-
-    const ownRow = screen.getByText("Jane Doe").closest("tr") as HTMLElement;
-    expect(within(ownRow).queryByRole("button", { name: "Change Role" })).not.toBeInTheDocument();
-  });
-
-  it("shows Change Role for every row when currentUserId doesn't match any of them", () => {
-    render(<UsersTable users={users} currentUserId="someone-else" />);
-    expect(screen.getAllByRole("button", { name: "Change Role" })).toHaveLength(3);
-  });
+  // --- Change Role -------------------------------------------------------------
 
   it("sends the target user's id to /api/changerole and shows the new role on success", async () => {
     const fetchMock = mockChangeRoleResponse(true, {
@@ -295,7 +370,8 @@ describe("UsersTable", () => {
 
     const user = userEvent.setup();
     render(<UsersTable users={[users[1]]} />);
-    await user.click(screen.getByRole("button", { name: "Change Role" }));
+    const row = await openActionsMenu(user, "Colin Ashworth");
+    await user.click(within(row).getByRole("menuitem", { name: "Change Role" }));
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/changerole",
@@ -308,8 +384,6 @@ describe("UsersTable", () => {
   });
 
   it("shows 'Role changed to Admin.' (not 'Customer Admin') when customerScoped, matching the Role column's own abbreviation", async () => {
-    // The API always returns the full role name — the abbreviation is a
-    // display-only concern, applied the same way here as in the Role column.
     vi.stubGlobal(
       "fetch",
       mockChangeRoleResponse(true, {
@@ -321,7 +395,8 @@ describe("UsersTable", () => {
 
     const user = userEvent.setup();
     render(<UsersTable users={[users[1]]} customerScoped />);
-    await user.click(screen.getByRole("button", { name: "Change Role" }));
+    const row = await openActionsMenu(user, "Colin Ashworth");
+    await user.click(within(row).getByRole("menuitem", { name: "Change Role" }));
 
     expect(await screen.findByText("Role changed to Admin.")).toBeInTheDocument();
     expect(screen.queryByText("Role changed to Customer Admin.")).not.toBeInTheDocument();
@@ -339,7 +414,8 @@ describe("UsersTable", () => {
 
     const user = userEvent.setup();
     render(<UsersTable users={[users[1]]} />);
-    await user.click(screen.getByRole("button", { name: "Change Role" }));
+    const row = await openActionsMenu(user, "Colin Ashworth");
+    await user.click(within(row).getByRole("menuitem", { name: "Change Role" }));
 
     expect(await screen.findByText("Role changed to Customer Admin.")).toBeInTheDocument();
   });
@@ -349,35 +425,10 @@ describe("UsersTable", () => {
 
     const user = userEvent.setup();
     render(<UsersTable users={[users[1]]} />);
-    await user.click(screen.getByRole("button", { name: "Change Role" }));
+    const row = await openActionsMenu(user, "Colin Ashworth");
+    await user.click(within(row).getByRole("menuitem", { name: "Change Role" }));
 
     await waitFor(() => expect(refreshMock).toHaveBeenCalled());
-  });
-
-  it("shows a disabled 'Changing…' label while the change-role request is in flight", async () => {
-    let resolveFetch: (value: unknown) => void = () => {};
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockReturnValue(
-        new Promise((resolve) => {
-          resolveFetch = resolve;
-        }),
-      ),
-    );
-
-    const user = userEvent.setup();
-    render(<UsersTable users={[users[1]]} />);
-    await user.click(screen.getByRole("button", { name: "Change Role" }));
-
-    const button = await screen.findByRole("button", { name: "Changing…" });
-    expect(button).toBeDisabled();
-
-    resolveFetch({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve({ userId: "user-04", role: "User", customerId: "cust-004" }),
-    });
-    await screen.findByText("Role changed to User.");
   });
 
   it("shows the server's error message when the change-role request fails (e.g. a non-admin caller)", async () => {
@@ -392,7 +443,8 @@ describe("UsersTable", () => {
 
     const user = userEvent.setup();
     render(<UsersTable users={[users[1]]} />);
-    await user.click(screen.getByRole("button", { name: "Change Role" }));
+    const row = await openActionsMenu(user, "Colin Ashworth");
+    await user.click(within(row).getByRole("menuitem", { name: "Change Role" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "this action requires one of: Streetleaf Admin, Customer Admin",
@@ -404,7 +456,8 @@ describe("UsersTable", () => {
 
     const user = userEvent.setup();
     render(<UsersTable users={[users[1]]} />);
-    await user.click(screen.getByRole("button", { name: "Change Role" }));
+    const row = await openActionsMenu(user, "Colin Ashworth");
+    await user.click(within(row).getByRole("menuitem", { name: "Change Role" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Something went wrong. Please try again.",
@@ -412,34 +465,57 @@ describe("UsersTable", () => {
   });
 
   it("redirects to /signin on a 401 from the change-role request", async () => {
-    vi.stubGlobal(
-      "fetch",
-      mockChangeRoleResponse(false, { error: "session expired" }, 401),
-    );
+    vi.stubGlobal("fetch", mockChangeRoleResponse(false, { error: "session expired" }, 401));
 
     const user = userEvent.setup();
     render(<UsersTable users={[users[1]]} />);
-    await user.click(screen.getByRole("button", { name: "Change Role" }));
+    const row = await openActionsMenu(user, "Colin Ashworth");
+    await user.click(within(row).getByRole("menuitem", { name: "Change Role" }));
 
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/signin"));
     expect(refreshMock).toHaveBeenCalled();
   });
 
-  it("does not render a Change Role button when canManageUsers is false", () => {
-    render(<UsersTable users={users} canManageUsers={false} />);
-    expect(screen.queryByRole("button", { name: "Change Role" })).not.toBeInTheDocument();
+  // --- Customer Owner: excluded from Change Role / Delete -----------------
+
+  it("excludes Change Role and Delete from the menu for a Customer Owner row, even when it isn't the viewer's own row", () => {
+    const owner: User = {
+      id: "owner-1",
+      name: "Morgan Lee",
+      email: "morgan@acme.example",
+      role: "Customer Owner",
+      status: "Active",
+      customerId: "cust1",
+      customerName: "Acme Corp",
+    };
+    render(<UsersTable users={[owner, ...users]} currentUserId="someone-else" />);
+
+    const ownerRow = screen.getByText("Morgan Lee").closest("tr") as HTMLElement;
+    // Not pending and no applicable action for anyone else — no trigger at all.
+    expect(within(ownerRow).queryByRole("button", { name: /Actions for/ })).not.toBeInTheDocument();
+    expect(within(ownerRow).getByText("—")).toBeInTheDocument();
   });
 
-  it("shows the Actions column header by default", () => {
-    render(<UsersTable users={users} />);
-    expect(screen.getByRole("columnheader", { name: "Actions" })).toBeInTheDocument();
+  it("still includes Re-invite for a pending Customer Owner row, alongside excluding Change Role/Delete", async () => {
+    const pendingOwner: User = {
+      id: "owner-1",
+      name: "Morgan Lee",
+      email: "morgan@acme.example",
+      role: "Customer Owner",
+      status: "Pending",
+      customerId: "cust1",
+      customerName: "Acme Corp",
+    };
+    const user = userEvent.setup();
+    render(<UsersTable users={[pendingOwner]} currentUserId="someone-else" />);
+    const row = await openActionsMenu(user, "Morgan Lee");
+
+    expect(within(row).getByRole("menuitem", { name: "Re-invite" })).toBeInTheDocument();
+    expect(within(row).queryByRole("menuitem", { name: "Change Role" })).not.toBeInTheDocument();
+    expect(within(row).queryByRole("menuitem", { name: "Delete" })).not.toBeInTheDocument();
   });
 
-  it("hides the Actions column and Delete buttons when canManageUsers is false", () => {
-    render(<UsersTable users={users} canManageUsers={false} />);
-    expect(screen.queryByRole("columnheader", { name: "Actions" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
-  });
+  // --- Delete + confirmation modal -----------------------------------------
 
   it("does not delete immediately — opens a confirmation modal instead", async () => {
     const fetchMock = vi.fn();
@@ -447,7 +523,8 @@ describe("UsersTable", () => {
 
     const user = userEvent.setup();
     render(<UsersTable users={users} />);
-    await user.click(screen.getAllByRole("button", { name: "Delete" })[0]);
+    const row = await openActionsMenu(user, "Jane Doe");
+    await user.click(within(row).getByRole("menuitem", { name: "Delete" }));
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
@@ -456,7 +533,8 @@ describe("UsersTable", () => {
   it("names the user being deleted in the confirmation modal", async () => {
     const user = userEvent.setup();
     render(<UsersTable users={users} />);
-    await user.click(screen.getAllByRole("button", { name: "Delete" })[0]);
+    const row = await openActionsMenu(user, "Jane Doe");
+    await user.click(within(row).getByRole("menuitem", { name: "Delete" }));
 
     expect(screen.getByRole("dialog")).toHaveTextContent("Jane Doe");
   });
@@ -467,7 +545,8 @@ describe("UsersTable", () => {
 
     const user = userEvent.setup();
     render(<UsersTable users={users} />);
-    await user.click(screen.getAllByRole("button", { name: "Delete" })[0]);
+    const row = await openActionsMenu(user, "Jane Doe");
+    await user.click(within(row).getByRole("menuitem", { name: "Delete" }));
     await user.click(screen.getByRole("button", { name: "Cancel" }));
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -480,7 +559,8 @@ describe("UsersTable", () => {
 
     const user = userEvent.setup();
     render(<UsersTable users={users} />);
-    await user.click(screen.getAllByRole("button", { name: "Delete" })[0]);
+    const row = await openActionsMenu(user, "Jane Doe");
+    await user.click(within(row).getByRole("menuitem", { name: "Delete" }));
     const backdrop = screen.getByRole("dialog").parentElement!;
     await user.click(backdrop);
 
@@ -494,7 +574,8 @@ describe("UsersTable", () => {
 
     const user = userEvent.setup();
     render(<UsersTable users={users} />);
-    await user.click(screen.getAllByRole("button", { name: "Delete" })[0]);
+    const row = await openActionsMenu(user, "Jane Doe");
+    await user.click(within(row).getByRole("menuitem", { name: "Delete" }));
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
@@ -509,7 +590,8 @@ describe("UsersTable", () => {
 
     const user = userEvent.setup();
     render(<UsersTable users={users} />);
-    await user.click(screen.getAllByRole("button", { name: "Delete" })[0]);
+    const row = await openActionsMenu(user, "Jane Doe");
+    await user.click(within(row).getByRole("menuitem", { name: "Delete" }));
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete" }));
 
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
@@ -521,7 +603,8 @@ describe("UsersTable", () => {
 
     const user = userEvent.setup();
     render(<UsersTable users={users} />);
-    await user.click(screen.getAllByRole("button", { name: "Delete" })[0]);
+    const row = await openActionsMenu(user, "Jane Doe");
+    await user.click(within(row).getByRole("menuitem", { name: "Delete" }));
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("cannot delete the last admin");
@@ -537,7 +620,8 @@ describe("UsersTable", () => {
 
     const user = userEvent.setup();
     render(<UsersTable users={users} />);
-    await user.click(screen.getAllByRole("button", { name: "Delete" })[0]);
+    const row = await openActionsMenu(user, "Jane Doe");
+    await user.click(within(row).getByRole("menuitem", { name: "Delete" }));
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete" }));
 
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/signin"));
@@ -551,7 +635,8 @@ describe("UsersTable", () => {
 
     const user = userEvent.setup();
     render(<UsersTable users={users} />);
-    await user.click(screen.getAllByRole("button", { name: "Delete" })[0]);
+    const row = await openActionsMenu(user, "Jane Doe");
+    await user.click(within(row).getByRole("menuitem", { name: "Delete" }));
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -572,7 +657,8 @@ describe("UsersTable", () => {
 
     const user = userEvent.setup();
     render(<UsersTable users={users} />);
-    await user.click(screen.getAllByRole("button", { name: "Delete" })[0]);
+    const row = await openActionsMenu(user, "Jane Doe");
+    await user.click(within(row).getByRole("menuitem", { name: "Delete" }));
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete" }));
 
     const confirmButton = await screen.findByRole("button", { name: "Deleting…" });
