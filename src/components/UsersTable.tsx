@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { User } from "@/lib/types";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Pagination } from "@/components/Pagination";
+import { InviteUserModal } from "@/components/InviteUserModal";
 import { initials } from "@/lib/text";
 
 const PAGE_SIZE = 10;
@@ -14,6 +15,19 @@ function statusBadgeKind(status: string | null | undefined): "active" | "pending
   if (normalized === "active") return "active";
   if (normalized === "pending") return "pending";
   return "inactive";
+}
+
+/**
+ * "Customer" is implied by the whole view already being scoped to one, so
+ * customer-scoped viewers see the shorter "Admin"/"Owner" instead of
+ * "Customer Admin"/"Customer Owner". Unaffected (and unabbreviated)
+ * outside a customer-scoped view, and for any other role value.
+ */
+function customerScopedRoleLabel(role: string, customerScoped: boolean): string {
+  if (!customerScoped) return role;
+  if (role === "Customer Admin") return "Admin";
+  if (role === "Customer Owner") return "Owner";
+  return role;
 }
 
 type UserAction = {
@@ -29,6 +43,7 @@ export function UsersTable({
   canManageUsers = true,
   currentUserId,
   customerScoped = false,
+  viewerIsStreetleafAdmin = false,
 }: {
   users: User[];
   canManageUsers?: boolean;
@@ -41,6 +56,13 @@ export function UsersTable({
    * by the whole view already being scoped to one.
    */
   customerScoped?: boolean;
+  /**
+   * Only a Streetleaf Admin gets two extra powers over a Customer Owner
+   * row: deleting it directly, and "Transfer Ownership" in place of the
+   * (otherwise inapplicable) Change Role action — see
+   * getApplicableActions below for why these are scoped this narrowly.
+   */
+  viewerIsStreetleafAdmin?: boolean;
 }) {
   const router = useRouter();
   const [page, setPage] = useState(1);
@@ -60,6 +82,9 @@ export function UsersTable({
     isError: boolean;
   } | null>(null);
   const [openMenuUserId, setOpenMenuUserId] = useState<string | null>(null);
+  const [transferTarget, setTransferTarget] = useState<{ id: string; name: string } | null>(
+    null,
+  );
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -217,13 +242,22 @@ export function UsersTable({
 
   /**
    * What's applicable for this row, in menu order. Re-invite only for a
-   * still-pending invite. Change Role and Delete never apply to your own
-   * row, or to a Customer Owner: changeRole only ever toggles User <->
-   * Admin server-side (see apim.ts), which isn't well-defined for an
-   * Owner, and deleting the customer's sole Owner should only ever happen
-   * as a side effect of a new Owner's invite being accepted (see
-   * InviteUserModal's Customer Owner option) — never as a standalone
-   * action here, since a customer is never meant to be left without one.
+   * still-pending invite. For a Customer Owner row, Change Role never
+   * applies — changeRole only ever toggles User <-> Admin server-side
+   * (see apim.ts), which isn't well-defined for an Owner. Transfer
+   * Ownership takes its place instead, reusing the Invite flow (see
+   * InviteUserModal's Customer Owner option) rather than this row's own
+   * action, since transferring ownership is fundamentally an invite-and-
+   * accept flow, not a role toggle — offered to the Owner viewing their
+   * own row (transferring their own ownership) or a Streetleaf Admin
+   * viewing someone else's Owner row, never to anyone else (e.g. a plain
+   * Customer Admin). Delete never applies to your own row regardless of
+   * role (self-deletion isn't supported anywhere in this table) — beyond
+   * that, a Streetleaf Admin can delete the sole Owner directly, but
+   * everyone else must go through the Transfer Ownership flow above,
+   * which removes the previous owner automatically once the new one
+   * accepts. For anyone else's row that isn't a Customer Owner, both
+   * Change Role and Delete apply normally.
    */
   function getApplicableActions(user: User): UserAction[] {
     const actions: UserAction[] = [];
@@ -238,22 +272,54 @@ export function UsersTable({
         disabled: reinvitingUserId === user.id,
       });
     }
-    if (!isSelf && !isOwner) {
-      actions.push({
-        key: "changeRole",
-        label: changingRoleUserId === user.id ? "Changing…" : "Change Role",
-        onClick: () => handleChangeRole(user),
-        disabled: changingRoleUserId === user.id,
-      });
-      actions.push({
-        key: "delete",
-        label: "Delete",
-        onClick: () => setPendingDelete(user),
-        destructive: true,
-      });
+
+    if (isOwner) {
+      if ((isSelf || viewerIsStreetleafAdmin) && user.customerId) {
+        actions.push({
+          key: "transferOwnership",
+          label: "Transfer Ownership",
+          onClick: () =>
+            setTransferTarget({ id: user.customerId as string, name: user.customerName ?? "" }),
+        });
+      }
+      if (!isSelf && viewerIsStreetleafAdmin) {
+        actions.push({
+          key: "delete",
+          label: "Delete",
+          onClick: () => setPendingDelete(user),
+          destructive: true,
+        });
+      }
+      return actions;
     }
+
+    if (isSelf) return actions;
+
+    actions.push({
+      key: "changeRole",
+      label: changingRoleUserId === user.id ? "Changing…" : "Change Role",
+      onClick: () => handleChangeRole(user),
+      disabled: changingRoleUserId === user.id,
+    });
+    actions.push({
+      key: "delete",
+      label: "Delete",
+      onClick: () => setPendingDelete(user),
+      destructive: true,
+    });
     return actions;
   }
+
+  // Which customers already have a Customer Owner — passed to the
+  // Transfer Ownership modal below so its "this transfers ownership"
+  // warning only shows for a customer that already has an owner (which,
+  // for that specific flow, is always true — Transfer Ownership only
+  // ever appears on a row that already holds Customer Owner, i.e. proof
+  // that customer has one — but deriving it the same way InviteUserModal
+  // expects keeps this in sync rather than hardcoding that assumption).
+  const customersWithOwner = users
+    .filter((u) => u.role === "Customer Owner" && u.customerId)
+    .map((u) => u.customerId as string);
 
   const totalPages = Math.max(1, Math.ceil(users.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -274,7 +340,7 @@ export function UsersTable({
             </tr>
           </thead>
           <tbody>
-            {pageUsers.map((user) => (
+            {pageUsers.map((user, index) => (
               <tr
                 key={user.id}
                 className="border-b border-[var(--border)] last:border-b-0 hover:bg-[var(--surface-sunken)]"
@@ -291,7 +357,7 @@ export function UsersTable({
                   {user.email}
                 </td>
                 <td className="py-3 pr-4 text-[var(--ink)]">
-                  {customerScoped && user.role === "Customer Admin" ? "Admin" : user.role}
+                  {customerScopedRoleLabel(user.role, customerScoped)}
                 </td>
                 <td className="py-3 pr-4">
                   <StatusBadge status={statusBadgeKind(user.status)} />
@@ -305,11 +371,15 @@ export function UsersTable({
                   (() => {
                     const actions = getApplicableActions(user);
                     const isMenuOpen = openMenuUserId === user.id;
+                    // The table's own wrapper clips to its rounded corners
+                    // with overflow-hidden, which would also clip this
+                    // menu if it opened downward past the wrapper's
+                    // bottom edge — only reachable from the last row, so
+                    // that one opens upward instead.
+                    const isLastRow = index === pageUsers.length - 1;
                     return (
                       <td className="py-3 pr-8 text-right">
-                        {actions.length === 0 ? (
-                          <span className="text-[13px] text-[var(--ink-faint)]">—</span>
-                        ) : (
+                        {actions.length === 0 ? null : (
                           <div
                             className="relative inline-block text-left"
                             ref={isMenuOpen ? menuRef : undefined}
@@ -328,7 +398,9 @@ export function UsersTable({
                               <div
                                 role="menu"
                                 aria-label={`Actions for ${user.name}`}
-                                className="absolute right-0 z-10 mt-1 w-36 rounded-md border border-[var(--border)] bg-[var(--surface)] py-1 text-left shadow-lg"
+                                className={`absolute right-0 z-10 w-36 rounded-md border border-[var(--border)] bg-[var(--surface)] py-1 text-left shadow-lg ${
+                                  isLastRow ? "bottom-full mb-1" : "mt-1"
+                                }`}
                               >
                                 {actions.map((action) => (
                                   <button
@@ -436,6 +508,29 @@ export function UsersTable({
             </div>
           </div>
         </div>
+      )}
+
+      {transferTarget && (
+        <InviteUserModal
+          customers={[]}
+          lockedCustomer={{
+            id: transferTarget.id,
+            name: transferTarget.name,
+            projects: [],
+            address: null,
+            city: null,
+            state: null,
+            zip: null,
+            phone: null,
+            active: true,
+          }}
+          canInviteOwner
+          customersWithOwner={customersWithOwner}
+          autoOpen
+          hideTrigger
+          initialRole="Customer Owner"
+          onClose={() => setTransferTarget(null)}
+        />
       )}
     </>
   );

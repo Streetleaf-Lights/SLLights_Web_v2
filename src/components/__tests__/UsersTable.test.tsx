@@ -114,6 +114,36 @@ describe("UsersTable", () => {
     expect(screen.queryByText("Customer Admin")).not.toBeInTheDocument();
   });
 
+  it("shows 'Owner' instead of 'Customer Owner' in the Role column when customerScoped is true", () => {
+    const owner: User = {
+      id: "owner-1",
+      name: "Morgan Lee",
+      email: "morgan@acme.example",
+      role: "Customer Owner",
+      status: "Active",
+      customerId: "cust1",
+      customerName: "Acme Corp",
+    };
+    render(<UsersTable users={[owner]} customerScoped />);
+    expect(screen.getByText("Owner")).toBeInTheDocument();
+    expect(screen.queryByText("Customer Owner")).not.toBeInTheDocument();
+  });
+
+  it("shows the full 'Customer Owner', not abbreviated, when customerScoped is false", () => {
+    const owner: User = {
+      id: "owner-1",
+      name: "Morgan Lee",
+      email: "morgan@acme.example",
+      role: "Customer Owner",
+      status: "Active",
+      customerId: "cust1",
+      customerName: "Acme Corp",
+    };
+    render(<UsersTable users={[owner]} />);
+    expect(screen.getByText("Customer Owner")).toBeInTheDocument();
+    expect(screen.queryByText("Owner")).not.toBeInTheDocument();
+  });
+
   it("leaves other role values (e.g. Viewer) unchanged when customerScoped is true", () => {
     render(<UsersTable users={users} customerScoped />);
     expect(screen.getByText("Viewer")).toBeInTheDocument();
@@ -179,12 +209,13 @@ describe("UsersTable", () => {
     expect(screen.getByRole("button", { name: "Actions for Priya Nair" })).toBeInTheDocument();
   });
 
-  it("shows a dash instead of a trigger for a row with zero applicable actions (its own row, not pending)", () => {
+  it("shows nothing (not a dash) for a row with zero applicable actions (its own row, not pending)", () => {
     render(<UsersTable users={users} currentUserId="user1" />);
 
     const ownRow = screen.getByText("Jane Doe").closest("tr") as HTMLElement;
     expect(within(ownRow).queryByRole("button", { name: /Actions for/ })).not.toBeInTheDocument();
-    expect(within(ownRow).getByText("—")).toBeInTheDocument();
+    const cells = ownRow.querySelectorAll("td");
+    expect(cells[cells.length - 1]).toHaveTextContent("");
   });
 
   it("opens a menu listing Delete for a row when its trigger is clicked", async () => {
@@ -250,6 +281,23 @@ describe("UsersTable", () => {
     const colinRow = await openActionsMenu(user, "Colin Ashworth");
     expect(within(colinRow).getByRole("menuitem", { name: "Delete" })).toBeInTheDocument();
     expect(within(janeRow).queryByRole("menuitem", { name: "Delete" })).not.toBeInTheDocument();
+  });
+
+  it("opens the last row's menu upward instead of downward, so it isn't clipped by the table wrapper's overflow-hidden", async () => {
+    const user = userEvent.setup();
+    render(<UsersTable users={users} />);
+
+    // Jane Doe (not the last row) opens downward, as usual.
+    const janeRow = await openActionsMenu(user, "Jane Doe");
+    const janeMenu = within(janeRow).getByRole("menu");
+    expect(janeMenu.className).toContain("mt-1");
+    expect(janeMenu.className).not.toContain("bottom-full");
+
+    // Priya Nair (the last row in this fixture) opens upward instead.
+    const priyaRow = await openActionsMenu(user, "Priya Nair");
+    const priyaMenu = within(priyaRow).getByRole("menu");
+    expect(priyaMenu.className).toContain("bottom-full");
+    expect(priyaMenu.className).not.toContain("mt-1");
   });
 
   it("closes the menu when clicking outside it", async () => {
@@ -493,7 +541,8 @@ describe("UsersTable", () => {
     const ownerRow = screen.getByText("Morgan Lee").closest("tr") as HTMLElement;
     // Not pending and no applicable action for anyone else — no trigger at all.
     expect(within(ownerRow).queryByRole("button", { name: /Actions for/ })).not.toBeInTheDocument();
-    expect(within(ownerRow).getByText("—")).toBeInTheDocument();
+    const cells = ownerRow.querySelectorAll("td");
+    expect(cells[cells.length - 1]).toHaveTextContent("");
   });
 
   it("still includes Re-invite for a pending Customer Owner row, alongside excluding Change Role/Delete", async () => {
@@ -513,6 +562,201 @@ describe("UsersTable", () => {
     expect(within(row).getByRole("menuitem", { name: "Re-invite" })).toBeInTheDocument();
     expect(within(row).queryByRole("menuitem", { name: "Change Role" })).not.toBeInTheDocument();
     expect(within(row).queryByRole("menuitem", { name: "Delete" })).not.toBeInTheDocument();
+  });
+
+  it("shows Transfer Ownership (not Change Role) and Delete on a Customer Owner row, when the viewer is a Streetleaf Admin", async () => {
+    const owner: User = {
+      id: "owner-1",
+      name: "Morgan Lee",
+      email: "morgan@acme.example",
+      role: "Customer Owner",
+      status: "Active",
+      customerId: "cust1",
+      customerName: "Acme Corp",
+    };
+    const user = userEvent.setup();
+    render(<UsersTable users={[owner]} currentUserId="someone-else" viewerIsStreetleafAdmin />);
+    const row = await openActionsMenu(user, "Morgan Lee");
+
+    expect(within(row).getByRole("menuitem", { name: "Transfer Ownership" })).toBeInTheDocument();
+    expect(within(row).queryByRole("menuitem", { name: "Change Role" })).not.toBeInTheDocument();
+    expect(within(row).getByRole("menuitem", { name: "Delete" })).toBeInTheDocument();
+  });
+
+  it("still excludes both Transfer Ownership and Delete for a Customer Owner row when the viewer is not a Streetleaf Admin (viewerIsStreetleafAdmin defaults to false)", async () => {
+    const owner: User = {
+      id: "owner-1",
+      name: "Morgan Lee",
+      email: "morgan@acme.example",
+      role: "Customer Owner",
+      status: "Active",
+      customerId: "cust1",
+      customerName: "Acme Corp",
+    };
+    render(<UsersTable users={[owner]} currentUserId="someone-else" />);
+
+    const row = screen.getByText("Morgan Lee").closest("tr") as HTMLElement;
+    expect(within(row).queryByRole("button", { name: /Actions for/ })).not.toBeInTheDocument();
+  });
+
+  it("shows Transfer Ownership (but never Delete) on your own row when you are the Customer Owner", async () => {
+    const owner: User = {
+      id: "owner-1",
+      name: "Morgan Lee",
+      email: "morgan@acme.example",
+      role: "Customer Owner",
+      status: "Active",
+      customerId: "cust1",
+      customerName: "Acme Corp",
+    };
+    const user = userEvent.setup();
+    render(<UsersTable users={[owner]} currentUserId="owner-1" />);
+    const row = await openActionsMenu(user, "Morgan Lee");
+
+    expect(within(row).getByRole("menuitem", { name: "Transfer Ownership" })).toBeInTheDocument();
+    expect(within(row).queryByRole("menuitem", { name: "Delete" })).not.toBeInTheDocument();
+    expect(within(row).queryByRole("menuitem", { name: "Change Role" })).not.toBeInTheDocument();
+  });
+
+  it("still never shows Delete on your own Customer-Owner row, even when viewerIsStreetleafAdmin is also set — self exclusion for Delete always applies first", async () => {
+    const owner: User = {
+      id: "owner-1",
+      name: "Morgan Lee",
+      email: "morgan@acme.example",
+      role: "Customer Owner",
+      status: "Active",
+      customerId: "cust1",
+      customerName: "Acme Corp",
+    };
+    const user = userEvent.setup();
+    render(<UsersTable users={[owner]} currentUserId="owner-1" viewerIsStreetleafAdmin />);
+    const row = await openActionsMenu(user, "Morgan Lee");
+
+    expect(within(row).getByRole("menuitem", { name: "Transfer Ownership" })).toBeInTheDocument();
+    expect(within(row).queryByRole("menuitem", { name: "Delete" })).not.toBeInTheDocument();
+  });
+
+  it("clicking Transfer Ownership on your own row opens the Invite modal locked to your own customer, with 'Customer Owner' preselected", async () => {
+    const owner: User = {
+      id: "owner-1",
+      name: "Morgan Lee",
+      email: "morgan@acme.example",
+      role: "Customer Owner",
+      status: "Active",
+      customerId: "cust1",
+      customerName: "Acme Corp",
+    };
+    const user = userEvent.setup();
+    render(<UsersTable users={[owner]} currentUserId="owner-1" />);
+    const row = await openActionsMenu(user, "Morgan Lee");
+    await user.click(within(row).getByRole("menuitem", { name: "Transfer Ownership" }));
+
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText("Acme Corp")).toBeInTheDocument();
+    expect((within(dialog).getByLabelText("Role") as HTMLSelectElement).value).toBe(
+      "Customer Owner",
+    );
+  });
+
+  it("clicking Transfer Ownership opens the Invite modal locked to that row's customer, with 'Customer Owner' preselected", async () => {
+    const owner: User = {
+      id: "owner-1",
+      name: "Morgan Lee",
+      email: "morgan@acme.example",
+      role: "Customer Owner",
+      status: "Active",
+      customerId: "cust1",
+      customerName: "Acme Corp",
+    };
+    const user = userEvent.setup();
+    render(<UsersTable users={[owner]} currentUserId="someone-else" viewerIsStreetleafAdmin />);
+    const row = await openActionsMenu(user, "Morgan Lee");
+    await user.click(within(row).getByRole("menuitem", { name: "Transfer Ownership" }));
+
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText("Acme Corp")).toBeInTheDocument();
+    expect((within(dialog).getByLabelText("Role") as HTMLSelectElement).value).toBe(
+      "Customer Owner",
+    );
+    // The warning shows too — this customer (cust1) already has an owner
+    // (Morgan Lee, the very row Transfer Ownership was clicked from),
+    // confirming customersWithOwner is correctly derived and passed
+    // through, not just the role preselection.
+    expect(within(dialog).getByText(/transfers ownership/i)).toBeInTheDocument();
+  });
+
+  it("closes the Transfer Ownership modal (and unmounts it) when Cancel is clicked", async () => {
+    const owner: User = {
+      id: "owner-1",
+      name: "Morgan Lee",
+      email: "morgan@acme.example",
+      role: "Customer Owner",
+      status: "Active",
+      customerId: "cust1",
+      customerName: "Acme Corp",
+    };
+    const user = userEvent.setup();
+    render(<UsersTable users={[owner]} currentUserId="someone-else" viewerIsStreetleafAdmin />);
+    const row = await openActionsMenu(user, "Morgan Lee");
+    await user.click(within(row).getByRole("menuitem", { name: "Transfer Ownership" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("shows the success confirmation after a successful Transfer Ownership submit, and only unmounts the modal once it's acknowledged", async () => {
+    const owner: User = {
+      id: "owner-1",
+      name: "Morgan Lee",
+      email: "morgan@acme.example",
+      role: "Customer Owner",
+      status: "Active",
+      customerId: "cust1",
+      customerName: "Acme Corp",
+    };
+    vi.stubGlobal("fetch", mockReinviteResponse(true));
+
+    const user = userEvent.setup();
+    render(<UsersTable users={[owner]} currentUserId="someone-else" viewerIsStreetleafAdmin />);
+    const row = await openActionsMenu(user, "Morgan Lee");
+    await user.click(within(row).getByRole("menuitem", { name: "Transfer Ownership" }));
+    await user.type(screen.getByLabelText("Email"), "jordan@acme.example");
+    await user.type(screen.getByLabelText("Name"), "Jordan Kim");
+    await user.click(screen.getByRole("button", { name: "Submit" }));
+
+    expect(await screen.findByText("Invitation sent")).toBeInTheDocument();
+    // Still mounted — the dialog is still up, just showing the confirmation.
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "OK" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("closing the Transfer Ownership menu item still lets Delete on the same Owner row work normally, opening the usual confirmation modal", async () => {
+    const owner: User = {
+      id: "owner-1",
+      name: "Morgan Lee",
+      email: "morgan@acme.example",
+      role: "Customer Owner",
+      status: "Active",
+      customerId: "cust1",
+      customerName: "Acme Corp",
+    };
+    const fetchMock = mockDeleteResponse(true);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const user = userEvent.setup();
+    render(<UsersTable users={[owner]} currentUserId="someone-else" viewerIsStreetleafAdmin />);
+    const row = await openActionsMenu(user, "Morgan Lee");
+    await user.click(within(row).getByRole("menuitem", { name: "Delete" }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse(init.body)).toEqual({ userId: "owner-1" });
   });
 
   // --- Delete + confirmation modal -----------------------------------------

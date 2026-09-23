@@ -899,9 +899,16 @@ describe("InviteUserModal — Customer Owner role option (canInviteOwner)", () =
     expect(roleOptionValues()).not.toContain("Customer Owner");
   });
 
-  it("shows a warning that ownership will transfer when 'Customer Owner' is selected", async () => {
+  it("shows a warning that ownership will transfer when 'Customer Owner' is selected, for a customer that already has one", async () => {
     const user = userEvent.setup();
-    render(<InviteUserModal customers={[]} lockedCustomer={lockedCustomer} canInviteOwner />);
+    render(
+      <InviteUserModal
+        customers={[]}
+        lockedCustomer={lockedCustomer}
+        canInviteOwner
+        customersWithOwner={["cust-2"]}
+      />,
+    );
     await user.click(screen.getByRole("button", { name: "Invite user" }));
     await user.selectOptions(screen.getByLabelText("Role"), "Customer Owner");
 
@@ -910,9 +917,27 @@ describe("InviteUserModal — Customer Owner role option (canInviteOwner)", () =
     ).toBeInTheDocument();
   });
 
+  it("does not show the warning at all when the customer has no existing Customer Owner yet — a first assignment isn't a transfer", async () => {
+    const user = userEvent.setup();
+    render(
+      <InviteUserModal customers={[]} lockedCustomer={lockedCustomer} canInviteOwner />,
+    );
+    await user.click(screen.getByRole("button", { name: "Invite user" }));
+    await user.selectOptions(screen.getByLabelText("Role"), "Customer Owner");
+
+    expect(screen.queryByText(/transfers ownership/i)).not.toBeInTheDocument();
+  });
+
   it("does not show the ownership-transfer warning for other role choices", async () => {
     const user = userEvent.setup();
-    render(<InviteUserModal customers={[]} lockedCustomer={lockedCustomer} canInviteOwner />);
+    render(
+      <InviteUserModal
+        customers={[]}
+        lockedCustomer={lockedCustomer}
+        canInviteOwner
+        customersWithOwner={["cust-2"]}
+      />,
+    );
     await user.click(screen.getByRole("button", { name: "Invite user" }));
 
     expect(screen.queryByText(/transfers ownership/i)).not.toBeInTheDocument();
@@ -926,7 +951,9 @@ describe("InviteUserModal — Customer Owner role option (canInviteOwner)", () =
 
   it("resets away from Customer Owner (and hides the warning) when the customer selection changes via search", async () => {
     const user = userEvent.setup();
-    render(<InviteUserModal customers={customers} canInviteOwner />);
+    render(
+      <InviteUserModal customers={customers} canInviteOwner customersWithOwner={["cust-1"]} />,
+    );
     await user.click(screen.getByRole("button", { name: "Invite user" }));
     await focusCustomerSearch(user);
     await user.click(screen.getByRole("button", { name: "Bayview Municipal Lighting" }));
@@ -958,5 +985,284 @@ describe("InviteUserModal — Customer Owner role option (canInviteOwner)", () =
       role: "Customer Owner",
       customerId: "cust-2",
     });
+  });
+
+  it("lists 'Customer Owner' as the first option when offered, even though the selected/default value is still Customer Admin", async () => {
+    const user = userEvent.setup();
+    render(<InviteUserModal customers={[]} lockedCustomer={lockedCustomer} canInviteOwner />);
+    await user.click(screen.getByRole("button", { name: "Invite user" }));
+
+    const select = screen.getByLabelText("Role") as HTMLSelectElement;
+    expect(Array.from(select.options).map((o) => o.value)).toEqual([
+      "Customer Owner",
+      "Customer Admin",
+      "User",
+    ]);
+    expect(select.value).toBe("Customer Admin");
+  });
+
+  it("lists 'Customer Owner' first for a Streetleaf Admin browsing via Customer Search too, once a customer is picked", async () => {
+    const user = userEvent.setup();
+    render(<InviteUserModal customers={customers} canInviteOwner />);
+    await user.click(screen.getByRole("button", { name: "Invite user" }));
+    await focusCustomerSearch(user);
+    await user.click(screen.getByRole("button", { name: "Bayview Municipal Lighting" }));
+
+    const select = screen.getByLabelText("Role") as HTMLSelectElement;
+    expect(Array.from(select.options).map((o) => o.value)).toEqual([
+      "Customer Owner",
+      "Customer Admin",
+      "User",
+    ]);
+    expect(select.value).toBe("Customer Admin");
+  });
+
+  it("does not reorder anything when Customer Owner isn't offered — Customer Admin/Streetleaf Admin stays first, as the only non-User option", async () => {
+    const user = userEvent.setup();
+    render(<InviteUserModal customers={[]} lockedCustomer={lockedCustomer} />);
+    await user.click(screen.getByRole("button", { name: "Invite user" }));
+
+    const select = screen.getByLabelText("Role") as HTMLSelectElement;
+    expect(Array.from(select.options).map((o) => o.value)).toEqual(["Customer Admin", "User"]);
+  });
+});
+
+describe("InviteUserModal — external control (autoOpen/hideTrigger/initialRole/onClose)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    pushMock.mockClear();
+    refreshMock.mockClear();
+  });
+
+  const lockedCustomer: Customer = {
+    id: "cust-2",
+    name: "Coastal Power & Light",
+    projects: [],
+    address: null,
+    city: null,
+    state: null,
+    zip: null,
+    phone: null,
+    active: true,
+  };
+
+  it("opens immediately (no button click needed) when autoOpen is set", () => {
+    render(
+      <InviteUserModal
+        customers={[]}
+        lockedCustomer={lockedCustomer}
+        autoOpen
+        hideTrigger
+        canInviteOwner
+        initialRole="Customer Owner"
+      />,
+    );
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("does not render the built-in 'Invite user' button when hideTrigger is set", () => {
+    render(
+      <InviteUserModal
+        customers={[]}
+        lockedCustomer={lockedCustomer}
+        autoOpen
+        hideTrigger
+        canInviteOwner
+        initialRole="Customer Owner"
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Invite user" })).not.toBeInTheDocument();
+  });
+
+  it("preselects initialRole instead of the usual lockedCustomer-based default", () => {
+    render(
+      <InviteUserModal
+        customers={[]}
+        lockedCustomer={lockedCustomer}
+        autoOpen
+        hideTrigger
+        canInviteOwner
+        customersWithOwner={["cust-2"]}
+        initialRole="Customer Owner"
+      />,
+    );
+
+    expect((screen.getByLabelText("Role") as HTMLSelectElement).value).toBe("Customer Owner");
+    // The transfer warning shows immediately too, since it's already selected
+    // — matching the real Transfer Ownership usage, where the target
+    // customer always already has the owner being replaced.
+    expect(screen.getByText(/transfers ownership/i)).toBeInTheDocument();
+  });
+
+  it("calls onClose when Cancel is clicked", async () => {
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <InviteUserModal
+        customers={[]}
+        lockedCustomer={lockedCustomer}
+        autoOpen
+        hideTrigger
+        canInviteOwner
+        initialRole="Customer Owner"
+        onClose={onClose}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("calls onClose when the backdrop is clicked", async () => {
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <InviteUserModal
+        customers={[]}
+        lockedCustomer={lockedCustomer}
+        autoOpen
+        hideTrigger
+        canInviteOwner
+        initialRole="Customer Owner"
+        onClose={onClose}
+      />,
+    );
+
+    const backdrop = screen.getByRole("dialog").parentElement!;
+    await user.click(backdrop);
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows a success confirmation instead of closing immediately after a successful Customer Owner submit — onClose isn't called yet", async () => {
+    const fetchMock = mockInviteResponse(true, successBody);
+    vi.stubGlobal("fetch", fetchMock);
+    const onClose = vi.fn();
+
+    const user = userEvent.setup();
+    render(
+      <InviteUserModal
+        customers={[]}
+        lockedCustomer={lockedCustomer}
+        autoOpen
+        hideTrigger
+        canInviteOwner
+        initialRole="Customer Owner"
+        onClose={onClose}
+      />,
+    );
+    await user.type(screen.getByLabelText("Email"), "morgan@coastal.example");
+    await user.type(screen.getByLabelText("Name"), "Morgan Lee");
+    await user.click(screen.getByRole("button", { name: "Submit" }));
+
+    expect(await screen.findByText("Invitation sent")).toBeInTheDocument();
+    expect(screen.getByText(/morgan lee/i)).toBeInTheDocument();
+    expect(screen.getByText(/coastal power & light/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Email")).not.toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("calls onClose (and closes the whole modal) only once the success confirmation is acknowledged", async () => {
+    const fetchMock = mockInviteResponse(true, successBody);
+    vi.stubGlobal("fetch", fetchMock);
+    const onClose = vi.fn();
+
+    const user = userEvent.setup();
+    render(
+      <InviteUserModal
+        customers={[]}
+        lockedCustomer={lockedCustomer}
+        autoOpen
+        hideTrigger
+        canInviteOwner
+        initialRole="Customer Owner"
+        onClose={onClose}
+      />,
+    );
+    await user.type(screen.getByLabelText("Email"), "morgan@coastal.example");
+    await user.type(screen.getByLabelText("Name"), "Morgan Lee");
+    await user.click(screen.getByRole("button", { name: "Submit" }));
+    await screen.findByText("Invitation sent");
+    expect(onClose).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "OK" }));
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("refreshes the page's server data as soon as the invite succeeds, without waiting for the success message to be acknowledged", async () => {
+    const fetchMock = mockInviteResponse(true, successBody);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const user = userEvent.setup();
+    render(
+      <InviteUserModal
+        customers={[]}
+        lockedCustomer={lockedCustomer}
+        autoOpen
+        hideTrigger
+        canInviteOwner
+        initialRole="Customer Owner"
+      />,
+    );
+    await user.type(screen.getByLabelText("Email"), "morgan@coastal.example");
+    await user.type(screen.getByLabelText("Name"), "Morgan Lee");
+    await user.click(screen.getByRole("button", { name: "Submit" }));
+
+    await screen.findByText("Invitation sent");
+    expect(refreshMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not show the success confirmation for a normal (non-Customer-Owner) invite — it still just closes immediately", async () => {
+    const fetchMock = mockInviteResponse(true, successBody);
+    vi.stubGlobal("fetch", fetchMock);
+    const onClose = vi.fn();
+
+    const user = userEvent.setup();
+    render(
+      <InviteUserModal
+        customers={[]}
+        lockedCustomer={lockedCustomer}
+        autoOpen
+        hideTrigger
+        onClose={onClose}
+      />,
+    );
+    await user.type(screen.getByLabelText("Email"), "morgan@coastal.example");
+    await user.type(screen.getByLabelText("Name"), "Morgan Lee");
+    await user.click(screen.getByRole("button", { name: "Submit" }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText("Invitation sent")).not.toBeInTheDocument();
+  });
+
+  it("does not call onClose on a failed submit — the modal stays open to show the error", async () => {
+    vi.stubGlobal("fetch", mockInviteResponse(false, { error: "email already invited" }, 409));
+    const onClose = vi.fn();
+
+    const user = userEvent.setup();
+    render(
+      <InviteUserModal
+        customers={[]}
+        lockedCustomer={lockedCustomer}
+        autoOpen
+        hideTrigger
+        canInviteOwner
+        initialRole="Customer Owner"
+        onClose={onClose}
+      />,
+    );
+    await user.type(screen.getByLabelText("Email"), "morgan@coastal.example");
+    await user.type(screen.getByLabelText("Name"), "Morgan Lee");
+    await user.click(screen.getByRole("button", { name: "Submit" }));
+
+    await screen.findByRole("alert");
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 });

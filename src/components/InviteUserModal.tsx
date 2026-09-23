@@ -10,6 +10,11 @@ export function InviteUserModal({
   customers,
   lockedCustomer,
   canInviteOwner = false,
+  customersWithOwner = [],
+  autoOpen = false,
+  hideTrigger = false,
+  initialRole,
+  onClose,
 }: {
   customers: Customer[];
   /**
@@ -31,9 +36,30 @@ export function InviteUserModal({
    * meaning without one.
    */
   canInviteOwner?: boolean;
+  /**
+   * customerIds that already have a Customer Owner — gates the "this
+   * transfers ownership" warning below to only show once there's an
+   * existing owner to actually transfer away from. A customer that's
+   * never had one yet is a first assignment, not a transfer.
+   */
+  customersWithOwner?: string[];
+  /**
+   * Opens the modal immediately on mount, without needing its own
+   * "Invite user" button clicked first — used together with hideTrigger
+   * and initialRole by UsersTable's per-row "Transfer Ownership" action,
+   * which mounts a dedicated, single-use instance of this modal already
+   * locked to the target customer and preset to invite a new Owner.
+   */
+  autoOpen?: boolean;
+  /** Hides the built-in "Invite user" button — for the same externally-triggered use case as autoOpen, where the caller supplies its own trigger (e.g. a dropdown menu item). */
+  hideTrigger?: boolean;
+  /** Role to preselect on open, overriding the usual lockedCustomer-based default. Only meaningful alongside autoOpen/hideTrigger — the normal, self-triggered flow always starts from its own computed default. */
+  initialRole?: string;
+  /** Called whenever the modal closes, for any reason (Cancel, backdrop click, or a successful submit) — lets a caller using autoOpen/hideTrigger unmount this single-use instance. */
+  onClose?: () => void;
 }) {
   const router = useRouter();
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(autoOpen);
   const [customerQuery, setCustomerQuery] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
     lockedCustomer ?? null,
@@ -44,8 +70,11 @@ export function InviteUserModal({
   const [emailTouched, setEmailTouched] = useState(false);
   const [nameTouched, setNameTouched] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
-  const [role, setRole] = useState(lockedCustomer ? "Customer Admin" : "Streetleaf Admin");
+  const [role, setRole] = useState(
+    initialRole ?? (lockedCustomer ? "Customer Admin" : "Streetleaf Admin"),
+  );
   const [submitting, setSubmitting] = useState(false);
+  const [showTransferSuccess, setShowTransferSuccess] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const customerSearchRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
@@ -89,6 +118,13 @@ export function InviteUserModal({
   const hasCustomerContext = Boolean(lockedCustomer) || (selectedCustomer != null && !treatsAsNoCustomer);
   const canOfferOwner = canInviteOwner && hasCustomerContext;
 
+  // Whether the transfer warning below is meaningful for whichever
+  // customer is currently in context — only once that customer already
+  // has an existing owner to actually replace, not for a first-ever
+  // assignment.
+  const currentCustomerHasOwner =
+    selectedCustomer != null && customersWithOwner.includes(selectedCustomer.id);
+
   const filteredCustomers = useMemo(() => {
     const q = customerQuery.trim().toLowerCase();
     if (!q) return customers;
@@ -110,18 +146,20 @@ export function InviteUserModal({
     setSelectedCustomer(lockedCustomer ?? null);
     setEmail("");
     setName("");
-    setRole(lockedCustomer ? "Customer Admin" : "Streetleaf Admin");
+    setRole(initialRole ?? (lockedCustomer ? "Customer Admin" : "Streetleaf Admin"));
     setAttempted(false);
     setEmailTouched(false);
     setNameTouched(false);
     setSearchFocused(false);
     setSubmitting(false);
     setFormError(null);
+    setShowTransferSuccess(false);
   }
 
   function close() {
     setIsOpen(false);
     reset();
+    onClose?.();
   }
 
   async function handleSubmit() {
@@ -160,11 +198,24 @@ export function InviteUserModal({
         return;
       }
 
-      close();
       // Users page is server-rendered (force-dynamic) — refresh re-fetches
       // getUsers()/getCustomers() so the newly invited user shows up right
       // away instead of waiting for the next natural navigation/revalidate.
+      // Done immediately either way, rather than deferring it to whenever
+      // the person acknowledges the transfer-success message below.
       router.refresh();
+
+      if (role === "Customer Owner") {
+        // An ownership transfer is significant enough (it silently removes
+        // the current owner once accepted) to confirm explicitly, rather
+        // than closing immediately like a normal invite — the form's own
+        // state (name/selectedCustomer) stays in place to back the
+        // message below, since close()/reset() haven't run yet.
+        setSubmitting(false);
+        setShowTransferSuccess(true);
+      } else {
+        close();
+      }
     } catch {
       setFormError("Something went wrong. Please try again.");
       setSubmitting(false);
@@ -185,13 +236,15 @@ export function InviteUserModal({
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setIsOpen(true)}
-        className="rounded-md bg-[var(--accent)] px-3.5 py-2 text-[13px] font-medium text-white shadow-sm hover:bg-[var(--accent-strong)]"
-      >
-        Invite user
-      </button>
+      {!hideTrigger && (
+        <button
+          type="button"
+          onClick={() => setIsOpen(true)}
+          className="rounded-md bg-[var(--accent)] px-3.5 py-2 text-[13px] font-medium text-white shadow-sm hover:bg-[var(--accent-strong)]"
+        >
+          Invite user
+        </button>
+      )}
 
       {isOpen && (
         <div
@@ -205,191 +258,227 @@ export function InviteUserModal({
             className="w-full max-w-[420px] rounded-lg border border-[var(--border)] bg-[var(--surface)] p-6 shadow-lg"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 id="invite-user-title" className="text-[16px] font-semibold text-[var(--ink)]">
-              Invite user
-            </h2>
-
-            {lockedCustomer ? (
-              <div className="mt-4">
-                <span className="text-[12px] font-medium text-[var(--ink-muted)]">Customer</span>
-                <p className="mt-1.5 text-[13px] text-[var(--ink)]">{lockedCustomer.name}</p>
-              </div>
-            ) : (
-              <div className="mt-4">
-                <label
-                  htmlFor="invite-customer-search"
-                  className="text-[12px] font-medium text-[var(--ink-muted)]"
+            {showTransferSuccess ? (
+              <>
+                <h2
+                  id="invite-user-title"
+                  className="text-[16px] font-semibold text-[var(--ink)]"
                 >
-                  Customer Search
-                </label>
-                <input
-                  id="invite-customer-search"
-                  ref={customerSearchRef}
-                  type="text"
-                  value={customerQuery}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setCustomerQuery(value);
-                    // Clearing the box back to empty while a customer is
-                    // selected is treated the same as clicking "Change" —
-                    // it un-picks the customer, so the role reverts to
-                    // Streetleaf Admin rather than silently staying on
-                    // Customer Admin (or a "User" choice made under that
-                    // context) for a customer no longer visible/typed.
-                    if (value === "" && selectedCustomer) {
-                      setSelectedCustomer(null);
-                      setRole("Streetleaf Admin");
-                    }
-                  }}
-                  onFocus={(e) => {
-                    e.target.select();
-                    setSearchFocused(true);
-                  }}
-                  placeholder="Search customers…"
-                  className="mt-1.5 w-full rounded-md border border-[var(--border)] px-3 py-2 text-[13px] text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft)]"
-                />
-                {searchFocused && (
-                  <div className="mt-1.5 max-h-32 overflow-y-auto rounded-md border border-[var(--border)]">
-                    {filteredCustomers.length === 0 ? (
-                      <p className="px-3 py-2 text-[12.5px] text-[var(--ink-faint)]">
-                        No matching customers.
-                      </p>
-                    ) : (
-                      filteredCustomers.map((c) => (
+                  Invitation sent
+                </h2>
+                <p className="mt-2 text-[13px] text-[var(--ink-muted)]">
+                  <span className="font-medium text-[var(--ink)]">{name.trim()}</span> has been
+                  invited to become the new Customer Owner
+                  {selectedCustomer ? (
+                    <>
+                      {" "}
+                      for{" "}
+                      <span className="font-medium text-[var(--ink)]">
+                        {selectedCustomer.name}
+                      </span>
+                    </>
+                  ) : null}
+                  . Once they accept, the current owner will be removed.
+                </p>
+                <div className="mt-6 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={close}
+                    className="rounded-md bg-[var(--accent)] px-3.5 py-2 text-[13px] font-medium text-white hover:bg-[var(--accent-strong)]"
+                  >
+                    OK
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 id="invite-user-title" className="text-[16px] font-semibold text-[var(--ink)]">
+                  Invite user
+                </h2>
+
+                {lockedCustomer ? (
+                  <div className="mt-4">
+                    <span className="text-[12px] font-medium text-[var(--ink-muted)]">Customer</span>
+                    <p className="mt-1.5 text-[13px] text-[var(--ink)]">{lockedCustomer.name}</p>
+                  </div>
+                ) : (
+                  <div className="mt-4">
+                    <label
+                      htmlFor="invite-customer-search"
+                      className="text-[12px] font-medium text-[var(--ink-muted)]"
+                    >
+                      Customer Search
+                    </label>
+                    <input
+                      id="invite-customer-search"
+                      ref={customerSearchRef}
+                      type="text"
+                      value={customerQuery}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setCustomerQuery(value);
+                        // Clearing the box back to empty while a customer is
+                        // selected is treated the same as clicking "Change" —
+                        // it un-picks the customer, so the role reverts to
+                        // Streetleaf Admin rather than silently staying on
+                        // Customer Admin (or a "User" choice made under that
+                        // context) for a customer no longer visible/typed.
+                        if (value === "" && selectedCustomer) {
+                          setSelectedCustomer(null);
+                          setRole("Streetleaf Admin");
+                        }
+                      }}
+                      onFocus={(e) => {
+                        e.target.select();
+                        setSearchFocused(true);
+                      }}
+                      placeholder="Search customers…"
+                      className="mt-1.5 w-full rounded-md border border-[var(--border)] px-3 py-2 text-[13px] text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft)]"
+                    />
+                    {searchFocused && (
+                      <div className="mt-1.5 max-h-32 overflow-y-auto rounded-md border border-[var(--border)]">
+                        {filteredCustomers.length === 0 ? (
+                          <p className="px-3 py-2 text-[12.5px] text-[var(--ink-faint)]">
+                            No matching customers.
+                          </p>
+                        ) : (
+                          filteredCustomers.map((c) => (
+                            <button
+                              key={c.id}
+                              type="button"
+                              onClick={() => handleSelectCustomer(c)}
+                              className="block w-full border-b border-[var(--border)] px-3 py-2 text-left text-[13px] text-[var(--ink)] last:border-b-0 hover:bg-[var(--surface-sunken)]"
+                            >
+                              {c.name}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                    {selectedCustomer && (
+                      <div className="mt-1.5 flex items-center justify-between">
+                        <span className="text-[13px] text-[var(--ink-muted)]">
+                          Selected:{" "}
+                          <span className="font-medium text-[var(--accent)]">
+                            {selectedCustomer.name}
+                          </span>
+                        </span>
                         <button
-                          key={c.id}
                           type="button"
-                          onClick={() => handleSelectCustomer(c)}
-                          className="block w-full border-b border-[var(--border)] px-3 py-2 text-left text-[13px] text-[var(--ink)] last:border-b-0 hover:bg-[var(--surface-sunken)]"
+                          onClick={handleChangeCustomer}
+                          className="text-[12px] font-medium text-[var(--accent-ink)] hover:underline"
                         >
-                          {c.name}
+                          Change
                         </button>
-                      ))
+                      </div>
                     )}
                   </div>
                 )}
-                {selectedCustomer && (
-                  <div className="mt-1.5 flex items-center justify-between">
-                    <span className="text-[13px] text-[var(--ink-muted)]">
-                      Selected:{" "}
-                      <span className="font-medium text-[var(--accent)]">
-                        {selectedCustomer.name}
-                      </span>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={handleChangeCustomer}
-                      className="text-[12px] font-medium text-[var(--accent-ink)] hover:underline"
-                    >
-                      Change
-                    </button>
-                  </div>
+
+                <div className="mt-4">
+                  <label
+                    htmlFor="invite-email"
+                    className="text-[12px] font-medium text-[var(--ink-muted)]"
+                  >
+                    Email
+                  </label>
+                  <input
+                    id="invite-email"
+                    ref={emailRef}
+                    type="email"
+                    value={email}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      setEmailTouched(true);
+                    }}
+                    className={`mt-1.5 w-full rounded-md border px-3 py-2 text-[13px] text-[var(--ink)] focus:outline-none focus:ring-2 ${
+                      emailError
+                        ? "border-[var(--status-flagged)] focus:ring-[var(--status-flagged-bg)]"
+                        : "border-[var(--border)] focus:border-[var(--accent)] focus:ring-[var(--accent-soft)]"
+                    }`}
+                  />
+                  {emailError && (
+                    <p className="mt-1 text-[12px] text-[var(--status-flagged)]">{emailError}</p>
+                  )}
+                </div>
+
+                <div className="mt-4">
+                  <label
+                    htmlFor="invite-name"
+                    className="text-[12px] font-medium text-[var(--ink-muted)]"
+                  >
+                    Name
+                  </label>
+                  <input
+                    id="invite-name"
+                    type="text"
+                    value={name}
+                    onChange={(e) => {
+                      setName(e.target.value);
+                      setNameTouched(true);
+                    }}
+                    className={`mt-1.5 w-full rounded-md border px-3 py-2 text-[13px] text-[var(--ink)] focus:outline-none focus:ring-2 ${
+                      nameError
+                        ? "border-[var(--status-flagged)] focus:ring-[var(--status-flagged-bg)]"
+                        : "border-[var(--border)] focus:border-[var(--accent)] focus:ring-[var(--accent-soft)]"
+                    }`}
+                  />
+                  {nameError && <p className="mt-1 text-[12px] text-[var(--status-flagged)]">{nameError}</p>}
+                </div>
+
+                <div className="mt-4">
+                  <label
+                    htmlFor="invite-role"
+                    className="text-[12px] font-medium text-[var(--ink-muted)]"
+                  >
+                    Role
+                  </label>
+                  <select
+                    id="invite-role"
+                    value={role}
+                    onChange={(e) => setRole(e.target.value)}
+                    className="mt-1.5 w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-[13px] text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft)]"
+                  >
+                    {canOfferOwner && <option value="Customer Owner">Customer Owner</option>}
+                    <option value={defaultRole}>{defaultRole}</option>
+                    <option value="User">User</option>
+                  </select>
+                  {role === "Customer Owner" && currentCustomerHasOwner && (
+                    <p className="mt-1.5 text-[12px] text-[var(--status-flagged)]">
+                      This transfers ownership — once accepted, the current Customer Owner is
+                      removed.
+                    </p>
+                  )}
+                </div>
+
+                {formError && (
+                  <p
+                    role="alert"
+                    className="mt-4 rounded-md border border-[var(--status-flagged)] bg-[var(--status-flagged-bg)] px-3 py-2 text-[12.5px] text-[var(--status-flagged)]"
+                  >
+                    {formError}
+                  </p>
                 )}
-              </div>
+
+                <div className="mt-6 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={close}
+                    className="rounded-md border border-[var(--border)] px-3.5 py-2 text-[13px] font-medium text-[var(--ink)] hover:bg-[var(--surface-sunken)]"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSubmit}
+                    disabled={submitting}
+                    className="rounded-md bg-[var(--accent)] px-3.5 py-2 text-[13px] font-medium text-white hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {submitting ? "Sending…" : "Submit"}
+                  </button>
+                </div>
+              </>
             )}
-
-            <div className="mt-4">
-              <label
-                htmlFor="invite-email"
-                className="text-[12px] font-medium text-[var(--ink-muted)]"
-              >
-                Email
-              </label>
-              <input
-                id="invite-email"
-                ref={emailRef}
-                type="email"
-                value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value);
-                  setEmailTouched(true);
-                }}
-                className={`mt-1.5 w-full rounded-md border px-3 py-2 text-[13px] text-[var(--ink)] focus:outline-none focus:ring-2 ${
-                  emailError
-                    ? "border-[var(--status-flagged)] focus:ring-[var(--status-flagged-bg)]"
-                    : "border-[var(--border)] focus:border-[var(--accent)] focus:ring-[var(--accent-soft)]"
-                }`}
-              />
-              {emailError && (
-                <p className="mt-1 text-[12px] text-[var(--status-flagged)]">{emailError}</p>
-              )}
-            </div>
-
-            <div className="mt-4">
-              <label
-                htmlFor="invite-name"
-                className="text-[12px] font-medium text-[var(--ink-muted)]"
-              >
-                Name
-              </label>
-              <input
-                id="invite-name"
-                type="text"
-                value={name}
-                onChange={(e) => {
-                  setName(e.target.value);
-                  setNameTouched(true);
-                }}
-                className={`mt-1.5 w-full rounded-md border px-3 py-2 text-[13px] text-[var(--ink)] focus:outline-none focus:ring-2 ${
-                  nameError
-                    ? "border-[var(--status-flagged)] focus:ring-[var(--status-flagged-bg)]"
-                    : "border-[var(--border)] focus:border-[var(--accent)] focus:ring-[var(--accent-soft)]"
-                }`}
-              />
-              {nameError && <p className="mt-1 text-[12px] text-[var(--status-flagged)]">{nameError}</p>}
-            </div>
-
-            <div className="mt-4">
-              <label
-                htmlFor="invite-role"
-                className="text-[12px] font-medium text-[var(--ink-muted)]"
-              >
-                Role
-              </label>
-              <select
-                id="invite-role"
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                className="mt-1.5 w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-[13px] text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft)]"
-              >
-                <option value={defaultRole}>{defaultRole}</option>
-                {canOfferOwner && <option value="Customer Owner">Customer Owner</option>}
-                <option value="User">User</option>
-              </select>
-              {role === "Customer Owner" && (
-                <p className="mt-1.5 text-[12px] text-[var(--status-flagged)]">
-                  This transfers ownership — once accepted, the current Customer Owner is
-                  removed.
-                </p>
-              )}
-            </div>
-
-            {formError && (
-              <p
-                role="alert"
-                className="mt-4 rounded-md border border-[var(--status-flagged)] bg-[var(--status-flagged-bg)] px-3 py-2 text-[12.5px] text-[var(--status-flagged)]"
-              >
-                {formError}
-              </p>
-            )}
-
-            <div className="mt-6 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={close}
-                className="rounded-md border border-[var(--border)] px-3.5 py-2 text-[13px] font-medium text-[var(--ink)] hover:bg-[var(--surface-sunken)]"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={submitting}
-                className="rounded-md bg-[var(--accent)] px-3.5 py-2 text-[13px] font-medium text-white hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-70"
-              >
-                {submitting ? "Sending…" : "Submit"}
-              </button>
-            </div>
           </div>
         </div>
       )}

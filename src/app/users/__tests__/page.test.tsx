@@ -390,6 +390,45 @@ describe("UsersPage", () => {
     expect(roleOptions).toContain("Customer Owner");
   });
 
+  it("shows Transfer Ownership on a Customer Owner's own row when they're the one logged in", async () => {
+    const ownSessionOwner: User = {
+      id: "owner-self",
+      name: "Morgan Lee",
+      email: "morgan@coastal.example",
+      role: "Customer Owner",
+      status: "Active",
+      customerId: "rec5uaHZMOGZGyVcY",
+      customerName: "Coastal Power & Light",
+    };
+    getSessionUserMock.mockResolvedValue({
+      id: "owner-self",
+      role: "Customer Owner",
+      customerId: "rec5uaHZMOGZGyVcY",
+    });
+    getUsersMock.mockResolvedValue([...users, ownSessionOwner]);
+    getCustomerMock.mockResolvedValue({
+      id: "rec5uaHZMOGZGyVcY",
+      name: "Coastal Power & Light",
+      projects: [],
+      address: null,
+      city: null,
+      state: null,
+      zip: null,
+      phone: null,
+      active: true,
+    });
+
+    const jsx = await UsersPage();
+    render(jsx);
+    const user = userEvent.setup();
+
+    const row = screen.getByText("Morgan Lee").closest("tr") as HTMLElement;
+    await user.click(within(row).getByRole("button", { name: "Actions for Morgan Lee" }));
+
+    expect(within(row).getByRole("menuitem", { name: "Transfer Ownership" })).toBeInTheDocument();
+    expect(within(row).queryByRole("menuitem", { name: "Delete" })).not.toBeInTheDocument();
+  });
+
   it("does not offer 'Customer Owner' in the Invite modal's role picker for a plain Customer Admin — only a Streetleaf Admin or the customer's own Owner can transfer ownership", async () => {
     getSessionUserMock.mockResolvedValue({
       id: "u1",
@@ -418,6 +457,74 @@ describe("UsersPage", () => {
       (screen.getByLabelText("Role") as HTMLSelectElement).options,
     ).map((o) => o.value);
     expect(roleOptions).not.toContain("Customer Owner");
+  });
+
+  it("gives a Streetleaf Admin viewer Transfer Ownership and Delete on a Customer Owner's row, end to end", async () => {
+    getSessionUserMock.mockResolvedValue({
+      id: "u1",
+      role: "Streetleaf Admin",
+      customerId: null,
+    });
+    const owner: User = {
+      id: "owner-1",
+      name: "Morgan Lee",
+      email: "morgan@acme.example",
+      role: "Customer Owner",
+      status: "Active",
+      customerId: "rec5uaHZMOGZGyVcY",
+      customerName: "Coastal Power & Light",
+    };
+    getUsersMock.mockResolvedValue([...users, owner]);
+    getCustomersMock.mockResolvedValue([]);
+
+    const jsx = await UsersPage();
+    render(jsx);
+    const user = userEvent.setup();
+
+    const row = screen.getByText("Morgan Lee").closest("tr") as HTMLElement;
+    await user.click(within(row).getByRole("button", { name: "Actions for Morgan Lee" }));
+
+    expect(within(row).getByRole("menuitem", { name: "Transfer Ownership" })).toBeInTheDocument();
+    expect(within(row).getByRole("menuitem", { name: "Delete" })).toBeInTheDocument();
+    expect(within(row).queryByRole("menuitem", { name: "Change Role" })).not.toBeInTheDocument();
+  });
+
+  it("shows the ownership-transfer warning only for a customer that already has an owner, when a Streetleaf Admin searches and picks a customer in the Invite modal", async () => {
+    getSessionUserMock.mockResolvedValue({
+      id: "u1",
+      role: "Streetleaf Admin",
+      customerId: null,
+    });
+    const owner: User = {
+      id: "owner-1",
+      name: "Morgan Lee",
+      email: "morgan@acme.example",
+      role: "Customer Owner",
+      status: "Active",
+      customerId: "rec5uaHZMOGZGyVcY",
+      customerName: "Coastal Power & Light",
+    };
+    getUsersMock.mockResolvedValue([...users, owner]);
+    getCustomersMock.mockResolvedValue([
+      { id: "rec5uaHZMOGZGyVcY", name: "Coastal Power & Light", active: true },
+      { id: "rec-other-customer", name: "Otherco", active: true },
+    ]);
+
+    const jsx = await UsersPage();
+    render(jsx);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "Invite user" }));
+    await user.click(screen.getByLabelText("Customer Search"));
+    await user.click(screen.getByRole("button", { name: "Coastal Power & Light" }));
+    await user.selectOptions(screen.getByLabelText("Role"), "Customer Owner");
+    expect(screen.getByText(/transfers ownership/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Change" }));
+    await user.click(screen.getByLabelText("Customer Search"));
+    await user.click(screen.getByRole("button", { name: "Otherco" }));
+    await user.selectOptions(screen.getByLabelText("Role"), "Customer Owner");
+    expect(screen.queryByText(/transfers ownership/i)).not.toBeInTheDocument();
   });
 
   it("hides the Actions column entirely for a plain User role, even for other users' rows", async () => {

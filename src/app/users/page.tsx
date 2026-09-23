@@ -57,6 +57,19 @@ export default async function UsersPage() {
     ? allUsers.filter((u) => u.customerId === sessionUser?.customerId)
     : allUsers;
 
+  // Which customers already have a Customer Owner — drives whether
+  // InviteUserModal's "this transfers ownership" warning shows when
+  // "Customer Owner" is picked as the invite role: only meaningful once
+  // there's an existing owner to actually transfer away from, not for a
+  // customer that's never had one yet. Derived from `users` rather than
+  // `allUsers` — for a Streetleaf Admin they're the same (users IS
+  // allUsers, unfiltered), and for a locked-customer viewer (Customer
+  // Admin/Owner), `users` is already scoped to the one customer they can
+  // ever invite into anyway.
+  const customersWithOwner = users
+    .filter((u) => u.role === "Customer Owner" && u.customerId)
+    .map((u) => u.customerId as string);
+
   return (
     <>
       <PageHeader
@@ -67,6 +80,7 @@ export default async function UsersPage() {
               customers={customers}
               lockedCustomer={ownCustomer}
               canInviteOwner={canInviteOwner}
+              customersWithOwner={customersWithOwner}
             />
           )
         }
@@ -77,6 +91,7 @@ export default async function UsersPage() {
         canManageUsers={canManageUsers}
         currentUserId={sessionUser?.id}
         customerScoped={customerScoped}
+        viewerIsStreetleafAdmin={isStreetleafAdmin}
       />
     </>
   );
