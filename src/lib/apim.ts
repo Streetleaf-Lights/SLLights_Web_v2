@@ -663,7 +663,17 @@ export interface SignInResult {
  * that message so the sign-in form can show it verbatim instead of a
  * generic failure.
  */
-export async function signIn(email: string, password: string): Promise<SignInResult> {
+/**
+ * customerId is optional and for debugging only — lets a request specify
+ * which customer context to sign in under, when the /signin page was
+ * visited with a ?customerId= query param. Omitted from the request body
+ * entirely when not provided, so normal sign-ins are unaffected.
+ */
+export async function signIn(
+  email: string,
+  password: string,
+  customerId?: string,
+): Promise<SignInResult> {
   if (!APIM_BASE_URL) {
     throw new ApimError("NEXT_PUBLIC_APIM_BASE_URL is not configured. Set it in .env.local.");
   }
@@ -674,7 +684,7 @@ export async function signIn(email: string, password: string): Promise<SignInRes
       "Content-Type": "application/json",
       "Ocp-Apim-Subscription-Key": APIM_SUBSCRIPTION_KEY,
     },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, ...(customerId ? { customerId } : {}) }),
     cache: "no-store",
   });
 

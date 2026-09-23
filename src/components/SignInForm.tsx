@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { homeRouteForRole } from "@/lib/auth-role";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -30,6 +31,12 @@ function EyeOffIcon() {
 }
 
 export function SignInForm() {
+  const searchParams = useSearchParams();
+  // For debugging only — lets a request specify which customer context to
+  // sign in under, via a ?customerId= query param on this page. Omitted
+  // from the request entirely for a normal sign-in (no param present).
+  const debugCustomerId = searchParams.get("customerId") ?? undefined;
+
   const [email, setEmail] = useState("");
   const [emailTouched, setEmailTouched] = useState(false);
   const [password, setPassword] = useState("");
@@ -61,7 +68,11 @@ export function SignInForm() {
       const res = await fetch("/api/signin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: trimmedEmail, password }),
+        body: JSON.stringify({
+          email: trimmedEmail,
+          password,
+          ...(debugCustomerId ? { customerId: debugCustomerId } : {}),
+        }),
       });
       const body = await res.json().catch(() => null);
 

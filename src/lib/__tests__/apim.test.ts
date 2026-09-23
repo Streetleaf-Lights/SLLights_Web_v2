@@ -1602,6 +1602,33 @@ describe("signIn", () => {
     expect(init.body).toBe(JSON.stringify({ email: "minh@streetleaf.com", password: "hunter2" }));
   });
 
+  it("includes customerId in the body when provided (debugging only)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => successBody });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await signIn("minh@streetleaf.com", "hunter2", "rec5uaHZMOGZGyVcY");
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.body).toBe(
+      JSON.stringify({
+        email: "minh@streetleaf.com",
+        password: "hunter2",
+        customerId: "rec5uaHZMOGZGyVcY",
+      }),
+    );
+  });
+
+  it("omits customerId from the body entirely when not provided", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => successBody });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await signIn("minh@streetleaf.com", "hunter2");
+
+    const [, init] = fetchMock.mock.calls[0];
+    const body = JSON.parse(init.body);
+    expect(body).not.toHaveProperty("customerId");
+  });
+
   it("does not request caching/revalidation (this is a mutating call)", async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => successBody });
     vi.stubGlobal("fetch", fetchMock);

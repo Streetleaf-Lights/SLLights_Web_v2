@@ -56,6 +56,38 @@ describe("POST /api/signin", () => {
     expect(JSON.stringify(body)).not.toContain("jwt-token");
   });
 
+  it("forwards a valid customerId to signIn as the third argument", async () => {
+    signInMock.mockResolvedValue({ token: "jwt-token", user: authUser });
+
+    await POST(
+      request({ email: "minh@streetleaf.com", password: "hunter2", customerId: "rec5uaHZMOGZGyVcY" }),
+    );
+
+    expect(signInMock).toHaveBeenCalledWith(
+      "minh@streetleaf.com",
+      "hunter2",
+      "rec5uaHZMOGZGyVcY",
+    );
+  });
+
+  it("passes undefined for customerId when the field is absent", async () => {
+    signInMock.mockResolvedValue({ token: "jwt-token", user: authUser });
+
+    await POST(request({ email: "minh@streetleaf.com", password: "hunter2" }));
+
+    expect(signInMock).toHaveBeenCalledWith("minh@streetleaf.com", "hunter2", undefined);
+  });
+
+  it("treats an empty-string or non-string customerId as absent, rather than rejecting the request", async () => {
+    signInMock.mockResolvedValue({ token: "jwt-token", user: authUser });
+
+    await POST(request({ email: "minh@streetleaf.com", password: "hunter2", customerId: "" }));
+    expect(signInMock).toHaveBeenLastCalledWith("minh@streetleaf.com", "hunter2", undefined);
+
+    await POST(request({ email: "minh@streetleaf.com", password: "hunter2", customerId: 12345 }));
+    expect(signInMock).toHaveBeenLastCalledWith("minh@streetleaf.com", "hunter2", undefined);
+  });
+
   it("sets the token as an httpOnly session cookie, never exposed to client JS", async () => {
     signInMock.mockResolvedValue({ token: "jwt-token", user: authUser });
 

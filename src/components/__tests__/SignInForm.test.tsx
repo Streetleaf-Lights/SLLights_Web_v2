@@ -1,6 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+
+const { searchParamsGetMock } = vi.hoisted(() => ({
+  searchParamsGetMock: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => ({ get: searchParamsGetMock }),
+}));
+
 import { SignInForm } from "@/components/SignInForm";
 
 function mockSignInResponse(ok: boolean, body: unknown) {
@@ -12,6 +21,10 @@ function mockSignInResponse(ok: boolean, body: unknown) {
 
 describe("SignInForm", () => {
   beforeEach(() => {
+    // Defaults to no customerId present — a normal sign-in. Tests for the
+    // debug customerId pass-through override this with mockReturnValue.
+    searchParamsGetMock.mockReset();
+    searchParamsGetMock.mockReturnValue(null);
     // SignInForm does a full navigation (window.location.href = ...) rather
     // than router.push, so it can't be verified via a next/navigation mock
     // — jsdom doesn't implement real navigation, so replace location with a
@@ -119,6 +132,49 @@ describe("SignInForm", () => {
         body: JSON.stringify({ email: "jane@example.com", password: "hunter2" }),
       }),
     );
+  });
+
+  it("includes customerId in the request body when the ?customerId= query param is present, for debugging", async () => {
+    searchParamsGetMock.mockImplementation((key: string) =>
+      key === "customerId" ? "rec5uaHZMOGZGyVcY" : null,
+    );
+    const fetchMock = mockSignInResponse(true, { user: { id: "1" } });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const user = userEvent.setup();
+    render(<SignInForm />);
+    await user.type(screen.getByLabelText("Email"), "jane@example.com");
+    await user.type(screen.getByLabelText("Password"), "hunter2");
+    await user.click(screen.getByRole("button", { name: "Sign In" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/signin",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          email: "jane@example.com",
+          password: "hunter2",
+          customerId: "rec5uaHZMOGZGyVcY",
+        }),
+      }),
+    );
+  });
+
+  it("omits customerId from the request body entirely when the query param is absent — a normal sign-in", async () => {
+    const fetchMock = mockSignInResponse(true, { user: { id: "1" } });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const user = userEvent.setup();
+    render(<SignInForm />);
+    await user.type(screen.getByLabelText("Email"), "jane@example.com");
+    await user.type(screen.getByLabelText("Password"), "hunter2");
+    await user.click(screen.getByRole("button", { name: "Sign In" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [, init] = fetchMock.mock.calls[0];
+    const body = JSON.parse(init.body);
+    expect(body).not.toHaveProperty("customerId");
   });
 
   it("navigates to /customers on a successful sign-in", async () => {

@@ -25,8 +25,9 @@ const FALLBACK_SESSION_MAX_AGE_SECONDS = 60 * 60 * 12;
 export async function POST(request: Request) {
   let email: unknown;
   let password: unknown;
+  let customerId: unknown;
   try {
-    ({ email, password } = await request.json());
+    ({ email, password, customerId } = await request.json());
   } catch {
     return NextResponse.json({ error: "Malformed request body." }, { status: 400 });
   }
@@ -36,7 +37,15 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { token, user } = await signIn(email, password);
+    // customerId is optional and for debugging only — see signIn() in
+    // apim.ts. Anything other than a non-empty string is treated as
+    // absent, rather than rejecting the whole sign-in over a malformed
+    // debug param.
+    const { token, user } = await signIn(
+      email,
+      password,
+      typeof customerId === "string" && customerId ? customerId : undefined,
+    );
 
     const response = NextResponse.json({ user });
     response.cookies.set("session", token, {
