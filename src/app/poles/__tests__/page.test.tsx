@@ -60,7 +60,7 @@ const poles: PoleSummary[] = [
     isBatteryFault: null,
     isPanelFault: null,
     isOpenIssueFault: null,
-    isPoleFault: null,
+    isPoleFault: null, poleIssues: [],
     projectId: "proj-1",
     customerId: "rec5uaHZMOGZGyVcY",
   },
@@ -71,31 +71,31 @@ const projectPoles: PoleSummary[] = [
     ...poles[0],
     id: "fp1",
     poleNumber: "51079-2000",
-    isPoleFault: true,
+    isPoleFault: true, poleIssues: [],
     lastUpdate: new Date().toISOString(),
   },
   {
     ...poles[0],
     id: "fp2",
     poleNumber: "51079-2001",
-    isPoleFault: false,
+    isPoleFault: false, poleIssues: [],
     lastUpdate: new Date().toISOString(),
   },
   {
     ...poles[0],
     id: "fp3",
     poleNumber: "51079-2002",
-    isPoleFault: null,
+    isPoleFault: null, poleIssues: [],
     lastUpdate: new Date().toISOString(),
   },
   // Faulted, but never reported at all — should be excluded.
-  { ...poles[0], id: "fp4", poleNumber: "51079-2003", isPoleFault: true, lastUpdate: null },
+  { ...poles[0], id: "fp4", poleNumber: "51079-2003", isPoleFault: true, poleIssues: [], lastUpdate: null },
   // Faulted, but last reported more than 48h ago — should also be excluded.
   {
     ...poles[0],
     id: "fp5",
     poleNumber: "51079-2004",
-    isPoleFault: true,
+    isPoleFault: true, poleIssues: [],
     lastUpdate: new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString(),
   },
 ];
@@ -280,9 +280,9 @@ describe("PolesPage", () => {
       render(jsx);
 
       expect(getPolesMock).toHaveBeenCalledWith({ projectId: "proj-1" });
-      expect(screen.getByText("51079-2000")).toBeInTheDocument(); // isPoleFault: true, reporting
-      expect(screen.queryByText("51079-2001")).not.toBeInTheDocument(); // isPoleFault: false
-      expect(screen.queryByText("51079-2002")).not.toBeInTheDocument(); // isPoleFault: null
+      expect(screen.getByText("51079-2000")).toBeInTheDocument(); // isPoleFault: true, poleIssues: [], reporting
+      expect(screen.queryByText("51079-2001")).not.toBeInTheDocument(); // isPoleFault: false, poleIssues: []
+      expect(screen.queryByText("51079-2002")).not.toBeInTheDocument(); // isPoleFault: null, poleIssues: []
       expect(screen.queryByText("51079-2003")).not.toBeInTheDocument(); // faulted, but never reported (Unknown)
       expect(screen.queryByText("51079-2004")).not.toBeInTheDocument(); // faulted, but stale (72h)
     });

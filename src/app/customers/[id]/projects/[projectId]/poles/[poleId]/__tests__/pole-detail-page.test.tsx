@@ -127,7 +127,7 @@ const vitals: CustomerPoleVitals = {
           isBatteryFault: false,
           isPanelFault: false,
           isOpenIssueFault: false,
-          isPoleFault: false,
+          isPoleFault: false, poleIssues: [],
         },
       ],
     },
@@ -378,7 +378,7 @@ describe("PoleDetailPage", () => {
           poles: [
             {
               ...vitals.projects[0].poles[0],
-              isPoleFault: false,
+              isPoleFault: false, poleIssues: [],
               overallStatusText: "Not Reporting 48H",
             },
           ],
@@ -714,7 +714,7 @@ describe("PoleDetailPage", () => {
           poles: [
             {
               ...vitals.projects[0].poles[0],
-              isPoleFault: true,
+              isPoleFault: true, poleIssues: [],
               isLedFault: true,
               isPanelFault: true,
               isBatteryFault: true,
@@ -741,6 +741,76 @@ describe("PoleDetailPage", () => {
     expect(openIssue.className).toContain("text-[var(--status-flagged)]");
   });
 
+  it("shows 'Report Issue' under Issue Entry when the pole has no poleIssues", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
+    const jsx = await PoleDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(screen.getByRole("button", { name: "Report Issue" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "View or Report Issue" })).not.toBeInTheDocument();
+  });
+
+  it("shows 'View or Report Issue' under Issue Entry, and lists the issues in the modal, when the pole has poleIssues", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue({
+      ...vitals,
+      projects: [
+        {
+          ...vitals.projects[0],
+          poles: [
+            {
+              ...vitals.projects[0].poles[0],
+              poleIssues: [
+                {
+                  status: "Open",
+                  poleStatus: "Electrical Issue",
+                  dateReported: "2026-09-01",
+                  problemDetails: "Lamp flickering at night",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const jsx = await PoleDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+    const user = userEvent.setup();
+
+    expect(screen.queryByRole("button", { name: "Report Issue" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "View or Report Issue" }));
+
+    expect(screen.getByText("Electrical Issue")).toBeInTheDocument();
+    expect(screen.getByText("Lamp flickering at night")).toBeInTheDocument();
+  });
+
+  it("shows 'Report Issue' when poleIssues is missing from the API response entirely, rather than crashing", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    const poleWithoutPoleIssues = { ...vitals.projects[0].poles[0] } as Record<string, unknown>;
+    delete poleWithoutPoleIssues.poleIssues;
+    getPoleVitalsForCustomerMock.mockResolvedValue({
+      ...vitals,
+      projects: [{ ...vitals.projects[0], poles: [poleWithoutPoleIssues] }],
+    });
+    const jsx = await PoleDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(screen.getByRole("button", { name: "Report Issue" })).toBeInTheDocument();
+  });
+
   it("shows Disconnected (not a dash) for 48h Connected when isOnline is null but lastUpdate is present, and dashes for the null fault flags", async () => {
     getCustomerMock.mockResolvedValue(customer);
     getProjectsForCustomerMock.mockResolvedValue(projects);
@@ -753,7 +823,7 @@ describe("PoleDetailPage", () => {
             {
               ...vitals.projects[0].poles[0],
               isOnline: null,
-              isPoleFault: null,
+              isPoleFault: null, poleIssues: [],
               isLedFault: null,
               isPanelFault: null,
               isBatteryFault: null,
@@ -892,7 +962,7 @@ describe("PoleDetailPage", () => {
               isBatteryFault: null,
               isPanelFault: null,
               isOpenIssueFault: null,
-              isPoleFault: null,
+              isPoleFault: null, poleIssues: [],
             },
           ],
         },
@@ -948,7 +1018,7 @@ describe("PoleDetailPage", () => {
               isBatteryFault: null,
               isPanelFault: null,
               isOpenIssueFault: null,
-              isPoleFault: null,
+              isPoleFault: null, poleIssues: [],
             },
           ],
         },
@@ -1014,7 +1084,7 @@ describe("PoleDetailPage", () => {
               isPanelFault: false,
               isBatteryFault: true,
               isOpenIssueFault: false,
-              isPoleFault: true,
+              isPoleFault: true, poleIssues: [],
               overallStatusText: null,
             },
           ],

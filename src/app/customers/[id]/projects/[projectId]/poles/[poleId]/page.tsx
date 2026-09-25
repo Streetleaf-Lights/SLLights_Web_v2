@@ -6,6 +6,7 @@ import { Breadcrumbs, leadingCrumb } from "@/components/Breadcrumbs";
 import { PoleMap } from "@/components/PoleMap";
 import { PoleVitalsChart } from "@/components/PoleVitalsChart";
 import { RemoteControlLink } from "@/components/RemoteControlLink";
+import { PoleIssuesLink } from "@/components/PoleIssuesLink";
 import { InactiveBadge } from "@/components/InactiveBadge";
 import { withQueryParam, withSearchContext } from "@/lib/url";
 import {
@@ -111,10 +112,12 @@ function StatusBox({
   title,
   status,
   metrics,
+  children,
 }: {
   title: string;
   status: { text: string; className: string };
   metrics: { label: string; value: string; note?: string | null }[];
+  children?: React.ReactNode;
 }) {
   return (
     <div className="flex-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-5">
@@ -139,6 +142,7 @@ function StatusBox({
           ))}
         </div>
       )}
+      {children}
     </div>
   );
 }
@@ -423,7 +427,15 @@ export default async function PoleDetailPage({
             // never reported in — shown as-is rather than dashed out.
             status={faultStatus(pole.isOpenIssueFault, "None", "Yes")}
             metrics={[]}
-          />
+          >
+            {/* poleIssues is likewise independent of telemetry/connectivity
+                — a list of manually-reported issues, not a derived reading
+                — so it's shown regardless of connection status too. ?? []
+                guards against an older/inconsistent API response that
+                hasn't backfilled this field yet, despite the type saying
+                it's always present. */}
+            <PoleIssuesLink issues={pole.poleIssues ?? []} />
+          </StatusBox>
         </div>
       </div>
 

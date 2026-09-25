@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 
 const {
   setOptionsMock,
@@ -90,6 +90,51 @@ describe("LocationMap", () => {
     await waitFor(() =>
       expect(setOptionsMock).toHaveBeenCalledWith({ key: "test-api-key", v: "weekly" }),
     );
+  });
+
+  it("shows the load-error message when Google's own gm_authFailure callback fires (an invalid key, billing not enabled, etc.)", async () => {
+    render(<LocationMap points={[{ lat: 29.95, long: -90.07 }]} emptyMessage="No points." />);
+    await waitFor(() => expect(MapMock).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole("application", { name: "Map" })).toBeInTheDocument();
+
+    act(() => {
+      window.gm_authFailure?.();
+    });
+
+    expect(
+      await screen.findByText("Failed to load the map. Please try again later."),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("application", { name: "Map" })).not.toBeInTheDocument();
+  });
+
+  it("shows the load-error message on every currently-mounted LocationMap when gm_authFailure fires once, not just one of them", async () => {
+    render(
+      <>
+        <LocationMap points={[{ lat: 29.95, long: -90.07 }]} emptyMessage="No points." />
+        <LocationMap points={[{ lat: 30.0, long: -91.0 }]} emptyMessage="No points." />
+      </>,
+    );
+    await waitFor(() => expect(MapMock).toHaveBeenCalledTimes(2));
+
+    act(() => {
+      window.gm_authFailure?.();
+    });
+
+    const errorMessages = await screen.findAllByText(
+      "Failed to load the map. Please try again later.",
+    );
+    expect(errorMessages).toHaveLength(2);
+  });
+
+  it("does not error when gm_authFailure fires after a LocationMap has already unmounted", async () => {
+    const { unmount } = render(
+      <LocationMap points={[{ lat: 29.95, long: -90.07 }]} emptyMessage="No points." />,
+    );
+    await waitFor(() => expect(MapMock).toHaveBeenCalledTimes(1));
+
+    unmount();
+
+    expect(() => window.gm_authFailure?.()).not.toThrow();
   });
 
   it("passes the Map ID to the Map constructor", async () => {

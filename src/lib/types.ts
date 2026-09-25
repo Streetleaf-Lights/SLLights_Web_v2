@@ -82,6 +82,14 @@ export interface Project {
  * All telemetry fields are null for poles with no telemetry available (see
  * totalNonTelemetryAvailable on the parent project/customer).
  */
+/** A single reported issue for a pole, as returned within PoleVital.poleIssues. */
+export interface PoleIssue {
+  status: string;
+  poleStatus: string;
+  dateReported: string;
+  problemDetails: string;
+}
+
 export interface PoleVital {
   id: string;
   poleNumber: string;
@@ -119,6 +127,7 @@ export interface PoleVital {
   connectedText: string | null;
   /** Pre-computed "48h Overall Status" label — replaces the old client-side poleOverallStatus(pole) computation. */
   overallStatusText: string | null;
+  poleIssues: PoleIssue[];
 }
 
 /** Vitals for a single project, as nested inside GET /getPoleVitals?customerId=... */

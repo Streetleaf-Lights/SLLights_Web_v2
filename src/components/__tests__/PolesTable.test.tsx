@@ -46,7 +46,7 @@ function makePole(overrides: Partial<PoleSummary> = {}): PoleSummary {
     isBatteryFault: null,
     isPanelFault: null,
     isOpenIssueFault: null,
-    isPoleFault: null,
+    isPoleFault: null, poleIssues: [],
     projectId: "rec3ZJtlb5vqkHPS1",
     customerId: "recwx649JfiRmWqxF",
     ...overrides,
@@ -148,7 +148,7 @@ describe("PolesTable", () => {
   it("shows Overall Status as 'Not Reporting 48H' in dark-gray, not computed from isPoleFault or lastUpdate", () => {
     render(
       <PolesTable
-        poles={[makePole({ isPoleFault: true, overallStatusText: "Not Reporting 48H" })]}
+        poles={[makePole({ isPoleFault: true, poleIssues: [], overallStatusText: "Not Reporting 48H" })]}
       />,
     );
     const label = screen.getByText("Not Reporting 48H");

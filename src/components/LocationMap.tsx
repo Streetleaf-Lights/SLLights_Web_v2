@@ -3,6 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import { importLibrary, setOptions } from "@googlemaps/js-api-loader";
 
+declare global {
+  interface Window {
+    /** Google's own documented global callback for a Maps JS API auth failure. */
+    gm_authFailure?: () => void;
+  }
+}
+
 export interface MapPoint {
   lat: number;
   long: number;
@@ -18,6 +25,29 @@ let optionsSet = false;
 let librariesPromise: Promise<
   [google.maps.CoreLibrary, google.maps.MapsLibrary, google.maps.MarkerLibrary]
 > | null = null;
+
+/**
+ * gm_authFailure is Google's own documented global callback, invoked when
+ * the Maps JavaScript API loads successfully but then fails
+ * authentication — an invalid/restricted API key, billing not enabled on
+ * the Google Cloud project, or the Maps JavaScript API not enabled there.
+ * Without this, Google's own JS silently overlays "This page can't load
+ * Google Maps correctly" directly onto the map canvas — a developer-
+ * facing message, not something this app renders, and not something a
+ * .catch() on importLibrary() can detect (the library itself does load
+ * fine; it's the subsequent authentication check against Google's own
+ * servers that fails). Registering this callback lets every mounted
+ * LocationMap show its own existing error state instead. Only one such
+ * global function can be registered at a time, so this fans a single
+ * call out to every currently-mounted instance via a shared listener set,
+ * rather than each instance overwriting the others' registration.
+ */
+const authFailureListeners = new Set<() => void>();
+if (typeof window !== "undefined") {
+  window.gm_authFailure = () => {
+    for (const listener of authFailureListeners) listener();
+  };
+}
 
 function loadGoogleMapsLibraries(apiKey: string) {
   if (!optionsSet) {
@@ -75,6 +105,14 @@ export function LocationMap({
   // primitive to depend on instead; `points` itself is still read from the
   // closure inside the effect, which correctly reflects the same render.
   const pointsKey = points.map((point) => `${point.lat},${point.long}`).join(";");
+
+  useEffect(() => {
+    const onAuthFailure = () => setLoadError(true);
+    authFailureListeners.add(onAuthFailure);
+    return () => {
+      authFailureListeners.delete(onAuthFailure);
+    };
+  }, []);
 
   useEffect(() => {
     if (!apiKey || !mapId || points.length === 0 || !containerRef.current) return;
