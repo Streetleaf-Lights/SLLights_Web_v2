@@ -84,10 +84,11 @@ export interface Project {
  */
 /** A single reported issue for a pole, as returned within PoleVital.poleIssues. */
 export interface PoleIssue {
+  issueId: string;
   status: string;
   poleStatus: string;
   dateReported: string;
-  problemDetails: string;
+  problemDetails: string | null;
 }
 
 export interface PoleVital {

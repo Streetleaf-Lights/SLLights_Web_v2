@@ -2,6 +2,34 @@
 
 import { useState } from "react";
 import type { PoleIssue } from "@/lib/types";
+import { formatTimestamp } from "@/lib/text";
+
+/** Green for a resolved issue, red for an open one, neutral for anything else. */
+function issueStatusClassName(status: string): string {
+  const normalized = status.trim().toLowerCase();
+  if (normalized === "open") return "text-[var(--status-flagged)]";
+  if (normalized === "closed") return "text-[var(--status-active)]";
+  return "text-[var(--ink-muted)]";
+}
+
+/**
+ * The API sends dateReported as e.g. "2026-09-11 16:46:16.000 -04:00" — a
+ * space between date and time (needs to become "T" for Date to parse it
+ * at all), *and* another space between the fractional seconds and the
+ * offset, which Date's parser rejects outright (silently producing an
+ * Invalid Date, whose getTime() is NaN — and since comparing two NaNs in
+ * a sort comparator never reorders anything, every issue silently stayed
+ * in the API's own order instead of actually being sorted). Stripping
+ * that second space is the fix; the first replace still only touches the
+ * date/time separator, same as before.
+ */
+function parseDateReported(dateReported: string): number {
+  const isoLike = dateReported
+    .trim()
+    .replace(" ", "T")
+    .replace(/\s+([+-]\d{2}:\d{2}|Z)$/, "$1");
+  return new Date(isoLike).getTime();
+}
 
 /**
  * Link + modal shown under the pole detail page's Issue Entry card.
@@ -14,13 +42,17 @@ import type { PoleIssue } from "@/lib/types";
 export function PoleIssuesLink({ issues }: { issues: PoleIssue[] }) {
   const [isOpen, setIsOpen] = useState(false);
   const hasIssues = issues.length > 0;
+  // Latest first.
+  const sortedIssues = [...issues].sort(
+    (a, b) => parseDateReported(b.dateReported) - parseDateReported(a.dateReported),
+  );
 
   return (
     <>
       <button
         type="button"
         onClick={() => setIsOpen(true)}
-        className="mt-4 text-[12.5px] font-medium text-[var(--accent-ink)] hover:underline"
+        className="mt-4 cursor-pointer text-[12.5px] font-medium text-[var(--accent)] hover:underline"
       >
         {hasIssues ? "View or Report Issue" : "Report Issue"}
       </button>
@@ -46,22 +78,28 @@ export function PoleIssuesLink({ issues }: { issues: PoleIssue[] }) {
 
             {hasIssues ? (
               <ul className="mt-4 flex max-h-[50vh] flex-col gap-3 overflow-y-auto">
-                {issues.map((issue, index) => (
+                {sortedIssues.map((issue) => (
                   <li
-                    key={index}
+                    key={issue.issueId}
                     className="rounded-md border border-[var(--border)] p-3"
                   >
                     <div className="flex items-center justify-between gap-3">
-                      <span className="text-[13px] font-medium text-[var(--ink)]">
-                        {issue.poleStatus}
+                      <span className="text-[13px] font-semibold text-[var(--ink)]">
+                        {issue.issueId}
                       </span>
-                      <span className="text-[12px] text-[var(--ink-muted)]">{issue.status}</span>
+                      <span
+                        className={`text-[12px] font-medium ${issueStatusClassName(issue.status)}`}
+                      >
+                        {issue.status}
+                      </span>
                     </div>
-                    <p className="mt-1 text-[12.5px] text-[var(--ink-muted)]">
-                      {issue.problemDetails}
+                    <p className="mt-1 text-[12.5px] italic text-[var(--ink-muted)]">
+                      {issue.problemDetails
+                        ? `${issue.poleStatus}: ${issue.problemDetails}`
+                        : issue.poleStatus}
                     </p>
                     <p className="mt-1.5 text-[11px] text-[var(--ink-faint)]">
-                      Reported {issue.dateReported}
+                      Reported {formatTimestamp(issue.dateReported)}
                     </p>
                   </li>
                 ))}

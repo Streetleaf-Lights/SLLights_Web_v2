@@ -768,6 +768,7 @@ describe("PoleDetailPage", () => {
               ...vitals.projects[0].poles[0],
               poleIssues: [
                 {
+                  issueId: "ISS-100",
                   status: "Open",
                   poleStatus: "Electrical Issue",
                   dateReported: "2026-09-01",
@@ -789,8 +790,8 @@ describe("PoleDetailPage", () => {
     expect(screen.queryByRole("button", { name: "Report Issue" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "View or Report Issue" }));
 
-    expect(screen.getByText("Electrical Issue")).toBeInTheDocument();
-    expect(screen.getByText("Lamp flickering at night")).toBeInTheDocument();
+    expect(screen.getByText("ISS-100")).toBeInTheDocument();
+    expect(screen.getByText("Electrical Issue: Lamp flickering at night")).toBeInTheDocument();
   });
 
   it("shows 'Report Issue' when poleIssues is missing from the API response entirely, rather than crashing", async () => {
