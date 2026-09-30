@@ -434,7 +434,7 @@ export default async function PoleDetailPage({
                 guards against an older/inconsistent API response that
                 hasn't backfilled this field yet, despite the type saying
                 it's always present. */}
-            <PoleIssuesLink issues={pole.poleIssues ?? []} />
+            <PoleIssuesLink poleNumber={pole.poleNumber} issues={pole.poleIssues ?? []} />
           </StatusBox>
         </div>
       </div>

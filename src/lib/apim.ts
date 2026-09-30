@@ -834,3 +834,42 @@ export async function resetPassword(
   return body as ResetPasswordResult;
 }
 
+export interface CreatePoleIssueInput {
+  poleNumber: string;
+  /** The issue type — "Electrical Issue" or "Structural Issue" — not a resolution status; matches the shape APIM's own endpoint expects. */
+  status: string;
+  problemDetails: string;
+}
+
+/**
+ * POST /createPoleIssue — reports a new issue for a pole. The pole detail
+ * page's PoleIssuesLink calls this via /api/createpoleissue, then
+ * router.refresh()es so the newly created issue shows up in
+ * pole.poleIssues on the next server-fetched render, the same
+ * refresh-after-mutate pattern used throughout this app rather than
+ * constructing a synthetic issue object client-side.
+ */
+export async function createPoleIssue(input: CreatePoleIssueInput, token: string): Promise<void> {
+  if (!APIM_BASE_URL) {
+    throw new ApimError("NEXT_PUBLIC_APIM_BASE_URL is not configured. Set it in .env.local.");
+  }
+
+  const res = await fetch(`${APIM_BASE_URL}/createPoleIssue`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Ocp-Apim-Subscription-Key": APIM_SUBSCRIPTION_KEY,
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(input),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    const message =
+      body && typeof body.error === "string" ? body.error : "Failed to report the issue.";
+    throw new ApimError(message, res.status);
+  }
+}
+

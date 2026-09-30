@@ -1,8 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Customer, CustomerPoleVitals, LeadsunProject, Project } from "@/lib/types";
 import { formatTimestamp } from "@/lib/text";
+
+const { pushMock, refreshMock } = vi.hoisted(() => ({
+  pushMock: vi.fn(),
+  refreshMock: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: pushMock, refresh: refreshMock }),
+}));
 
 /**
  * A timestamp within the last 48h, formatted like the API's own
@@ -144,6 +153,9 @@ describe("PoleDetailPage", () => {
 
   afterEach(() => {
     vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    pushMock.mockClear();
+    refreshMock.mockClear();
   });
 
   it("renders the pole number as the heading", async () => {
@@ -791,7 +803,7 @@ describe("PoleDetailPage", () => {
     await user.click(screen.getByRole("button", { name: "View or Report Issue" }));
 
     expect(screen.getByText("ISS-100")).toBeInTheDocument();
-    expect(screen.getByText("Electrical Issue: Lamp flickering at night")).toBeInTheDocument();
+    expect(screen.getByText("Lamp flickering at night")).toBeInTheDocument();
   });
 
   it("shows 'Report Issue' when poleIssues is missing from the API response entirely, rather than crashing", async () => {
@@ -810,6 +822,42 @@ describe("PoleDetailPage", () => {
     render(jsx);
 
     expect(screen.getByRole("button", { name: "Report Issue" })).toBeInTheDocument();
+  });
+
+  it("reports a new issue end to end from the pole detail page, posting the real poleNumber", async () => {
+    getCustomerMock.mockResolvedValue(customer);
+    getProjectsForCustomerMock.mockResolvedValue(projects);
+    getPoleVitalsForCustomerMock.mockResolvedValue(vitals);
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ success: true }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const jsx = await PoleDetailPage({
+      params: Promise.resolve({ id: "r2", projectId: "p1", poleId: "pole1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "Report Issue" }));
+    const dialog = screen.getByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Report Issue" }));
+    expect(within(dialog).getByText("PAS-4938")).toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: "Structural Issue" }));
+    await user.type(screen.getByRole("textbox"), "Cracked base");
+    await user.click(screen.getByRole("button", { name: "Submit Issue" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("/api/createpoleissue");
+    expect(JSON.parse(init.body)).toEqual({
+      poleNumber: "PAS-4938",
+      status: "Structural Issue",
+      problemDetails: "Cracked base",
+    });
+    await waitFor(() => expect(refreshMock).toHaveBeenCalled());
   });
 
   it("shows Disconnected (not a dash) for 48h Connected when isOnline is null but lastUpdate is present, and dashes for the null fault flags", async () => {

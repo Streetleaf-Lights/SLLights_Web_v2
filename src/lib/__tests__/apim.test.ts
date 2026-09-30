@@ -3,6 +3,7 @@ import {
   ApimError,
   apimFetch,
   changeRole,
+  createPoleIssue,
   getCustomer,
   getCustomers,
   getPoleVitalsByPeriod,
@@ -1191,6 +1192,75 @@ describe("resendInvite", () => {
 
     await expect(resendInvite("user1", "jwt-token")).rejects.toMatchObject({
       message: "Resend invite failed.",
+      status: 500,
+    });
+  });
+});
+
+describe("createPoleIssue", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const input = {
+    poleNumber: "TESTSL1-1004",
+    status: "Electrical Issue",
+    problemDetails: "Testing pole issue creation",
+  };
+
+  it("sends poleNumber, status, and problemDetails as a JSON body, with the token as a Bearer Authorization header", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await createPoleIssue(input, "jwt-token");
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toMatch(/\/createPoleIssue$/);
+    expect(init.method).toBe("POST");
+    expect(init.headers.Authorization).toBe("Bearer jwt-token");
+    expect(JSON.parse(init.body)).toEqual(input);
+  });
+
+  it("does not request caching (this is a mutating call)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await createPoleIssue(input, "jwt-token");
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.cache).toBe("no-store");
+  });
+
+  it("resolves with no value on success", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
+
+    await expect(createPoleIssue(input, "jwt-token")).resolves.toBeUndefined();
+  });
+
+  it("throws an ApimError carrying the server's error message on failure", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+        json: async () => ({ error: "pole not found" }),
+      }),
+    );
+
+    await expect(createPoleIssue(input, "jwt-token")).rejects.toMatchObject({
+      message: "pole not found",
+      status: 404,
+    });
+  });
+
+  it("falls back to a generic message when the error body isn't the expected shape", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => null }),
+    );
+
+    await expect(createPoleIssue(input, "jwt-token")).rejects.toMatchObject({
+      message: "Failed to report the issue.",
       status: 500,
     });
   });
