@@ -36,6 +36,7 @@ export async function GET(request: NextRequest) {
       poleId,
       periodType: periodType as "Hour" | "Day",
       limit,
+      token: request.cookies.get("session")?.value,
     });
     return NextResponse.json(result);
   } catch (err) {

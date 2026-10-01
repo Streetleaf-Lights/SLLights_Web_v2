@@ -1,7 +1,9 @@
 import { Suspense } from "react";
 import { getCustomers } from "@/lib/apim";
+import { getSessionToken } from "@/lib/session";
 import { PageHeader } from "@/components/PageHeader";
 import { CustomersTable } from "@/components/CustomersTable";
+import { DebugLog } from "@/components/DebugLog";
 
 // Without this, switching apimFetch to a revalidate-based cache (instead of
 // no-store) makes Next.js treat this page as static-eligible and try to
@@ -11,10 +13,13 @@ import { CustomersTable } from "@/components/CustomersTable";
 export const dynamic = "force-dynamic";
 
 export default async function CustomersPage() {
-  const customers = await getCustomers({ active: true });
+  const token = await getSessionToken();
+  const customers = await getCustomers({ active: true }, token);
 
   return (
     <>
+      {/* Temporary — remove once you've seen what getCustomers returns. */}
+      <DebugLog label="getCustomers result" data={customers} />
       <PageHeader title="Customers" />
       <Suspense>
         <CustomersTable customers={customers} />

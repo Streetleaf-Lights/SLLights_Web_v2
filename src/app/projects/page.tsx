@@ -1,13 +1,13 @@
 import { getCustomer, getPoleVitalsForCustomer, getProjectsForCustomer } from "@/lib/apim";
-import { getSessionUser } from "@/lib/session";
+import { getSessionToken, getSessionUser } from "@/lib/session";
 import { CustomerOverview } from "@/components/CustomerOverview";
 
 export const dynamic = "force-dynamic";
 
 export default async function ProjectsPage() {
-  const sessionUser = await getSessionUser();
+  const [sessionUser, token] = await Promise.all([getSessionUser(), getSessionToken()]);
   const customerId = sessionUser?.customerId;
-  const customer = customerId ? await getCustomer(customerId) : undefined;
+  const customer = customerId ? await getCustomer(customerId, token) : undefined;
 
   if (!customer) {
     return (
@@ -18,8 +18,8 @@ export default async function ProjectsPage() {
   }
 
   const [projects, vitals] = await Promise.all([
-    getProjectsForCustomer(customer.id),
-    getPoleVitalsForCustomer(customer.id),
+    getProjectsForCustomer(customer.id, token),
+    getPoleVitalsForCustomer(customer.id, token),
   ]);
 
   return (

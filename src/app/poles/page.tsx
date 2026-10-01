@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { getCustomer, getPoles, getProjectsForCustomer } from "@/lib/apim";
-import { getSessionUser, isCustomerScoped } from "@/lib/session";
+import { getSessionToken, getSessionUser, isCustomerScoped } from "@/lib/session";
 import { isSilentPole } from "@/lib/text";
 import { PageHeader } from "@/components/PageHeader";
 import { PolesTable } from "@/components/PolesTable";
@@ -13,7 +13,7 @@ export default async function PolesPage({
   searchParams: Promise<{ customerId?: string; projectId?: string; faults?: string }>;
 }) {
   const { customerId, projectId, faults } = await searchParams;
-  const sessionUser = await getSessionUser();
+  const [sessionUser, token] = await Promise.all([getSessionUser(), getSessionToken()]);
   const customerScoped = isCustomerScoped(sessionUser?.role, sessionUser?.customerId);
 
   // Only set when arriving via a "Total faults" link — the per-project one
@@ -31,9 +31,9 @@ export default async function PolesPage({
 
   if (isFaultsRequest && customerId) {
     const [rawPoles, customer, projects] = await Promise.all([
-      projectId ? getPoles({ projectId }) : getPoles({ customerId }),
-      getCustomer(customerId),
-      getProjectsForCustomer(customerId),
+      projectId ? getPoles({ projectId }, token) : getPoles({ customerId }, token),
+      getCustomer(customerId, token),
+      getProjectsForCustomer(customerId, token),
     ]);
     // A pole that's never reported, or hasn't reported in 48h+, has no
     // reliable telemetry basis for its fault flag either (same reasoning
@@ -63,6 +63,7 @@ export default async function PolesPage({
     customerScoped && sessionUser?.customerId
       ? { customerId: sessionUser.customerId }
       : undefined,
+    token,
   );
 
   return (

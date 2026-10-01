@@ -2,13 +2,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import type { PoleSummary } from "@/lib/types";
 
-const { getPolesMock, getCustomerMock, getProjectsForCustomerMock, getSessionUserMock } =
-  vi.hoisted(() => ({
-    getPolesMock: vi.fn(),
-    getCustomerMock: vi.fn(),
-    getProjectsForCustomerMock: vi.fn(),
-    getSessionUserMock: vi.fn(),
-  }));
+const {
+  getPolesMock,
+  getCustomerMock,
+  getProjectsForCustomerMock,
+  getSessionUserMock,
+  getSessionTokenMock,
+} = vi.hoisted(() => ({
+  getPolesMock: vi.fn(),
+  getCustomerMock: vi.fn(),
+  getProjectsForCustomerMock: vi.fn(),
+  getSessionUserMock: vi.fn(),
+  getSessionTokenMock: vi.fn().mockResolvedValue("jwt-token"),
+}));
 
 vi.mock("@/lib/apim", () => ({
   getPoles: getPolesMock,
@@ -21,6 +27,7 @@ vi.mock("@/lib/session", async (importOriginal) => {
   return {
     ...actual,
     getSessionUser: getSessionUserMock,
+    getSessionToken: getSessionTokenMock,
   };
 });
 
@@ -141,7 +148,7 @@ describe("PolesPage", () => {
 
     await PolesPage({ searchParams: Promise.resolve({}) });
 
-    expect(getPolesMock).toHaveBeenCalledWith(undefined);
+    expect(getPolesMock).toHaveBeenCalledWith(undefined, "jwt-token");
   });
 
   it("shows no description text below the page title", async () => {
@@ -169,7 +176,7 @@ describe("PolesPage", () => {
 
     await PolesPage({ searchParams: Promise.resolve({}) });
 
-    expect(getPolesMock).toHaveBeenCalledWith(undefined);
+    expect(getPolesMock).toHaveBeenCalledWith(undefined, "jwt-token");
   });
 
   it("scopes poles to the Customer Admin's own customer", async () => {
@@ -182,7 +189,7 @@ describe("PolesPage", () => {
 
     await PolesPage({ searchParams: Promise.resolve({}) });
 
-    expect(getPolesMock).toHaveBeenCalledWith({ customerId: "rec5uaHZMOGZGyVcY" });
+    expect(getPolesMock).toHaveBeenCalledWith({ customerId: "rec5uaHZMOGZGyVcY" }, "jwt-token");
   });
 
   it("hides the 48h Connected column and shows 'Overall Status' (no '48h') for a Customer Admin", async () => {
@@ -228,7 +235,7 @@ describe("PolesPage", () => {
 
     await PolesPage({ searchParams: Promise.resolve({}) });
 
-    expect(getPolesMock).toHaveBeenCalledWith({ customerId: "rec5uaHZMOGZGyVcY" });
+    expect(getPolesMock).toHaveBeenCalledWith({ customerId: "rec5uaHZMOGZGyVcY" }, "jwt-token");
   });
 
   it("fetches all poles (no filter) for a 'Streetleaf User' (role User, no customerId) — same as a Streetleaf Admin", async () => {
@@ -241,7 +248,7 @@ describe("PolesPage", () => {
 
     await PolesPage({ searchParams: Promise.resolve({}) });
 
-    expect(getPolesMock).toHaveBeenCalledWith(undefined);
+    expect(getPolesMock).toHaveBeenCalledWith(undefined, "jwt-token");
   });
 
   it("does not show Customer/Project columns on a normal (non-faults) visit", async () => {
@@ -279,7 +286,7 @@ describe("PolesPage", () => {
       });
       render(jsx);
 
-      expect(getPolesMock).toHaveBeenCalledWith({ projectId: "proj-1" });
+      expect(getPolesMock).toHaveBeenCalledWith({ projectId: "proj-1" }, "jwt-token");
       expect(screen.getByText("51079-2000")).toBeInTheDocument(); // isPoleFault: true, poleIssues: [], reporting
       expect(screen.queryByText("51079-2001")).not.toBeInTheDocument(); // isPoleFault: false, poleIssues: []
       expect(screen.queryByText("51079-2002")).not.toBeInTheDocument(); // isPoleFault: null, poleIssues: []
@@ -301,7 +308,7 @@ describe("PolesPage", () => {
         searchParams: Promise.resolve({ customerId: "rec5uaHZMOGZGyVcY", faults: "1" }),
       });
 
-      expect(getPolesMock).toHaveBeenCalledWith({ customerId: "rec5uaHZMOGZGyVcY" });
+      expect(getPolesMock).toHaveBeenCalledWith({ customerId: "rec5uaHZMOGZGyVcY" }, "jwt-token");
     });
 
     it("shows both Customer and Project columns, with the resolved names, for a Streetleaf Admin", async () => {
@@ -373,7 +380,7 @@ describe("PolesPage", () => {
       // Falls through to the normal view: getPoles is called with the
       // viewer's OWN customerId, not the mismatched one from the URL, and
       // getCustomer/getProjectsForCustomer (faults-view-only) are never called.
-      expect(getPolesMock).toHaveBeenCalledWith({ customerId: "rec5uaHZMOGZGyVcY" });
+      expect(getPolesMock).toHaveBeenCalledWith({ customerId: "rec5uaHZMOGZGyVcY" }, "jwt-token");
       expect(getCustomerMock).not.toHaveBeenCalled();
       expect(getProjectsForCustomerMock).not.toHaveBeenCalled();
       expect(screen.queryByRole("columnheader", { name: "Customer" })).not.toBeInTheDocument();
@@ -396,7 +403,7 @@ describe("PolesPage", () => {
       });
       render(jsx);
 
-      expect(getPolesMock).toHaveBeenCalledWith(undefined);
+      expect(getPolesMock).toHaveBeenCalledWith(undefined, "jwt-token");
       expect(getCustomerMock).not.toHaveBeenCalled();
     });
   });

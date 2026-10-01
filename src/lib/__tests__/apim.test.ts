@@ -184,6 +184,36 @@ describe("apimFetch", () => {
     expect(init.next).toBeUndefined();
   });
 
+  it("includes the token as a Bearer Authorization header when provided", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => [] });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await apimFetch("/getCustomers", { token: "jwt-token" });
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.headers.Authorization).toBe("Bearer jwt-token");
+  });
+
+  it("omits the Authorization header entirely when no token is provided", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => [] });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await apimFetch("/getCustomers");
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.headers).not.toHaveProperty("Authorization");
+  });
+
+  it("also omits the Authorization header when token is explicitly null (not logged in)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => [] });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await apimFetch("/getCustomers", { token: null });
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.headers).not.toHaveProperty("Authorization");
+  });
+
   it("throws an ApimError when the response is not ok", async () => {
     vi.stubGlobal(
       "fetch",
@@ -839,6 +869,31 @@ describe("getPoleVitalsByPeriod", () => {
     expect(url).toContain("poleId=recAOlPiepBddUcCv");
     expect(url).toContain("periodType=Hour");
     expect(url).toContain("limit=48");
+  });
+
+  it("includes the token as a Bearer Authorization header when provided", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => successBody });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getPoleVitalsByPeriod({
+      poleId: "recAOlPiepBddUcCv",
+      periodType: "Hour",
+      limit: 48,
+      token: "jwt-token",
+    });
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.headers.Authorization).toBe("Bearer jwt-token");
+  });
+
+  it("omits the Authorization header entirely when no token is provided", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => successBody });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getPoleVitalsByPeriod({ poleId: "recAOlPiepBddUcCv", periodType: "Hour", limit: 48 });
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.headers).not.toHaveProperty("Authorization");
   });
 
   it("does not request caching bypass — this is a read, so it keeps the usual revalidate window", async () => {

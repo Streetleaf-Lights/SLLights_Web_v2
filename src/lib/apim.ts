@@ -67,7 +67,7 @@ export class ApimError extends Error {
  */
 export async function apimFetch<T>(
   path: string,
-  options?: { tags?: string[]; noStore?: boolean },
+  options?: { tags?: string[]; noStore?: boolean; token?: string | null },
 ): Promise<T> {
   if (!APIM_BASE_URL) {
     throw new ApimError(
@@ -80,6 +80,7 @@ export async function apimFetch<T>(
       headers: {
         "Content-Type": "application/json",
         "Ocp-Apim-Subscription-Key": APIM_SUBSCRIPTION_KEY,
+        ...(options?.token ? { Authorization: `Bearer ${options.token}` } : {}),
       },
       ...(options?.noStore
         ? { cache: "no-store" as const }
@@ -192,19 +193,26 @@ export interface CustomerFilters {
   active?: boolean;
 }
 
-export async function getCustomers(filters?: CustomerFilters): Promise<Customer[]> {
+export async function getCustomers(
+  filters?: CustomerFilters,
+  token?: string | null,
+): Promise<Customer[]> {
   const query = filters?.active !== undefined ? `?active=${filters.active}` : "";
-  const raw = await apimFetch<RawCustomer[]>(`/getCustomers${query}`);
+  const raw = await apimFetch<RawCustomer[]>(`/getCustomers${query}`, { token });
   return raw.map(normalizeCustomer);
 }
 
-export async function getCustomer(id: string): Promise<Customer | undefined> {
+export async function getCustomer(
+  id: string,
+  token?: string | null,
+): Promise<Customer | undefined> {
   return time(`getCustomer(${id})`, async () => {
     // /getCustomers accepts a customerId filter and returns just that record
     // as a single object (confirmed — not wrapped in an array), so we no
     // longer need to fetch and scan the full list for a lookup.
     const raw = await apimFetch<RawCustomer | null>(
       `/getCustomers?customerId=${encodeURIComponent(id)}`,
+      { token },
     );
     return raw ? normalizeCustomer(raw) : undefined;
   });
@@ -236,9 +244,13 @@ export function normalizeProject(raw: RawProject): Project {
   };
 }
 
-export async function getProjectsForCustomer(customerId: string): Promise<Project[]> {
+export async function getProjectsForCustomer(
+  customerId: string,
+  token?: string | null,
+): Promise<Project[]> {
   const raw = await apimFetch<RawProject[]>(
     `/getProjects?customerId=${encodeURIComponent(customerId)}`,
+    { token },
   );
   return raw.map(normalizeProject);
 }
@@ -263,10 +275,11 @@ export async function getProjectsForCustomer(customerId: string): Promise<Projec
  */
 export async function getPoleVitalsForCustomer(
   customerId: string,
+  token?: string | null,
 ): Promise<CustomerPoleVitals | undefined> {
   const raw = await apimFetch<CustomerPoleVitals | null>(
     `/getPoleVitals?customerId=${encodeURIComponent(customerId)}`,
-    { noStore: true },
+    { noStore: true, token },
   );
   return raw ?? undefined;
 }
@@ -305,10 +318,13 @@ function buildPoleQuery(filters?: PoleFilters & { summary?: boolean }): string {
  * 2MB Data Cache limit — so caching it would fail on every request anyway
  * (logged as a "Failed to set fetch cache" warning), with zero benefit.
  */
-export async function getPoles(filters?: PoleFilters): Promise<PoleSummary[]> {
+export async function getPoles(
+  filters?: PoleFilters,
+  token?: string | null,
+): Promise<PoleSummary[]> {
   const raw = await apimFetch<PoleSummary[]>(
     `/getPoles${buildPoleQuery({ ...filters, summary: true })}`,
-    { noStore: true },
+    { noStore: true, token },
   );
   return raw
     .slice()
@@ -328,10 +344,12 @@ export async function getPoleVitalsByPeriod({
   poleId,
   periodType,
   limit,
+  token,
 }: {
   poleId: string;
   periodType: PeriodType;
   limit: number;
+  token?: string | null;
 }): Promise<PoleVitalsByPeriod> {
   if (!APIM_BASE_URL) {
     throw new ApimError("NEXT_PUBLIC_APIM_BASE_URL is not configured. Set it in .env.local.");
@@ -339,7 +357,10 @@ export async function getPoleVitalsByPeriod({
 
   const query = new URLSearchParams({ poleId, periodType, limit: String(limit) });
   const res = await fetch(`${APIM_BASE_URL}/getPoleVitalsByPeriod?${query}`, {
-    headers: { "Ocp-Apim-Subscription-Key": APIM_SUBSCRIPTION_KEY },
+    headers: {
+      "Ocp-Apim-Subscription-Key": APIM_SUBSCRIPTION_KEY,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     next: { revalidate: APIM_CACHE_SECONDS },
   });
 
@@ -378,8 +399,8 @@ export async function getPoleVitalsByPeriod({
  * needed. Tagged "users" so /api/inviteuser can force-refresh this list
  * immediately after a successful invite (see revalidateTag call there).
  */
-export async function getUsers(): Promise<User[]> {
-  return apimFetch<User[]>("/getUsers", { tags: ["users"] });
+export async function getUsers(token?: string | null): Promise<User[]> {
+  return apimFetch<User[]>("/getUsers", { tags: ["users"], token });
 }
 
 /**

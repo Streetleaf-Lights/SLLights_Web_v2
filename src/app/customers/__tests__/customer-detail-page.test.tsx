@@ -2,13 +2,19 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import type { Customer, CustomerPoleVitals, Project } from "@/lib/types";
 
-const { getCustomerMock, getProjectsForCustomerMock, getPoleVitalsForCustomerMock, getSessionUserMock } =
-  vi.hoisted(() => ({
-    getCustomerMock: vi.fn(),
-    getProjectsForCustomerMock: vi.fn(),
-    getPoleVitalsForCustomerMock: vi.fn(),
-    getSessionUserMock: vi.fn(),
-  }));
+const {
+  getCustomerMock,
+  getProjectsForCustomerMock,
+  getPoleVitalsForCustomerMock,
+  getSessionUserMock,
+  getSessionTokenMock,
+} = vi.hoisted(() => ({
+  getCustomerMock: vi.fn(),
+  getProjectsForCustomerMock: vi.fn(),
+  getPoleVitalsForCustomerMock: vi.fn(),
+  getSessionUserMock: vi.fn(),
+  getSessionTokenMock: vi.fn().mockResolvedValue("jwt-token"),
+}));
 
 vi.mock("@/lib/apim", () => ({
   getCustomer: getCustomerMock,
@@ -21,6 +27,7 @@ vi.mock("@/lib/session", async (importOriginal) => {
   return {
     ...actual,
     getSessionUser: getSessionUserMock,
+    getSessionToken: getSessionTokenMock,
   };
 });
 

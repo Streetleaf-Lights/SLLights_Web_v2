@@ -28,13 +28,19 @@ function recentTimestamp(hoursAgo = 1): string {
 const RECENT_LAST_UPDATE = recentTimestamp(1);
 const RECENT_LAST_UPDATE_DISPLAY = formatTimestamp(RECENT_LAST_UPDATE);
 
-const { getCustomerMock, getProjectsForCustomerMock, getPoleVitalsForCustomerMock, getSessionUserMock } =
-  vi.hoisted(() => ({
-    getCustomerMock: vi.fn(),
-    getProjectsForCustomerMock: vi.fn(),
-    getPoleVitalsForCustomerMock: vi.fn(),
-    getSessionUserMock: vi.fn(),
-  }));
+const {
+  getCustomerMock,
+  getProjectsForCustomerMock,
+  getPoleVitalsForCustomerMock,
+  getSessionUserMock,
+  getSessionTokenMock,
+} = vi.hoisted(() => ({
+  getCustomerMock: vi.fn(),
+  getProjectsForCustomerMock: vi.fn(),
+  getPoleVitalsForCustomerMock: vi.fn(),
+  getSessionUserMock: vi.fn(),
+  getSessionTokenMock: vi.fn().mockResolvedValue("jwt-token"),
+}));
 
 vi.mock("@/lib/apim", () => ({
   getCustomer: getCustomerMock,
@@ -47,6 +53,7 @@ vi.mock("@/lib/session", async (importOriginal) => {
   return {
     ...actual,
     getSessionUser: getSessionUserMock,
+    getSessionToken: getSessionTokenMock,
   };
 });
 

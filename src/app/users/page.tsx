@@ -1,5 +1,5 @@
 import { getCustomer, getCustomers, getUsers } from "@/lib/apim";
-import { getSessionUser } from "@/lib/session";
+import { getSessionToken, getSessionUser } from "@/lib/session";
 import { isCustomerScoped } from "@/lib/auth-role";
 import { PageHeader } from "@/components/PageHeader";
 import { Toolbar } from "@/components/Toolbar";
@@ -9,7 +9,7 @@ import { InviteUserModal } from "@/components/InviteUserModal";
 export const dynamic = "force-dynamic";
 
 export default async function UsersPage() {
-  const sessionUser = await getSessionUser();
+  const [sessionUser, token] = await Promise.all([getSessionUser(), getSessionToken()]);
   const isCustomerAdmin = sessionUser?.role === "Customer Admin";
   const isCustomerOwner = sessionUser?.role === "Customer Owner";
   const isStreetleafAdmin = sessionUser?.role === "Streetleaf Admin";
@@ -46,10 +46,12 @@ export default async function UsersPage() {
   // modal's search results — no reason to invite someone into a
   // customer that's no longer active.
   const [allUsers, customers, ownCustomer] = await Promise.all([
-    getUsers(),
-    isCustomerAdmin || isCustomerOwner ? Promise.resolve([]) : getCustomers({ active: true }),
+    getUsers(token),
+    isCustomerAdmin || isCustomerOwner
+      ? Promise.resolve([])
+      : getCustomers({ active: true }, token),
     (isCustomerAdmin || isCustomerOwner) && sessionUser?.customerId
-      ? getCustomer(sessionUser.customerId)
+      ? getCustomer(sessionUser.customerId, token)
       : Promise.resolve(undefined),
   ]);
 

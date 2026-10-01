@@ -3,12 +3,14 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { User } from "@/lib/types";
 
-const { getUsersMock, getCustomersMock, getCustomerMock, getSessionUserMock } = vi.hoisted(() => ({
-  getUsersMock: vi.fn(),
-  getCustomersMock: vi.fn(),
-  getCustomerMock: vi.fn(),
-  getSessionUserMock: vi.fn(),
-}));
+const { getUsersMock, getCustomersMock, getCustomerMock, getSessionUserMock, getSessionTokenMock } =
+  vi.hoisted(() => ({
+    getUsersMock: vi.fn(),
+    getCustomersMock: vi.fn(),
+    getCustomerMock: vi.fn(),
+    getSessionUserMock: vi.fn(),
+    getSessionTokenMock: vi.fn().mockResolvedValue("jwt-token"),
+  }));
 
 vi.mock("@/lib/apim", () => ({
   getUsers: getUsersMock,
@@ -18,6 +20,7 @@ vi.mock("@/lib/apim", () => ({
 
 vi.mock("@/lib/session", () => ({
   getSessionUser: getSessionUserMock,
+  getSessionToken: getSessionTokenMock,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -119,7 +122,7 @@ describe("UsersPage", () => {
     expect(screen.getByText("Jane Doe")).toBeInTheDocument();
     expect(screen.getByText("Sam Lee")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Invite user" })).toBeInTheDocument();
-    expect(getCustomersMock).toHaveBeenCalledWith({ active: true });
+    expect(getCustomersMock).toHaveBeenCalledWith({ active: true }, "jwt-token");
   });
 
   it("scopes the user list to the Customer Admin's own customer", async () => {
@@ -263,7 +266,7 @@ describe("UsersPage", () => {
     expect(screen.getByRole("button", { name: "Invite user" })).toBeInTheDocument();
     // Locked to their own customer — getCustomer (not getCustomers, the
     // full browsable list) is what supplies it.
-    expect(getCustomerMock).toHaveBeenCalledWith("rec5uaHZMOGZGyVcY");
+    expect(getCustomerMock).toHaveBeenCalledWith("rec5uaHZMOGZGyVcY", "jwt-token");
     expect(getCustomersMock).not.toHaveBeenCalled();
   });
 
@@ -376,7 +379,7 @@ describe("UsersPage", () => {
 
     // Locked to their own customer, same as a Customer Admin.
     expect(screen.getByRole("button", { name: "Invite user" })).toBeInTheDocument();
-    expect(getCustomerMock).toHaveBeenCalledWith("rec5uaHZMOGZGyVcY");
+    expect(getCustomerMock).toHaveBeenCalledWith("rec5uaHZMOGZGyVcY", "jwt-token");
     expect(getCustomersMock).not.toHaveBeenCalled();
 
     // Can manage users — Actions column present.

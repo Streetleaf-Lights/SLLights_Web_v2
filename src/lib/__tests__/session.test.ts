@@ -6,7 +6,13 @@ vi.mock("next/headers", () => ({
   cookies: cookiesMock,
 }));
 
-import { decodeSessionToken, getSessionUser, homeRouteForRole, isCustomerScoped } from "@/lib/session";
+import {
+  decodeSessionToken,
+  getSessionToken,
+  getSessionUser,
+  homeRouteForRole,
+  isCustomerScoped,
+} from "@/lib/session";
 import { getSecondsUntilExpiry } from "@/lib/auth-role";
 
 function encodePayload(payload: Record<string, unknown>): string {
@@ -78,6 +84,31 @@ describe("getSessionUser", () => {
     mockCookieValue(fakeJwt({ role: "Customer Admin" }));
 
     expect(await getSessionUser()).toBeNull();
+  });
+});
+
+describe("getSessionToken", () => {
+  it("returns null when there is no session cookie", async () => {
+    mockCookieValue(undefined);
+
+    expect(await getSessionToken()).toBeNull();
+  });
+
+  it("returns the raw JWT string as-is, without decoding it", async () => {
+    const token = fakeJwt({
+      sub: "1445C5D1-37C2-43CF-9F82-6223F425B265",
+      role: "Customer Admin",
+      customerId: "rec5uaHZMOGZGyVcY",
+    });
+    mockCookieValue(token);
+
+    expect(await getSessionToken()).toBe(token);
+  });
+
+  it("returns the raw value even for a malformed token — it isn't validated here, just read", async () => {
+    mockCookieValue("not-a-real-jwt");
+
+    expect(await getSessionToken()).toBe("not-a-real-jwt");
   });
 });
 

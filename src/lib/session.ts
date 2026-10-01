@@ -11,3 +11,15 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   if (!token) return null;
   return decodeSessionToken(token);
 }
+
+/**
+ * The raw session JWT (Server Components / Route Handlers only) — for
+ * passing to an apim.ts function that sends it on as a Bearer token.
+ * getSessionUser() intentionally returns only the *decoded* claims, not
+ * this; most callers just need to know who's logged in, and shouldn't be
+ * handed the raw token unless they're actually about to forward it.
+ */
+export async function getSessionToken(): Promise<string | null> {
+  const cookieStore = await cookies();
+  return cookieStore.get("session")?.value ?? null;
+}

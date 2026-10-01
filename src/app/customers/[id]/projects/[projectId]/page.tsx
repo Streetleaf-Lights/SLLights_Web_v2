@@ -8,7 +8,7 @@ import { LocationMap } from "@/components/LocationMap";
 import { RemoteControlLink } from "@/components/RemoteControlLink";
 import { InactiveBadge } from "@/components/InactiveBadge";
 import { withQueryParam, withSearchContext } from "@/lib/url";
-import { getSessionUser, isCustomerScoped } from "@/lib/session";
+import { getSessionToken, getSessionUser, isCustomerScoped } from "@/lib/session";
 import { hasLeadsunProducts } from "@/lib/leadsun";
 
 export default async function ProjectDetailPage({
@@ -20,10 +20,11 @@ export default async function ProjectDetailPage({
 }) {
   const { id, projectId } = await params;
   const { cust_q, pole_q } = await searchParams;
+  const token = await getSessionToken();
   const [customer, projects, vitals, sessionUser] = await Promise.all([
-    getCustomer(id),
-    getProjectsForCustomer(id),
-    getPoleVitalsForCustomer(id),
+    getCustomer(id, token),
+    getProjectsForCustomer(id, token),
+    getPoleVitalsForCustomer(id, token),
     getSessionUser(),
   ]);
   const project = projects.find((p) => p.id === projectId);

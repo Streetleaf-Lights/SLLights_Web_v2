@@ -17,7 +17,7 @@ import {
   overallStatusTextWeightClassName,
 } from "@/lib/text";
 import { findLeadsunProduct } from "@/lib/leadsun";
-import { getSessionUser, isCustomerScoped } from "@/lib/session";
+import { getSessionToken, getSessionUser, isCustomerScoped } from "@/lib/session";
 
 function formatCoordinate(value: number | null | undefined): string {
   return value === null || value === undefined ? "—" : String(value);
@@ -156,10 +156,11 @@ export default async function PoleDetailPage({
 }) {
   const { id, projectId, poleId } = await params;
   const { cust_q, pole_q } = await searchParams;
+  const token = await getSessionToken();
   const [customer, projects, vitals, sessionUser] = await Promise.all([
-    getCustomer(id),
-    getProjectsForCustomer(id),
-    getPoleVitalsForCustomer(id),
+    getCustomer(id, token),
+    getProjectsForCustomer(id, token),
+    getPoleVitalsForCustomer(id, token),
     getSessionUser(),
   ]);
   const project = projects.find((p) => p.id === projectId);

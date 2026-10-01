@@ -2,13 +2,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import type { Customer, CustomerPoleVitals, Project } from "@/lib/types";
 
-const { getCustomerMock, getProjectsForCustomerMock, getPoleVitalsForCustomerMock, getSessionUserMock } =
-  vi.hoisted(() => ({
-    getCustomerMock: vi.fn(),
-    getProjectsForCustomerMock: vi.fn(),
-    getPoleVitalsForCustomerMock: vi.fn(),
-    getSessionUserMock: vi.fn(),
-  }));
+const {
+  getCustomerMock,
+  getProjectsForCustomerMock,
+  getPoleVitalsForCustomerMock,
+  getSessionUserMock,
+  getSessionTokenMock,
+} = vi.hoisted(() => ({
+  getCustomerMock: vi.fn(),
+  getProjectsForCustomerMock: vi.fn(),
+  getPoleVitalsForCustomerMock: vi.fn(),
+  getSessionUserMock: vi.fn(),
+  getSessionTokenMock: vi.fn().mockResolvedValue("jwt-token"),
+}));
 
 vi.mock("@/lib/apim", () => ({
   getCustomer: getCustomerMock,
@@ -18,6 +24,7 @@ vi.mock("@/lib/apim", () => ({
 
 vi.mock("@/lib/session", () => ({
   getSessionUser: getSessionUserMock,
+  getSessionToken: getSessionTokenMock,
 }));
 
 import ProjectsPage from "@/app/projects/page";
@@ -84,9 +91,9 @@ describe("ProjectsPage", () => {
 
     await ProjectsPage();
 
-    expect(getCustomerMock).toHaveBeenCalledWith("rec5uaHZMOGZGyVcY");
-    expect(getProjectsForCustomerMock).toHaveBeenCalledWith("rec5uaHZMOGZGyVcY");
-    expect(getPoleVitalsForCustomerMock).toHaveBeenCalledWith("rec5uaHZMOGZGyVcY");
+    expect(getCustomerMock).toHaveBeenCalledWith("rec5uaHZMOGZGyVcY", "jwt-token");
+    expect(getProjectsForCustomerMock).toHaveBeenCalledWith("rec5uaHZMOGZGyVcY", "jwt-token");
+    expect(getPoleVitalsForCustomerMock).toHaveBeenCalledWith("rec5uaHZMOGZGyVcY", "jwt-token");
   });
 
   it("works the same for a 'Customer User' (role User, with a customerId) — this page was never role-gated, just customerId-driven", async () => {
@@ -102,7 +109,7 @@ describe("ProjectsPage", () => {
     const jsx = await ProjectsPage();
     render(jsx);
 
-    expect(getCustomerMock).toHaveBeenCalledWith("rec5uaHZMOGZGyVcY");
+    expect(getCustomerMock).toHaveBeenCalledWith("rec5uaHZMOGZGyVcY", "jwt-token");
     expect(screen.getByText("Coastal Power & Light")).toBeInTheDocument();
   });
 
